@@ -1036,7 +1036,7 @@ function jrcDeriveSystemLinks() {
     pendingLinks: {
       trialScheduleCandidates: admissions.filter((lead) => lead.status === "已预约试听"),
       enrolledStudentCandidates: admissions.filter((lead) => lead.status === "定金 / 已报名" || lead.enrolledAmount > 0),
-      financeAttributionCandidates: admissions.filter((lead) => lead.enrolledAmount > 0),
+      financeAttributionCandidates: admissions.filter((lead) => lead.enrolledAmount > 0 && lead.requiresFinance !== false && !["程老师班课", "科学班课"].includes(String(lead.courseProduct || "").trim())),
       preimportScheduleSessions: schedules.filter((row) => row.source === "Excel已上传排课"),
       preimportFinanceExpenses: preimportFinance.expenses,
       preimportReconciliationIssues: preimportFinance.issues

@@ -1772,11 +1772,18 @@
         return leads.filter((lead) => String(lead?.status || "") === "定金 / 已报名" || Number(lead?.enrolledAmount || 0) > 0);
       }
 
+      function admissionLeadRequiresPaike(lead) {
+        if (!lead) return false;
+        if (lead.requiresPaike === false) return false;
+        if (["程老师班课", "科学班课"].includes(String(lead.courseProduct || "").trim())) return false;
+        return true;
+      }
+
       function pendingAdmissionScheduleRows() {
         const scheduledNames = scheduleStudentNameSet();
         return enrolledAdmissionLeads().filter((lead) => {
           const name = normalizePersonName(lead.studentName || lead.name);
-          return name && !scheduledNames.has(name);
+          return name && admissionLeadRequiresPaike(lead) && !scheduledNames.has(name);
         });
       }
 
@@ -2908,6 +2915,13 @@
         renderStatus({ reviewRows: safeReviewRows, regularEntries, scheduleSessions });
         renderDataSourceStatus({ regularEntries, scheduleSessions });
         renderPreview({ regularEntries, scheduleSessions });
+        const params = new URLSearchParams(window.location.search || "");
+        if (params.get("from") === "admissions") {
+          window.setTimeout(() => {
+            byId("admissionSchedulePanel")?.scrollIntoView({ block: "start", behavior: "smooth" });
+            setTeacherSheetMessage(`${params.get("student") || "招生报名学生"} 已从招生系统带入。先在“招生报名待排课”里确认，再按老师课表和教室表安排。`);
+          }, 80);
+        }
       }
 
       document.querySelectorAll("[data-paike-view]").forEach((button) => {

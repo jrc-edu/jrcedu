@@ -407,6 +407,13 @@
     return leads.filter((lead) => lead?.status === "定金 / 已报名" || Number(lead?.enrolledAmount || 0) > 0);
   }
 
+  function admissionLeadRequiresPaike(lead) {
+    if (!lead) return false;
+    if (lead.requiresPaike === false) return false;
+    if (["程老师班课", "科学班课"].includes(String(lead.courseProduct || "").trim())) return false;
+    return true;
+  }
+
   function scheduleStudentNameSet(scheduleRows) {
     const names = new Set();
     (Array.isArray(scheduleRows) ? scheduleRows : []).forEach((row) => {
@@ -422,7 +429,7 @@
     const scheduleNames = scheduleStudentNameSet(scheduleRows);
     const unscheduledLeads = enrolled.filter((lead) => {
       const name = normalizePersonName(lead.studentName);
-      return name && !scheduleNames.has(name);
+      return name && admissionLeadRequiresPaike(lead) && !scheduleNames.has(name);
     });
     const todayScheduleRows = scheduleRows.filter((row) => row.date === today);
     const attendanceKeys = new Set((Array.isArray(attendanceSessions) ? attendanceSessions : []).map(attendanceSessionKey).filter(Boolean));

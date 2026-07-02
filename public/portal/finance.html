@@ -3103,8 +3103,10 @@
         if (!body) return;
         const derived = window.JRC_DATA_FOUNDATION?.deriveSystemLinks?.();
         const period = getPeriod();
+        const isAdmissionFinanceExcluded = (row) => row?.requiresFinance === false || ["程老师班课", "科学班课"].includes(String(row?.courseProduct || "").trim());
         const confirmedIds = new Set((period.admissionReceipts || []).map((item) => item.sourceId || item.id).filter(Boolean));
         const rows = (derived?.pendingLinks?.financeAttributionCandidates || [])
+          .filter((row) => !isAdmissionFinanceExcluded(row))
           .filter((row) => !currentPeriod || row.period === currentPeriod || !row.period)
           .sort((left, right) => String(right.enrolledAmount || 0).localeCompare(String(left.enrolledAmount || 0)));
         if (!rows.length) {
