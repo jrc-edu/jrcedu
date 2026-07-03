@@ -16,6 +16,39 @@ const DEFAULT_CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Goog
 const LOGIN_HINTS = ["扫码登录", "微信扫码", "登录", "验证码", "安全验证", "请验证", "重新登录"];
 const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录)$/i;
 const INVALID_VIDEO_URL_RE = /^(javascript:|mailto:|tel:|#)|developers\.weixin\.qq\.com|tencent\.com\/?$|weixin\.qq\.com\/cgi-bin\/readtemplate/i;
+const GENERIC_VIDEO_CARD_SELECTOR = [
+  "article",
+  "li",
+  "tr",
+  "[role='listitem']",
+  "[class*='video']",
+  "[class*='Video']",
+  "[class*='post']",
+  "[class*='Post']",
+  "[class*='work']",
+  "[class*='Work']",
+  "[class*='card']",
+  "[class*='Card']",
+  "[class*='item']",
+  "[class*='Item']"
+].join(",");
+const METRIC_LABELS = {
+  views: ["播放量", "播放次数", "播放", "观看量", "观看", "浏览量", "浏览", "阅读量", "阅读"],
+  likes: ["点赞量", "点赞数", "点赞", "喜欢"],
+  comments: ["评论量", "评论数", "评论"],
+  favorites: ["收藏量", "收藏数", "收藏"],
+  shares: ["转发量", "分享量", "转发", "分享"],
+  impressions: ["曝光量", "展现量", "推荐曝光", "曝光", "展现"],
+  clickThroughRate: ["点击率", "封面点击率", "播放点击率"],
+  completeRate: ["完播率", "播放完成率", "完成率"],
+  threeSecondRetention: ["3秒留存", "三秒留存", "3 秒留存"],
+  fiveSecondRetention: ["5秒留存", "五秒留存", "5 秒留存"],
+  avgWatchSeconds: ["平均播放时长", "平均观看时长", "人均观看时长", "平均观看"],
+  videoDurationSeconds: ["视频时长", "作品时长", "时长"],
+  profileVisits: ["主页访问", "主页访客", "主页浏览", "主页点击"],
+  messages: ["私信", "咨询", "消息"],
+  leads: ["线索", "有效咨询", "留资", "表单"]
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -41,6 +74,7 @@ function hashText(value) {
 function parseNumber(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   const raw = String(value ?? "").replace(/,/g, "").trim();
+  const lower = raw.toLowerCase();
   if (!raw) return 0;
   const match = raw.match(/-?\d+(?:\.\d+)?/);
   if (!match) return 0;
@@ -48,6 +82,8 @@ function parseNumber(value) {
   if (!Number.isFinite(base)) return 0;
   if (raw.includes("亿")) return Math.max(0, Math.round(base * 100000000));
   if (raw.includes("万")) return Math.max(0, Math.round(base * 10000));
+  if (lower.includes("w")) return Math.max(0, Math.round(base * 10000));
+  if (lower.includes("k")) return Math.max(0, Math.round(base * 1000));
   if (raw.includes("%")) return Math.max(0, base / 100);
   return Math.max(0, base);
 }
@@ -275,13 +311,53 @@ function extractTitleFromText(text, fallback = "") {
     .split(/\n|\r| {2,}/)
     .map(normalizeText)
     .filter((line) => line.length >= 5 && line.length <= 80)
-    .filter((line) => !/登录|首页|消息|设置|数据|管理|创作者|发布|扫码/.test(line));
+    .filter((line) => !/登录|首页|消息|设置|数据|管理|创作者|发布|扫码|播放量|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存/.test(line));
   return lines[0] || fallback;
 }
 
 function extractPublishedAt(text) {
-  const match = String(text || "").match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日)?(?:\s+\d{1,2}:\d{2})?/);
-  return match ? match[0].replace(/年|月/g, "-").replace(/日/g, "") : "";
+  const raw = String(text || "");
+  const full = raw.match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日)?(?:\s+\d{1,2}:\d{2})?/);
+  if (full) return full[0].replace(/年|月/g, "-").replace(/日/g, "");
+  const year = new Date().getFullYear();
+  const monthDay = raw.match(/(?:^|\D)(\d{1,2})[-/.月](\d{1,2})(?:日)?(?:\s+(\d{1,2}:\d{2}))?/);
+  if (monthDay) return `${year}-${String(monthDay[1]).padStart(2, "0")}-${String(monthDay[2]).padStart(2, "0")}${monthDay[3] ? ` ${monthDay[3]}` : ""}`;
+  const today = raw.match(/今天\s*(\d{1,2}:\d{2})?/);
+  if (today) return `${new Date().toISOString().slice(0, 10)}${today[1] ? ` ${today[1]}` : ""}`;
+  const yesterday = raw.match(/昨天\s*(\d{1,2}:\d{2})?/);
+  if (yesterday) {
+    const date = new Date(Date.now() - 24 * 3600 * 1000);
+    return `${date.toISOString().slice(0, 10)}${yesterday[1] ? ` ${yesterday[1]}` : ""}`;
+  }
+  return "";
+}
+
+function extractDurationSeconds(text) {
+  const raw = String(text || "");
+  const clock = raw.match(/(?:^|\D)(\d{1,2}):(\d{2})(?=\D|$)/);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  return valueAfterLabels(raw, METRIC_LABELS.videoDurationSeconds);
+}
+
+function extractMetricsFromText(text) {
+  const raw = String(text || "");
+  return {
+    views: valueAfterLabels(raw, METRIC_LABELS.views),
+    likes: valueAfterLabels(raw, METRIC_LABELS.likes),
+    comments: valueAfterLabels(raw, METRIC_LABELS.comments),
+    favorites: valueAfterLabels(raw, METRIC_LABELS.favorites),
+    shares: valueAfterLabels(raw, METRIC_LABELS.shares),
+    impressions: valueAfterLabels(raw, METRIC_LABELS.impressions),
+    clickThroughRate: valueAfterLabels(raw, METRIC_LABELS.clickThroughRate),
+    completeRate: valueAfterLabels(raw, METRIC_LABELS.completeRate),
+    threeSecondRetention: valueAfterLabels(raw, METRIC_LABELS.threeSecondRetention),
+    fiveSecondRetention: valueAfterLabels(raw, METRIC_LABELS.fiveSecondRetention),
+    avgWatchSeconds: valueAfterLabels(raw, METRIC_LABELS.avgWatchSeconds),
+    videoDurationSeconds: extractDurationSeconds(raw),
+    profileVisits: valueAfterLabels(raw, METRIC_LABELS.profileVisits),
+    messages: valueAfterLabels(raw, METRIC_LABELS.messages),
+    leads: valueAfterLabels(raw, METRIC_LABELS.leads)
+  };
 }
 
 function extractTopic(text, fallback = "") {
@@ -292,7 +368,7 @@ function extractTopic(text, fallback = "") {
 }
 
 function hasVideoMetricText(text) {
-  return /\d/.test(String(text || "")) && /播放|观看|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存|发布时间|发布于|作品数据|视频数据/.test(String(text || ""));
+  return /\d/.test(String(text || "")) && /播放|观看|浏览|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存|点击率|发布时间|发布于|作品数据|视频数据/.test(String(text || ""));
 }
 
 function isNavigableHttpUrl(url) {
@@ -313,8 +389,53 @@ function isLikelyVideoCard(card = {}) {
   if (title && INVALID_VIDEO_TITLE_RE.test(title)) return false;
   if (url && INVALID_VIDEO_URL_RE.test(url)) return false;
   if (hasVideoMetricText(text)) return true;
+  if (extractPublishedAt(text) && title.length >= 4) return true;
   if (looksLikeVideoUrl(url) && title.length >= 4) return true;
   return false;
+}
+
+function cardQuality(card = {}) {
+  const text = normalizeText(card.text);
+  let score = 0;
+  if (hasVideoMetricText(text)) score += 5;
+  if (looksLikeVideoUrl(card.url)) score += 4;
+  if (extractPublishedAt(text)) score += 2;
+  if (normalizeText(card.title).length >= 6) score += 2;
+  if (text.length > 850) score -= 3;
+  if (text.length > 1300) score -= 6;
+  return score;
+}
+
+function normalizeVideoCard(card = {}) {
+  const rawText = String(card.rawText || card.text || "");
+  const text = normalizeText(rawText);
+  const title = normalizeText(card.title) || extractTitleFromText(rawText || text, "");
+  return {
+    ...card,
+    title: title.slice(0, 100),
+    text,
+    rawText,
+    url: normalizeText(card.url)
+  };
+}
+
+function dedupeCards(cards, maxVideos) {
+  const map = new Map();
+  cards
+    .map(normalizeVideoCard)
+    .filter(isLikelyVideoCard)
+    .forEach((card) => {
+      const key = card.url && !INVALID_VIDEO_URL_RE.test(card.url)
+        ? card.url.split("#")[0]
+        : `${card.title}|${hashText(card.text.slice(0, 180))}`;
+      const existing = map.get(key);
+      if (!existing || cardQuality(card) > cardQuality(existing) || (card.text.length < existing.text.length && cardQuality(card) >= cardQuality(existing))) {
+        map.set(key, card);
+      }
+    });
+  return [...map.values()]
+    .sort((left, right) => (right.priority || 0) - (left.priority || 0) || cardQuality(right) - cardQuality(left))
+    .slice(0, maxVideos);
 }
 
 function hasSnapshotMetrics(snapshot = {}) {
@@ -393,41 +514,54 @@ async function collectVideoCards(page, account, config) {
       return {
         title: pick(selectors.title) || node.textContent?.trim()?.split(/\n/)[0] || "",
         url: linkNode?.href || "",
-        text: node.textContent || ""
+        text: node.textContent || "",
+        rawText: node.innerText || node.textContent || "",
+        priority: 10
       };
     }), listSelectors).catch(() => []);
-    return cards
-      .map((item) => ({
-        ...item,
-        title: normalizeText(item.title).slice(0, 100),
-        text: normalizeText(item.text)
-      }))
-      .filter(isLikelyVideoCard)
-      .slice(0, maxVideos);
+    return dedupeCards(cards, maxVideos);
   }
 
   const anchors = await page.locator("a[href]").evaluateAll((nodes) => nodes.map((node) => ({
     title: (node.textContent || "").trim(),
     url: node.href || "",
-    text: (node.closest("li,article,div")?.textContent || node.textContent || "").trim()
+    text: (node.closest("li,article,tr,[role='listitem']")?.textContent || node.closest("div")?.textContent || node.textContent || "").trim(),
+    rawText: (node.closest("li,article,tr,[role='listitem']")?.innerText || node.closest("div")?.innerText || node.textContent || "").trim(),
+    priority: 4
   }))).catch(() => []);
-  const seen = new Set();
-  return anchors
-    .map((item) => ({
+  const genericCards = [];
+  const locator = page.locator(GENERIC_VIDEO_CARD_SELECTOR);
+  const count = Math.min(await locator.count().catch(() => 0), 220);
+  for (let index = 0; index < count; index += 1) {
+    const item = await locator.nth(index).evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden" || rect.width < 80 || rect.height < 28) return null;
+      const rawText = node.innerText || node.textContent || "";
+      const linkNode = node.querySelector("a[href]");
+      const imgNode = node.querySelector("img[alt]");
+      return {
+        title: imgNode?.alt || rawText.split(/\n|\r/).find((line) => line.trim().length >= 4) || "",
+        url: linkNode?.href || "",
+        text: rawText,
+        rawText,
+        width: rect.width,
+        height: rect.height
+      };
+    }).catch(() => null);
+    if (!item) continue;
+    const normalized = normalizeVideoCard({
       ...item,
-      title: normalizeText(item.title).slice(0, 100),
-      text: normalizeText(item.text)
-    }))
-    .filter((item) => item.url && item.title.length >= 4)
-    .filter((item) => !/登录|首页|消息|设置|创作|发布|帮助|反馈/.test(item.title))
-    .filter(isLikelyVideoCard)
-    .filter((item) => {
-      const key = item.url.split("#")[0];
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, maxVideos);
+      cardSelector: GENERIC_VIDEO_CARD_SELECTOR,
+      cardIndex: index,
+      priority: 1
+    });
+    if (normalized.text.length < 8 || normalized.text.length > 1500) continue;
+    if (!hasVideoMetricText(normalized.text) && !looksLikeVideoUrl(normalized.url) && !extractPublishedAt(normalized.text)) continue;
+    if (/登录|扫码|验证码|帮助中心|官方文档|运营规范/.test(normalized.title)) continue;
+    genericCards.push(normalized);
+  }
+  return dedupeCards([...anchors, ...genericCards], maxVideos);
 }
 
 async function extractVideoSnapshot(page, account, card, config) {
@@ -449,21 +583,21 @@ async function extractVideoSnapshot(page, account, card, config) {
     topic: extractTopic(text, account.defaultTopic || ""),
     publishedAt: await readSelector(page, selectors.publishedAt) || extractPublishedAt(text),
     capturedAt: nowIso(),
-    views: selectors.views ? await readSelectorNumber(page, selectors.views) : valueAfterLabels(text, ["播放量", "播放", "观看", "浏览"]),
-    likes: selectors.likes ? await readSelectorNumber(page, selectors.likes) : valueAfterLabels(text, ["点赞量", "点赞"]),
-    comments: selectors.comments ? await readSelectorNumber(page, selectors.comments) : valueAfterLabels(text, ["评论量", "评论"]),
-    favorites: selectors.favorites ? await readSelectorNumber(page, selectors.favorites) : valueAfterLabels(text, ["收藏量", "收藏"]),
-    shares: selectors.shares ? await readSelectorNumber(page, selectors.shares) : valueAfterLabels(text, ["转发", "分享"]),
-    impressions: selectors.impressions ? await readSelectorNumber(page, selectors.impressions) : valueAfterLabels(text, ["曝光", "展现", "推荐曝光"]),
-    clickThroughRate: selectors.clickThroughRate ? await readSelectorNumber(page, selectors.clickThroughRate) : valueAfterLabels(text, ["点击率", "封面点击率"]),
-    completeRate: selectors.completeRate ? await readSelectorNumber(page, selectors.completeRate) : valueAfterLabels(text, ["完播率", "播放完成率"]),
-    threeSecondRetention: selectors.threeSecondRetention ? await readSelectorNumber(page, selectors.threeSecondRetention) : valueAfterLabels(text, ["3秒留存", "三秒留存"]),
-    fiveSecondRetention: selectors.fiveSecondRetention ? await readSelectorNumber(page, selectors.fiveSecondRetention) : valueAfterLabels(text, ["5秒留存", "五秒留存"]),
-    avgWatchSeconds: selectors.avgWatchSeconds ? await readSelectorNumber(page, selectors.avgWatchSeconds) : valueAfterLabels(text, ["平均播放时长", "平均观看时长"]),
-    videoDurationSeconds: selectors.videoDurationSeconds ? await readSelectorNumber(page, selectors.videoDurationSeconds) : valueAfterLabels(text, ["视频时长", "时长"]),
-    profileVisits: selectors.profileVisits ? await readSelectorNumber(page, selectors.profileVisits) : valueAfterLabels(text, ["主页访问", "主页浏览"]),
-    messages: selectors.messages ? await readSelectorNumber(page, selectors.messages) : valueAfterLabels(text, ["私信", "咨询"]),
-    leads: selectors.leads ? await readSelectorNumber(page, selectors.leads) : valueAfterLabels(text, ["线索", "有效咨询", "留资"]),
+    views: selectors.views ? await readSelectorNumber(page, selectors.views) : valueAfterLabels(text, METRIC_LABELS.views),
+    likes: selectors.likes ? await readSelectorNumber(page, selectors.likes) : valueAfterLabels(text, METRIC_LABELS.likes),
+    comments: selectors.comments ? await readSelectorNumber(page, selectors.comments) : valueAfterLabels(text, METRIC_LABELS.comments),
+    favorites: selectors.favorites ? await readSelectorNumber(page, selectors.favorites) : valueAfterLabels(text, METRIC_LABELS.favorites),
+    shares: selectors.shares ? await readSelectorNumber(page, selectors.shares) : valueAfterLabels(text, METRIC_LABELS.shares),
+    impressions: selectors.impressions ? await readSelectorNumber(page, selectors.impressions) : valueAfterLabels(text, METRIC_LABELS.impressions),
+    clickThroughRate: selectors.clickThroughRate ? await readSelectorNumber(page, selectors.clickThroughRate) : valueAfterLabels(text, METRIC_LABELS.clickThroughRate),
+    completeRate: selectors.completeRate ? await readSelectorNumber(page, selectors.completeRate) : valueAfterLabels(text, METRIC_LABELS.completeRate),
+    threeSecondRetention: selectors.threeSecondRetention ? await readSelectorNumber(page, selectors.threeSecondRetention) : valueAfterLabels(text, METRIC_LABELS.threeSecondRetention),
+    fiveSecondRetention: selectors.fiveSecondRetention ? await readSelectorNumber(page, selectors.fiveSecondRetention) : valueAfterLabels(text, METRIC_LABELS.fiveSecondRetention),
+    avgWatchSeconds: selectors.avgWatchSeconds ? await readSelectorNumber(page, selectors.avgWatchSeconds) : valueAfterLabels(text, METRIC_LABELS.avgWatchSeconds),
+    videoDurationSeconds: selectors.videoDurationSeconds ? await readSelectorNumber(page, selectors.videoDurationSeconds) : extractDurationSeconds(text),
+    profileVisits: selectors.profileVisits ? await readSelectorNumber(page, selectors.profileVisits) : valueAfterLabels(text, METRIC_LABELS.profileVisits),
+    messages: selectors.messages ? await readSelectorNumber(page, selectors.messages) : valueAfterLabels(text, METRIC_LABELS.messages),
+    leads: selectors.leads ? await readSelectorNumber(page, selectors.leads) : valueAfterLabels(text, METRIC_LABELS.leads),
     followersGained: selectors.followersGained ? await readSelectorNumber(page, selectors.followersGained) : valueAfterLabels(text, ["涨粉", "新增粉丝"]),
     platformAdvice,
     notes: "",
@@ -474,7 +608,8 @@ async function extractVideoSnapshot(page, account, card, config) {
 }
 
 function extractSnapshotFromCard(account, card) {
-  const text = card.text || card.title || "";
+  const text = card.rawText || card.text || card.title || "";
+  const metrics = extractMetricsFromText(text);
   const snapshot = {
     platform: account.platform,
     accountType: account.accountType || "自有账号",
@@ -486,16 +621,82 @@ function extractSnapshotFromCard(account, card) {
     topic: extractTopic(text, account.defaultTopic || ""),
     publishedAt: extractPublishedAt(text),
     capturedAt: nowIso(),
-    views: valueAfterLabels(text, ["播放量", "播放", "观看", "浏览"]),
-    likes: valueAfterLabels(text, ["点赞量", "点赞"]),
-    comments: valueAfterLabels(text, ["评论量", "评论"]),
-    favorites: valueAfterLabels(text, ["收藏量", "收藏"]),
-    shares: valueAfterLabels(text, ["转发", "分享"]),
+    ...metrics,
     platformAdvice: "",
     source: "playwright-agent-list"
   };
   snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
   return snapshot;
+}
+
+function mergeSnapshotData(primary, fallback) {
+  const base = fallback || {};
+  const detail = primary || {};
+  const merged = { ...base, ...detail };
+  [
+    "title",
+    "url",
+    "topic",
+    "publishedAt",
+    "platformAdvice",
+    "notes",
+    "source"
+  ].forEach((key) => {
+    if (!normalizeText(merged[key]) && normalizeText(base[key])) merged[key] = base[key];
+  });
+  [
+    "views",
+    "likes",
+    "comments",
+    "favorites",
+    "shares",
+    "impressions",
+    "clickThroughRate",
+    "completeRate",
+    "threeSecondRetention",
+    "fiveSecondRetention",
+    "avgWatchSeconds",
+    "videoDurationSeconds",
+    "profileVisits",
+    "messages",
+    "leads",
+    "followersGained"
+  ].forEach((key) => {
+    if (!Number(merged[key]) && Number(base[key])) merged[key] = base[key];
+  });
+  merged.source = [detail.source, base.source].filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index).join("+") || "playwright-agent";
+  merged.id = `snapshot-${hashText([merged.platform, merged.accountName, merged.videoId || merged.url || merged.title, merged.capturedAt].join("|"))}`;
+  return merged;
+}
+
+async function clickCardForSnapshot(page, account, card, config) {
+  if (!card.cardSelector || !Number.isInteger(card.cardIndex)) return null;
+  const locator = page.locator(card.cardSelector).nth(card.cardIndex);
+  const beforeUrl = page.url();
+  let popup = null;
+  try {
+    await locator.scrollIntoViewIfNeeded({ timeout: 4000 });
+    await randomDelay(config);
+    const popupPromise = page.waitForEvent("popup", { timeout: 5000 }).catch(() => null);
+    await locator.click({ timeout: 6500 });
+    popup = await popupPromise;
+    const targetPage = popup || page;
+    await targetPage.waitForLoadState("domcontentloaded", { timeout: 12000 }).catch(() => {});
+    await targetPage.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
+    await randomDelay(config);
+    return await extractVideoSnapshot(targetPage, account, card, config);
+  } finally {
+    if (popup) {
+      await popup.close().catch(() => {});
+    } else {
+      await page.keyboard.press("Escape").catch(() => {});
+      if (page.url() !== beforeUrl) {
+        await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(async () => {
+          await gotoSafe(page, account.videoListUrl, config).catch(() => {});
+        });
+      }
+    }
+  }
 }
 
 async function collectAccount(context, account, config) {
@@ -524,29 +725,35 @@ async function collectAccount(context, account, config) {
       }
       const cards = await collectVideoCards(page, account, config);
       if (!cards.length) {
-        warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要为该平台补充 selectors，或后台列表当前没有展示视频数据。`);
+        const screenshot = await saveEvidence(page, config, `${account.name}-video-list-no-cards`);
+        warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要补充 selectors，或后台列表当前没有展示视频数据。截图：${screenshot}`);
       }
       for (const card of cards) {
-        if (!isNavigableHttpUrl(card.url)) {
-          const snapshot = extractSnapshotFromCard(account, card);
-          if (isUsefulSnapshot(snapshot)) snapshots.push(snapshot);
-          continue;
-        }
-        const detailPage = await context.newPage();
-        try {
-          await gotoSafe(detailPage, card.url, config);
-          const snapshot = await extractVideoSnapshot(detailPage, account, card, config);
-          if (isUsefulSnapshot(snapshot)) {
-            snapshots.push(snapshot);
-          } else {
-            warnings.push(`${account.platform}｜${account.name} 已跳过无有效数据的视频候选：${card.title || card.url}`);
+        const listSnapshot = extractSnapshotFromCard(account, card);
+        let snapshot = isUsefulSnapshot(listSnapshot) ? listSnapshot : null;
+        if (isNavigableHttpUrl(card.url)) {
+          const detailPage = await context.newPage();
+          try {
+            await gotoSafe(detailPage, card.url, config);
+            const detailSnapshot = await extractVideoSnapshot(detailPage, account, card, config);
+            snapshot = mergeSnapshotData(detailSnapshot, listSnapshot);
+          } catch (error) {
+            warnings.push(`${account.platform}｜${account.name} 视频详情采集失败，已保留列表数据：${card.title || card.url}｜${error.message}`);
+          } finally {
+            await detailPage.close().catch(() => {});
           }
-        } catch (error) {
-          warnings.push(`${account.platform}｜${account.name} 视频详情采集失败：${card.title || card.url}｜${error.message}`);
-          const snapshot = extractSnapshotFromCard(account, card);
-          if (isUsefulSnapshot(snapshot)) snapshots.push(snapshot);
-        } finally {
-          await detailPage.close().catch(() => {});
+        } else if (card.cardSelector && Number.isInteger(card.cardIndex)) {
+          try {
+            const clickSnapshot = await clickCardForSnapshot(page, account, card, config);
+            if (clickSnapshot) snapshot = mergeSnapshotData(clickSnapshot, listSnapshot);
+          } catch (error) {
+            warnings.push(`${account.platform}｜${account.name} 点击作品卡片详情失败，已保留列表数据：${card.title || card.url}｜${error.message}`);
+          }
+        }
+        if (snapshot && isUsefulSnapshot(snapshot)) {
+          snapshots.push(snapshot);
+        } else {
+          warnings.push(`${account.platform}｜${account.name} 已跳过无有效数据的视频候选：${card.title || card.url}`);
         }
       }
     }

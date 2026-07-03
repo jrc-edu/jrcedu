@@ -411,6 +411,16 @@
         return raw.replace("T", " ").slice(0, 16);
       }
 
+      function sourceLabel(value) {
+        const raw = normalizeText(value);
+        if (!raw) return "来源待确认";
+        if (raw.includes("+") && raw.includes("playwright-agent") && raw.includes("list")) return "机器人列表+详情";
+        if (raw.includes("playwright-agent-list")) return "机器人列表采集";
+        if (raw.includes("playwright-agent")) return "机器人详情采集";
+        if (raw.includes("manual")) return "人工导入";
+        return raw;
+      }
+
       function readLocalState() {
         const parsed = safeParse(localStorage.getItem(STORE_KEY), {});
         return normalizeState(parsed);
@@ -1098,7 +1108,7 @@
                     ${row.topic ? `<span class="badge">${escapeHtml(row.topic)}</span>` : ""}
                   </div>
                   <div class="video-title" style="margin-top:8px;">${escapeHtml(row.title || row.videoId || "未命名视频")}</div>
-                  <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜${escapeHtml(diagnosis.historyText)}</div>
+                  <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜${escapeHtml(sourceLabel(row.source))}｜${escapeHtml(diagnosis.historyText)}</div>
                 </div>
                 <div class="score ${diagnosis.tone === "danger" ? "danger" : diagnosis.tone === "warn" ? "warn" : ""}">
                   ${diagnosis.score}<small>诊断分</small>
