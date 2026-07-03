@@ -17,6 +17,11 @@
     "minDelayMs": 900,
     "maxDelayMs": 2200
   },
+  "benchmarks": {
+    "enabled": true,
+    "source": "data/video_benchmark_accounts.json",
+    "note": "公开标杆账号库只作为对比背景和账号清单，不自动采集未授权后台数据。"
+  },
   "accounts": [
     {
       "platform": "抖音",

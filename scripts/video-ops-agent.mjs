@@ -5,14 +5,18 @@ import os from "node:os";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
+const SCRIPT_FILE = fileURLToPath(import.meta.url);
+const REPO_ROOT = path.resolve(path.dirname(SCRIPT_FILE), "..");
 const DEFAULT_STORE_KEY = "jrc-video-ops-monitor-v1";
 const DEFAULT_MODULE_KEY = "videoOps";
 const DEFAULT_DATA_DIR = path.join(os.homedir(), "Documents", "JRC-Video-Ops-Agent");
 const DEFAULT_PROFILE_DIR = path.join(os.homedir(), "Library", "Application Support", "JRC Video Ops Agent", "ChromeProfile");
 const DEFAULT_CONFIG_PATH = path.join(DEFAULT_DATA_DIR, "config.json");
 const DEFAULT_CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const DEFAULT_BENCHMARK_ACCOUNTS_PATH = path.join(REPO_ROOT, "data", "video_benchmark_accounts.json");
 const LOGIN_HINTS = ["扫码登录", "微信扫码", "登录", "验证码", "安全验证", "请验证", "重新登录"];
 const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录)$/i;
 const INVALID_VIDEO_URL_RE = /^(javascript:|mailto:|tel:|#)|developers\.weixin\.qq\.com|tencent\.com\/?$|weixin\.qq\.com\/cgi-bin\/readtemplate/i;
@@ -162,6 +166,11 @@ function defaultConfig() {
       minDelayMs: 900,
       maxDelayMs: 2200
     },
+    benchmarks: {
+      enabled: true,
+      source: DEFAULT_BENCHMARK_ACCOUNTS_PATH,
+      note: "公开标杆账号库只作为对比背景和账号清单，不自动采集未授权后台数据。"
+    },
     accounts: [
       {
         platform: "抖音",
@@ -207,21 +216,68 @@ function defaultConfig() {
   };
 }
 
+function accountConfigKey(row = {}) {
+  return [
+    normalizeText(row.platform),
+    normalizeText(row.name || row.accountName || row.nickname),
+    normalizeText(row.accountType || "自有账号")
+  ].join("|");
+}
+
+function resolveBenchmarkPath(source) {
+  const raw = normalizeText(source);
+  if (!raw) return DEFAULT_BENCHMARK_ACCOUNTS_PATH;
+  return path.isAbsolute(raw) ? raw : path.resolve(REPO_ROOT, raw);
+}
+
+async function loadBenchmarkAccounts(benchmarks = {}) {
+  if (benchmarks.enabled === false) return [];
+  const filePath = resolveBenchmarkPath(benchmarks.source || DEFAULT_BENCHMARK_ACCOUNTS_PATH);
+  const rows = await readJson(filePath, []);
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row && row.enabled !== false)
+    .map((row) => ({
+      ...row,
+      platform: row.platform || "抖音",
+      accountType: row.accountType || "同行账号",
+      owner: row.owner || "公开标杆",
+      defaultTopic: row.defaultTopic || "数学教育",
+      collectionEnabled: row.collectionEnabled === true,
+      note: row.note || "公开标杆账号库；抖音账号已收录，视频号待平台内确认后补充。"
+    }))
+    .filter((row) => row.name);
+}
+
+function mergeAccountConfigs(primaryAccounts = [], benchmarkAccounts = []) {
+  const map = new Map();
+  [...benchmarkAccounts, ...primaryAccounts].forEach((account) => {
+    const key = accountConfigKey(account);
+    if (!key.replace(/\|/g, "")) return;
+    map.set(key, { ...(map.get(key) || {}), ...account });
+  });
+  return [...map.values()];
+}
+
 async function loadConfig(configPath) {
+  const defaults = defaultConfig();
   const exists = await pathExists(configPath);
   if (!exists) {
-    const config = defaultConfig();
+    const config = defaults;
     await writeJson(configPath, config);
-    return config;
+    const benchmarkAccounts = await loadBenchmarkAccounts(config.benchmarks);
+    return { ...config, accounts: mergeAccountConfigs(config.accounts, benchmarkAccounts) };
   }
   const userConfig = await readJson(configPath, {});
-  return {
-    ...defaultConfig(),
+  const config = {
+    ...defaults,
     ...userConfig,
-    limits: { ...defaultConfig().limits, ...(userConfig.limits || {}) },
-    operator: { ...defaultConfig().operator, ...(userConfig.operator || {}) },
-    accounts: Array.isArray(userConfig.accounts) ? userConfig.accounts : defaultConfig().accounts
+    limits: { ...defaults.limits, ...(userConfig.limits || {}) },
+    operator: { ...defaults.operator, ...(userConfig.operator || {}) },
+    benchmarks: { ...defaults.benchmarks, ...(userConfig.benchmarks || {}) },
+    accounts: Array.isArray(userConfig.accounts) ? userConfig.accounts : defaults.accounts
   };
+  const benchmarkAccounts = await loadBenchmarkAccounts(config.benchmarks);
+  return { ...config, accounts: mergeAccountConfigs(config.accounts, benchmarkAccounts) };
 }
 
 function applyRuntimeOptions(config, options = {}) {
@@ -843,7 +899,19 @@ function normalizeAccountsForPayload(config) {
       owner: account.owner || "",
       weeklyTarget: account.weeklyTarget || 0,
       url: account.dashboardUrl || account.url || "",
-      note: account.note || "Mac mini Playwright 自动巡检"
+      note: account.note || (account.accountType === "同行账号" ? "公开标杆账号库，待补充公开作品样本。" : "Mac mini Playwright 自动巡检"),
+      douyinId: account.douyinId || "",
+      douyinFollowersWan: account.douyinFollowersWan || 0,
+      douyinLikesWan: account.douyinLikesWan || 0,
+      benchmarkKind: account.benchmarkKind || "",
+      defaultTopic: account.defaultTopic || "",
+      gradeFocus: account.gradeFocus || "",
+      source: account.source || "",
+      wechatVideoName: account.wechatVideoName || "",
+      wechatVideoId: account.wechatVideoId || "",
+      wechatVideoStatus: account.wechatVideoStatus || "",
+      wechatVideoSearchKeyword: account.wechatVideoSearchKeyword || "",
+      collectionEnabled: account.collectionEnabled !== false
     }))
     .filter((account) => account.platform && account.name);
 }
@@ -851,7 +919,10 @@ function normalizeAccountsForPayload(config) {
 async function collect(configPath, runtimeOptions = {}) {
   const config = applyRuntimeOptions(await loadConfig(configPath), runtimeOptions);
   await ensureDir(config.dataDir || DEFAULT_DATA_DIR);
-  const enabledAccounts = (config.accounts || []).filter((account) => account.enabled !== false);
+  const enabledAccounts = (config.accounts || [])
+    .filter((account) => account.enabled !== false)
+    .filter((account) => account.collectionEnabled !== false)
+    .filter((account) => account.dashboardUrl || account.videoListUrl);
   const runId = `video-run-${Date.now().toString(36)}`;
   const startedAt = nowIso();
   let completedPhases = 0;
@@ -1092,7 +1163,7 @@ async function login(configPath) {
   const context = await openContext(config);
   try {
     for (const account of config.accounts || []) {
-      if (account.enabled === false || !account.dashboardUrl) continue;
+      if (account.enabled === false || account.collectionEnabled === false || !account.dashboardUrl) continue;
       const page = await context.newPage();
       console.log(`打开 ${account.platform}｜${account.name}`);
       await gotoSafe(page, account.dashboardUrl, config);

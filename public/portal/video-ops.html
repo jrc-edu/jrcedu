@@ -140,6 +140,13 @@
       .benchmark-card { padding: 15px; border-radius: 16px; border: 1px solid var(--line); background: #fff; }
       .benchmark-card strong { display: block; font-size: 15px; }
       .benchmark-card p { margin-top: 7px; font-size: 13px; line-height: 1.7; }
+      .benchmark-library { margin-top: 14px; padding: 15px; border-radius: 18px; border: 1px solid rgba(13,148,136,0.16); background: rgba(13,148,136,0.07); }
+      .benchmark-library-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+      .benchmark-library-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+      .benchmark-account { padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+      .benchmark-account strong { display: block; font-size: 14px; }
+      .benchmark-account span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+      .muted { color: var(--muted); }
       .account-audit-layout { display: grid; grid-template-columns: minmax(0, 0.75fr) minmax(360px, 1.25fr); gap: 16px; margin-top: 16px; }
       .empty { padding: 18px; border-radius: 16px; border: 1px dashed rgba(100,116,139,0.35); color: var(--muted); background: rgba(255,255,255,0.62); line-height: 1.7; }
       details.panel > summary { cursor: pointer; list-style: none; font-weight: 900; color: var(--ink); }
@@ -153,6 +160,8 @@
         .account-audit-layout { grid-template-columns: 1fr; }
         .audit-columns { grid-template-columns: 1fr; }
         .benchmark-grid { grid-template-columns: 1fr; }
+        .benchmark-library-head { flex-direction: column; }
+        .benchmark-library-list { grid-template-columns: 1fr; }
         .strategy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -285,6 +294,7 @@
           <span class="badge">培优/奥数/补弱｜升学节点｜本地家长</span>
         </div>
         <p style="margin-top:8px;">这里专门按中国大陆一到九年级数学校外培训来判断，不简单套用娱乐号或海外平台逻辑。同行公开账号只采公开数据，用来做标题、选题、开头、教学证明力、本地家长信任和咨询承接的对比。</p>
+        <div class="benchmark-library" id="benchmarkLibraryPanel"></div>
         <div class="benchmark-grid" id="industryBenchmarkGrid"></div>
       </section>
 
@@ -452,10 +462,16 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
+      const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
+        "/jrcedu/data/video_benchmark_accounts.json",
+        "/data/video_benchmark_accounts.json"
+      ];
       const byId = (id) => document.getElementById(id);
       const currentEmployee = window.JRC_CURRENT_EMPLOYEE || {};
       let state = readLocalState();
       let editingAccountId = "";
+      let benchmarkLibrary = [];
+      let benchmarkLibraryLoaded = false;
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -694,6 +710,18 @@
           weeklyTarget: parseNumber(row.weeklyTarget || row.targetWeekly || row.target),
           url: normalizeText(row.url || row.homepage || row.backendUrl),
           note: normalizeText(row.note),
+          douyinId: normalizeText(row.douyinId || row.douyinAccount || row["抖音号"]),
+          douyinFollowersWan: parseNumber(row.douyinFollowersWan ?? row.followersWan ?? row["粉丝万"]),
+          douyinLikesWan: parseNumber(row.douyinLikesWan ?? row.likesWan ?? row["点赞万"]),
+          benchmarkKind: normalizeText(row.benchmarkKind || row["标杆类型"]),
+          defaultTopic: normalizeText(row.defaultTopic || row.topic || row["内容方向"]),
+          gradeFocus: normalizeText(row.gradeFocus || row["适用方向"]),
+          source: normalizeText(row.source || row["来源"]),
+          wechatVideoName: normalizeText(row.wechatVideoName || row.channelsName || row["视频号名称"]),
+          wechatVideoId: normalizeText(row.wechatVideoId || row.channelsId || row["视频号ID"]),
+          wechatVideoStatus: normalizeText(row.wechatVideoStatus || row.channelsStatus || row["视频号状态"]),
+          wechatVideoSearchKeyword: normalizeText(row.wechatVideoSearchKeyword || row.channelsSearchKeyword || row["视频号检索词"]),
+          collectionEnabled: row.collectionEnabled !== false,
           createdAt: normalizeText(row.createdAt) || new Date().toISOString(),
           updatedAt: normalizeText(row.updatedAt) || new Date().toISOString()
         };
@@ -872,6 +900,74 @@
           warnings,
           updatedAt: new Date().toISOString()
         });
+      }
+
+      function benchmarkAccountsFromState() {
+        return state.accounts
+          .filter((row) => row.accountType === "同行账号")
+          .filter((row) => row.benchmarkKind || row.douyinId || row.source === "截图2026-07-03")
+          .sort((left, right) => (right.douyinFollowersWan || 0) - (left.douyinFollowersWan || 0));
+      }
+
+      function benchmarkStats(rows = benchmarkAccountsFromState()) {
+        const total = rows.length;
+        const douyinReady = rows.filter((row) => row.douyinId).length;
+        const wechatConfirmed = rows.filter((row) => row.wechatVideoStatus === "已确认" && (row.wechatVideoName || row.wechatVideoId)).length;
+        const wechatPending = rows.filter((row) => row.wechatVideoStatus !== "已确认").length;
+        const followersWan = rows.reduce((sum, row) => sum + (Number(row.douyinFollowersWan) || 0), 0);
+        return { total, douyinReady, wechatConfirmed, wechatPending, followersWan };
+      }
+
+      async function fetchBenchmarkLibrary() {
+        if (benchmarkLibraryLoaded) return benchmarkLibrary;
+        for (const url of BENCHMARK_ACCOUNT_LIBRARY_URLS) {
+          try {
+            const response = await fetch(url, { cache: "no-store" });
+            if (!response.ok) continue;
+            const rows = await response.json();
+            benchmarkLibrary = normalizeAccounts(Array.isArray(rows) ? rows : []);
+            benchmarkLibraryLoaded = true;
+            return benchmarkLibrary;
+          } catch {
+            // Try the next static path.
+          }
+        }
+        benchmarkLibraryLoaded = true;
+        benchmarkLibrary = [];
+        return benchmarkLibrary;
+      }
+
+      async function loadBenchmarkAccountLibrary(options = {}) {
+        const rows = await fetchBenchmarkLibrary();
+        if (!rows.length) {
+          renderBenchmarkLibrary();
+          return;
+        }
+        const before = new Set(state.accounts.map((row) => accountKey(row)));
+        const missing = rows.filter((row) => !before.has(accountKey(row)));
+        if (missing.length) {
+          state = mergeState(state, { accounts: rows });
+          if (options.persist !== false) {
+            saveState(`已接入 ${rows.length} 个抖音数学标杆账号；视频号账号先标记为待匹配。`);
+          } else {
+            renderAll();
+          }
+        } else {
+          renderAll();
+        }
+      }
+
+      function benchmarkLibraryText() {
+        const rows = benchmarkAccountsFromState();
+        if (!rows.length) return "暂无标杆账号库。";
+        return rows.map((row, index) => [
+          `${index + 1}. ${row.name}`,
+          `抖音号：${row.douyinId || "待补"}`,
+          `粉丝：${row.douyinFollowersWan ? `${row.douyinFollowersWan}万` : "待补"}`,
+          `获赞：${row.douyinLikesWan ? `${row.douyinLikesWan}万` : "待补"}`,
+          `方向：${row.gradeFocus || row.defaultTopic || "数学教育"}`,
+          `视频号：${row.wechatVideoStatus === "已确认" ? (row.wechatVideoName || row.wechatVideoId || "已确认") : "待匹配"}`
+        ].join("｜")).join("\n");
       }
 
       function saveState(message = "已保存。") {
@@ -1397,6 +1493,7 @@
         const latest = latestSnapshots();
         const ownRows = latest.filter((row) => row.accountType !== "同行账号");
         const peerRows = latest.filter((row) => row.accountType === "同行账号");
+        const peerAccountCount = benchmarkAccountsFromState().length || state.accounts.filter((row) => row.accountType === "同行账号").length;
         const audits = latestAccountAudits();
         const withCoreMetrics = latest.filter((row) => row.views || row.likes || row.comments || row.favorites || row.shares || row.impressions);
         const withRetention = latest.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds);
@@ -1427,7 +1524,8 @@
         if (ownCount < 20) gaps.push(`自有视频样本只有 ${ownCount} 条，建议先补到 20 条以上再定账号方向。`);
         if (withRetention.length < Math.min(8, Math.max(ownCount, 1))) gaps.push("留存/完播数据偏少，暂时难判断开头和节奏。");
         if (withConversion.length < Math.min(5, Math.max(ownCount, 1))) gaps.push("主页访问、私信、线索数据偏少，暂时难判断播放是否能带来咨询。");
-        if (peerCount < 10) gaps.push("同行公开样本偏少，暂时不能做扎实标杆对比。");
+        if (!peerAccountCount) gaps.push("还没有同行标杆账号库，暂时不能组织对标学习。");
+        if (peerAccountCount && peerCount < 10) gaps.push(`已接入 ${peerAccountCount} 个同行标杆账号，但公开视频样本只有 ${peerCount} 条，暂时不能做扎实播放对比。`);
         const commands = [];
         if (status.status === "running") {
           commands.push("当前采集器正在运行，先等本轮结束再看结论。");
@@ -1446,6 +1544,7 @@
           total,
           ownCount,
           peerCount,
+          peerAccountCount,
           auditsCount: audits.length,
           withCoreMetrics: withCoreMetrics.length,
           withRetention: withRetention.length,
@@ -1482,10 +1581,16 @@
             note: profile.withConversion ? "用于判断播放到咨询" : "缺主页/私信/线索数据"
           },
           {
+            tone: profile.peerAccountCount >= 10 ? "good" : profile.peerAccountCount ? "warn" : "danger",
+            label: "标杆账号库",
+            value: `${profile.peerAccountCount} 个`,
+            note: profile.peerAccountCount >= 10 ? "账号库已成型" : "建议先导入标杆账号"
+          },
+          {
             tone: profile.peerCount >= 10 ? "good" : profile.peerCount ? "warn" : "danger",
-            label: "同行公开样本",
+            label: "同行作品样本",
             value: `${profile.peerCount} 条`,
-            note: profile.peerCount >= 10 ? "可以做标杆对比" : "建议补 5-10 个同行号"
+            note: profile.peerCount >= 10 ? "可以做播放对比" : "还需补公开作品数据"
           }
         ];
         byId("dataReadinessGrid").innerHTML = cards.map((card) => `
@@ -1567,6 +1672,7 @@
           instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。数据不足处必须明说，不要编造。",
           dataReadiness: readiness,
           accounts: state.accounts,
+          benchmarkAccounts: benchmarkAccountsFromState(),
           latestAccountAudits: latestAccountAudits(),
           selectedVideos: selectedVideosForAi().map(conciseVideoForAi),
           executiveSummary: executiveCards(),
@@ -1749,19 +1855,72 @@
         };
       }
 
+      function renderBenchmarkLibrary() {
+        const box = byId("benchmarkLibraryPanel");
+        if (!box) return;
+        const rows = benchmarkAccountsFromState();
+        const stats = benchmarkStats(rows);
+        if (!rows.length) {
+          box.innerHTML = `
+            <div class="benchmark-library-head">
+              <div>
+                <h3>百万粉丝数学标杆账号库</h3>
+                <p style="margin-top:6px;">还没有加载截图里的标杆账号。可点击右侧按钮从系统内置库导入。</p>
+              </div>
+              <button class="button" id="importBenchmarkLibraryButton" type="button">导入标杆账号库</button>
+            </div>
+          `;
+          return;
+        }
+        const topRows = rows.slice(0, 8);
+        box.innerHTML = `
+          <div class="benchmark-library-head">
+            <div>
+              <h3>百万粉丝数学标杆账号库</h3>
+              <p style="margin-top:6px;">
+                已收录 ${stats.total} 个抖音数学大号，抖音号 ${stats.douyinReady} 个已整理，合计粉丝约 ${stats.followersWan.toFixed(1)} 万；视频号已确认 ${stats.wechatConfirmed} 个，待匹配 ${stats.wechatPending} 个。
+              </p>
+            </div>
+            <div class="actions">
+              <button class="button secondary" id="importBenchmarkLibraryButton" type="button">重新导入账号库</button>
+              <button class="button secondary" id="copyBenchmarkLibraryButton" type="button">复制完整清单</button>
+            </div>
+          </div>
+          <div class="benchmark-library-list">
+            ${topRows.map((row) => `
+              <div class="benchmark-account">
+                <strong>${escapeHtml(row.name)}</strong>
+                <span>抖音号 ${escapeHtml(row.douyinId || "待补")}｜粉丝 ${escapeHtml(row.douyinFollowersWan ? `${row.douyinFollowersWan}万` : "待补")}｜获赞 ${escapeHtml(row.douyinLikesWan ? `${row.douyinLikesWan}万` : "待补")}</span>
+                <span>方向：${escapeHtml(row.gradeFocus || row.defaultTopic || "数学教育")}｜视频号：${escapeHtml(row.wechatVideoStatus === "已确认" ? (row.wechatVideoName || row.wechatVideoId || "已确认") : "待匹配")}</span>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+
       function renderIndustryBenchmark() {
         const ownRows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
         const peerRows = latestSnapshots().filter((row) => row.accountType === "同行账号");
+        const benchmarkAccounts = benchmarkAccountsFromState();
+        const benchmarkInfo = benchmarkStats(benchmarkAccounts);
         const own = educationTopicSignals(ownRows);
         const peer = educationTopicSignals(peerRows);
         const ownAvgScore = ownRows.length ? Math.round(average(ownRows.map((row) => diagnoseVideo(row).score))) : 0;
         const peerAvgViews = peerRows.length ? Math.round(average(peerRows.map((row) => row.views))) : 0;
         const ownAvgViews = ownRows.length ? Math.round(average(ownRows.map((row) => row.views))) : 0;
         const rows = [];
+        if (benchmarkAccounts.length) {
+          rows.push({
+            title: "标杆账号库已接入",
+            body: `当前已整理 ${benchmarkInfo.total} 个抖音百万粉丝数学账号，视频号对应账号先全部标记为“待匹配”。这些账号先用于研究定位、名称、方向和后续复盘，不等于已经采到每条作品数据。`
+          });
+        }
         if (!peerRows.length) {
           rows.push({
-            title: "同行标杆样本还没有接入",
-            body: "现在只能看自有账号，不能真正判断我们和顶级数学教培博主差在哪里。下一步要把 5-10 个你认可的大号加入“同行账号”，只采公开作品数据做对比。"
+            title: benchmarkAccounts.length ? "同行作品样本还没采到" : "同行标杆样本还没有接入",
+            body: benchmarkAccounts.length
+              ? "账号库已经有了，但还缺公开视频级样本，所以暂时只能做账号名单和方向层面的研究，不能做严肃的播放均值对比。下一步要从公开页面补充代表作品。"
+              : "现在只能看自有账号，不能真正判断我们和顶级数学教培博主差在哪里。下一步要把 5-10 个你认可的大号加入“同行账号”，只采公开作品数据做对比。"
           });
         } else {
           rows.push({
@@ -1875,10 +2034,16 @@
             latestAudit.recentViews ? `近期播放 ${formatNumber(latestAudit.recentViews)}` : "",
             latestAudit.followerGrowth ? `涨粉 ${formatNumber(latestAudit.followerGrowth)}` : ""
           ].filter(Boolean).join("｜") : "";
+          const benchmarkSignals = [
+            row.douyinId ? `抖音号 ${row.douyinId}` : "",
+            row.douyinFollowersWan ? `粉丝 ${row.douyinFollowersWan}万` : "",
+            row.douyinLikesWan ? `获赞 ${row.douyinLikesWan}万` : "",
+            row.wechatVideoStatus ? `视频号 ${row.wechatVideoStatus}` : ""
+          ].filter(Boolean).join("｜");
           return `
             <tr>
               <td>${escapeHtml(row.platform)}</td>
-              <td><strong>${escapeHtml(row.name)}</strong>${accountSignals ? `<br><span class="muted">${escapeHtml(accountSignals)}</span>` : ""}${row.url ? `<br><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">打开入口</a>` : ""}</td>
+              <td><strong>${escapeHtml(row.name)}</strong>${accountSignals ? `<br><span class="muted">${escapeHtml(accountSignals)}</span>` : ""}${benchmarkSignals ? `<br><span class="muted">${escapeHtml(benchmarkSignals)}</span>` : ""}${row.url ? `<br><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">打开入口</a>` : ""}</td>
               <td>${escapeHtml(row.accountType)}</td>
               <td>${escapeHtml(row.owner || "-")}</td>
               <td>${row.weeklyTarget ? `${escapeHtml(row.weeklyTarget)} 条/周` : "-"}</td>
@@ -2126,6 +2291,7 @@
         renderDataReadiness();
         renderAiExpertReport();
         renderExpertFramework();
+        renderBenchmarkLibrary();
         renderIndustryBenchmark();
         renderMetrics();
         renderExecutiveSummary();
@@ -2285,6 +2451,16 @@
 
       function bindEvents() {
         byId("accountForm").addEventListener("submit", handleAccountSubmit);
+        document.addEventListener("click", async (event) => {
+          if (event.target.closest("#importBenchmarkLibraryButton")) {
+            await loadBenchmarkAccountLibrary({ persist: true });
+            byId("videoOpsMessage").textContent = "标杆账号库已检查并合并；视频号对应账号保持待匹配，等确认后再补。";
+          }
+          if (event.target.closest("#copyBenchmarkLibraryButton")) {
+            await navigator.clipboard?.writeText(benchmarkLibraryText());
+            byId("videoOpsMessage").textContent = "已复制完整标杆账号清单。";
+          }
+        });
         byId("resetAccountFormButton").addEventListener("click", () => {
           editingAccountId = "";
           byId("accountForm").reset();
@@ -2359,7 +2535,7 @@
 
       bindEvents();
       renderAll();
-      hydrateCloud();
+      hydrateCloud().finally(() => loadBenchmarkAccountLibrary({ persist: true }));
       setInterval(() => {
         if (state.collectorStatus?.status === "running") hydrateCloud();
       }, 12000);

@@ -1619,7 +1619,8 @@ function buildAiUserPrompt(body) {
       "输出要给校长和运营老师看，语言直接、具体、可执行，不要空话。",
       "必须包含：1）一句话总判断；2）当前数据能不能下结论；3）账号优势；4）主要问题；5）值得复拍的方向；6）需要停止或重做的内容；7）下周拍摄清单；8）采集器还需要补采哪些字段；9）合规风险提醒。",
       "下周拍摄清单要尽量具体到标题方向或选题脚本角度，例如“初一暑假数学不补会掉在哪里”“几何不开窍的三个信号”。",
-      "如果有同行公开样本，请指出可以学习的结构；如果没有同行样本，请提醒先补 5-10 个大陆数学教培标杆账号。",
+      "如果有同行公开作品样本，请指出可以学习的标题、选题、开头、证明力和转化结构；如果只有标杆账号库而没有作品样本，要明确说明只能做账号名单和方向参考，不能下播放表现结论。",
+      "如果看到 benchmarkAccounts 里有视频号待匹配字段，不要编造对应视频号，只提醒后续需要人工或平台内确认。",
       "parentMessage 留空；polishedText 写完整专家报告；todoItems 写 5-8 个下一步执行动作；summary 写 80 字以内摘要；riskLevel 写 正常/关注/高风险。",
       "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, remakeDirections, stopDoing, weeklyShootingPlan, missingData, complianceRisks。",
       "其中 strengths、weaknesses、remakeDirections、stopDoing、weeklyShootingPlan、missingData、complianceRisks 尽量用字符串数组，便于页面直接展示成行动卡片。"
