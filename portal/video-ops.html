@@ -2535,7 +2535,9 @@
 
       bindEvents();
       renderAll();
-      hydrateCloud().finally(() => loadBenchmarkAccountLibrary({ persist: true }));
+      loadBenchmarkAccountLibrary({ persist: false })
+        .then(() => hydrateCloud())
+        .finally(() => loadBenchmarkAccountLibrary({ persist: true }));
       setInterval(() => {
         if (state.collectorStatus?.status === "running") hydrateCloud();
       }, 12000);
