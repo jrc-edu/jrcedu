@@ -1,5 +1,5 @@
 {
-  "apiBaseUrl": "https://你的域名/api",
+  "apiBaseUrl": "https://jrcwork.cn/api",
   "apiTokenEnv": "JRC_API_TOKEN",
   "storeKey": "jrc-video-ops-monitor-v1",
   "moduleKey": "videoOps",

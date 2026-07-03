@@ -337,6 +337,44 @@
         return String(value || "").trim();
       }
 
+      const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录)$/i;
+      const INVALID_VIDEO_URL_RE = /^(javascript:|mailto:|tel:|#)|developers\.weixin\.qq\.com|tencent\.com\/?$|weixin\.qq\.com\/cgi-bin\/readtemplate/i;
+
+      function looksLikeVideoUrl(value) {
+        const url = normalizeText(value);
+        if (!/^https?:\/\//i.test(url) || INVALID_VIDEO_URL_RE.test(url)) return false;
+        return /douyin\.com|iesdouyin|channels\.weixin\.qq\.com|creator\.douyin\.com|aweme|video|post|item|content|detail/i.test(url);
+      }
+
+      function snapshotHasMetrics(row = {}) {
+        return [
+          row.views,
+          row.likes,
+          row.comments,
+          row.favorites,
+          row.shares,
+          row.impressions,
+          row.clickThroughRate,
+          row.completeRate,
+          row.threeSecondRetention,
+          row.fiveSecondRetention,
+          row.avgWatchSeconds,
+          row.profileVisits,
+          row.messages,
+          row.leads,
+          row.followersGained
+        ].some((value) => Number(value) > 0);
+      }
+
+      function isUsefulSnapshot(row = {}) {
+        const title = normalizeText(row.title);
+        const url = normalizeText(row.url);
+        if (!title && !url) return false;
+        if (title && INVALID_VIDEO_TITLE_RE.test(title)) return false;
+        if (url && INVALID_VIDEO_URL_RE.test(url)) return false;
+        return snapshotHasMetrics(row) || looksLikeVideoUrl(url);
+      }
+
       function uid(prefix = "row") {
         return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
       }
@@ -349,10 +387,10 @@
         if (!match) return 0;
         const base = Number(match[0]);
         if (!Number.isFinite(base)) return 0;
-        if (raw.includes("亿")) return Math.round(base * 100000000);
-        if (raw.includes("万")) return Math.round(base * 10000);
-        if (raw.includes("%")) return base / 100;
-        return base;
+        if (raw.includes("亿")) return Math.max(0, Math.round(base * 100000000));
+        if (raw.includes("万")) return Math.max(0, Math.round(base * 10000));
+        if (raw.includes("%")) return Math.max(0, base / 100);
+        return Math.max(0, base);
       }
 
       function formatNumber(value) {
@@ -499,7 +537,7 @@
         const capturedAt = normalizeText(row.capturedAt || row.captureTime || row.date || row["采集时间"]) || new Date().toISOString();
         const platform = normalizeText(row.platform || row["平台"]) || "抖音";
         const accountType = normalizeText(row.accountType || row.type || row["账号类型"]) || "自有账号";
-        return {
+        const snapshot = {
           id: normalizeText(row.id) || `snapshot-${hashText(snapshotKey({ ...row, title, accountName, capturedAt, platform }))}`,
           videoId: normalizeText(row.videoId || row.awemeId || row.feedId || row["视频ID"]) || `video-${hashText([platform, accountName, title, row.url].join("|"))}`,
           platform,
@@ -533,6 +571,7 @@
           source: normalizeText(row.source) || "robot",
           importedAt: normalizeText(row.importedAt) || new Date().toISOString()
         };
+        return isUsefulSnapshot(snapshot) ? snapshot : null;
       }
 
       function normalizeSnapshots(rows) {
@@ -956,11 +995,19 @@
       function renderMetrics() {
         const latest = latestSnapshots();
         const own = latest.filter((row) => row.accountType !== "同行账号");
+        const accountAuditRows = latestAccountAudits();
+        const accountKeys = new Set([
+          ...state.accounts.map((row) => [row.platform, row.name].join("|")),
+          ...accountAuditRows.map((row) => accountIdentity(row)),
+          ...latest.map((row) => accountIdentity(row))
+        ].filter(Boolean));
         const diagnostics = own.map((row) => diagnoseVideo(row));
         const strong = diagnostics.filter((item) => item.score >= 75).length;
         const weak = diagnostics.filter((item) => item.score < 60).length;
-        const last = state.snapshots[0]?.capturedAt || "";
-        byId("metricAccounts").textContent = state.accounts.length;
+        const last = [state.snapshots[0]?.capturedAt, state.accountAudits[0]?.capturedAt]
+          .filter(Boolean)
+          .sort((left, right) => String(right).localeCompare(String(left)))[0] || "";
+        byId("metricAccounts").textContent = accountKeys.size || state.accounts.length;
         byId("metricVideos").textContent = latest.length;
         byId("metricStrong").textContent = strong;
         byId("metricWeak").textContent = weak;
@@ -980,17 +1027,26 @@
       function renderAccounts() {
         const body = byId("accountTableBody");
         const lastByAccount = new Map();
+        const auditByAccount = new Map();
         state.snapshots.forEach((row) => {
           const key = [row.platform, row.accountName].join("|");
           const existing = lastByAccount.get(key);
           if (!existing || String(row.capturedAt || "").localeCompare(String(existing || "")) > 0) lastByAccount.set(key, row.capturedAt);
         });
+        latestAccountAudits().forEach((row) => auditByAccount.set(accountIdentity(row), row));
         body.innerHTML = state.accounts.length ? state.accounts.map((row) => {
-          const latest = lastByAccount.get([row.platform, row.name].join("|")) || "";
+          const key = [row.platform, row.name].join("|");
+          const latestAudit = auditByAccount.get(key);
+          const latest = lastByAccount.get(key) || latestAudit?.capturedAt || "";
+          const accountSignals = latestAudit ? [
+            latestAudit.followers ? `粉丝 ${formatNumber(latestAudit.followers)}` : "",
+            latestAudit.recentViews ? `近期播放 ${formatNumber(latestAudit.recentViews)}` : "",
+            latestAudit.followerGrowth ? `涨粉 ${formatNumber(latestAudit.followerGrowth)}` : ""
+          ].filter(Boolean).join("｜") : "";
           return `
             <tr>
               <td>${escapeHtml(row.platform)}</td>
-              <td><strong>${escapeHtml(row.name)}</strong>${row.url ? `<br><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">打开入口</a>` : ""}</td>
+              <td><strong>${escapeHtml(row.name)}</strong>${accountSignals ? `<br><span class="muted">${escapeHtml(accountSignals)}</span>` : ""}${row.url ? `<br><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">打开入口</a>` : ""}</td>
               <td>${escapeHtml(row.accountType)}</td>
               <td>${escapeHtml(row.owner || "-")}</td>
               <td>${row.weeklyTarget ? `${escapeHtml(row.weeklyTarget)} 条/周` : "-"}</td>

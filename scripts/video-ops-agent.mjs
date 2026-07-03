@@ -14,6 +14,8 @@ const DEFAULT_PROFILE_DIR = path.join(os.homedir(), "Library", "Application Supp
 const DEFAULT_CONFIG_PATH = path.join(DEFAULT_DATA_DIR, "config.json");
 const DEFAULT_CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const LOGIN_HINTS = ["扫码登录", "微信扫码", "登录", "验证码", "安全验证", "请验证", "重新登录"];
+const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录)$/i;
+const INVALID_VIDEO_URL_RE = /^(javascript:|mailto:|tel:|#)|developers\.weixin\.qq\.com|tencent\.com\/?$|weixin\.qq\.com\/cgi-bin\/readtemplate/i;
 
 function nowIso() {
   return new Date().toISOString();
@@ -44,10 +46,10 @@ function parseNumber(value) {
   if (!match) return 0;
   const base = Number(match[0]);
   if (!Number.isFinite(base)) return 0;
-  if (raw.includes("亿")) return Math.round(base * 100000000);
-  if (raw.includes("万")) return Math.round(base * 10000);
-  if (raw.includes("%")) return base / 100;
-  return base;
+  if (raw.includes("亿")) return Math.max(0, Math.round(base * 100000000));
+  if (raw.includes("万")) return Math.max(0, Math.round(base * 10000));
+  if (raw.includes("%")) return Math.max(0, base / 100);
+  return Math.max(0, base);
 }
 
 function parseArgs(argv) {
@@ -98,7 +100,7 @@ async function writeJson(filePath, payload) {
 
 function defaultConfig() {
   return {
-    apiBaseUrl: "https://你的域名/api",
+    apiBaseUrl: "https://jrcwork.cn/api",
     apiTokenEnv: "JRC_API_TOKEN",
     storeKey: DEFAULT_STORE_KEY,
     moduleKey: DEFAULT_MODULE_KEY,
@@ -289,6 +291,61 @@ function extractTopic(text, fallback = "") {
   return candidates.find((item) => text.includes(item)) || fallback || "";
 }
 
+function hasVideoMetricText(text) {
+  return /\d/.test(String(text || "")) && /播放|观看|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存|发布时间|发布于|作品数据|视频数据/.test(String(text || ""));
+}
+
+function isNavigableHttpUrl(url) {
+  return /^https?:\/\//i.test(String(url || "")) && !INVALID_VIDEO_URL_RE.test(String(url || ""));
+}
+
+function looksLikeVideoUrl(url) {
+  const raw = String(url || "");
+  if (!isNavigableHttpUrl(raw)) return false;
+  return /douyin\.com|iesdouyin|channels\.weixin\.qq\.com|creator\.douyin\.com|aweme|video|post|item|content|detail/i.test(raw);
+}
+
+function isLikelyVideoCard(card = {}) {
+  const title = normalizeText(card.title);
+  const url = normalizeText(card.url);
+  const text = normalizeText(card.text);
+  if (!title && !url) return false;
+  if (title && INVALID_VIDEO_TITLE_RE.test(title)) return false;
+  if (url && INVALID_VIDEO_URL_RE.test(url)) return false;
+  if (hasVideoMetricText(text)) return true;
+  if (looksLikeVideoUrl(url) && title.length >= 4) return true;
+  return false;
+}
+
+function hasSnapshotMetrics(snapshot = {}) {
+  return [
+    snapshot.views,
+    snapshot.likes,
+    snapshot.comments,
+    snapshot.favorites,
+    snapshot.shares,
+    snapshot.impressions,
+    snapshot.clickThroughRate,
+    snapshot.completeRate,
+    snapshot.threeSecondRetention,
+    snapshot.fiveSecondRetention,
+    snapshot.avgWatchSeconds,
+    snapshot.profileVisits,
+    snapshot.messages,
+    snapshot.leads,
+    snapshot.followersGained
+  ].some((value) => Number(value) > 0);
+}
+
+function isUsefulSnapshot(snapshot = {}) {
+  const title = normalizeText(snapshot.title);
+  const url = normalizeText(snapshot.url);
+  if (!title && !url) return false;
+  if (title && INVALID_VIDEO_TITLE_RE.test(title)) return false;
+  if (url && INVALID_VIDEO_URL_RE.test(url)) return false;
+  return hasSnapshotMetrics(snapshot) || looksLikeVideoUrl(url);
+}
+
 async function extractAccountAudit(page, account, config) {
   const selectors = account.selectors?.accountAudit || {};
   const text = await pageText(page);
@@ -339,7 +396,14 @@ async function collectVideoCards(page, account, config) {
         text: node.textContent || ""
       };
     }), listSelectors).catch(() => []);
-    return cards.filter((card) => card.title || card.url).slice(0, maxVideos);
+    return cards
+      .map((item) => ({
+        ...item,
+        title: normalizeText(item.title).slice(0, 100),
+        text: normalizeText(item.text)
+      }))
+      .filter(isLikelyVideoCard)
+      .slice(0, maxVideos);
   }
 
   const anchors = await page.locator("a[href]").evaluateAll((nodes) => nodes.map((node) => ({
@@ -356,6 +420,7 @@ async function collectVideoCards(page, account, config) {
     }))
     .filter((item) => item.url && item.title.length >= 4)
     .filter((item) => !/登录|首页|消息|设置|创作|发布|帮助|反馈/.test(item.title))
+    .filter(isLikelyVideoCard)
     .filter((item) => {
       const key = item.url.split("#")[0];
       if (seen.has(key)) return false;
@@ -458,18 +523,28 @@ async function collectAccount(context, account, config) {
         warnings.push(`${account.platform}｜${account.name} 视频列表可能需要登录验证，截图：${screenshot}`);
       }
       const cards = await collectVideoCards(page, account, config);
+      if (!cards.length) {
+        warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要为该平台补充 selectors，或后台列表当前没有展示视频数据。`);
+      }
       for (const card of cards) {
-        if (!card.url) {
-          snapshots.push(extractSnapshotFromCard(account, card));
+        if (!isNavigableHttpUrl(card.url)) {
+          const snapshot = extractSnapshotFromCard(account, card);
+          if (isUsefulSnapshot(snapshot)) snapshots.push(snapshot);
           continue;
         }
         const detailPage = await context.newPage();
         try {
           await gotoSafe(detailPage, card.url, config);
-          snapshots.push(await extractVideoSnapshot(detailPage, account, card, config));
+          const snapshot = await extractVideoSnapshot(detailPage, account, card, config);
+          if (isUsefulSnapshot(snapshot)) {
+            snapshots.push(snapshot);
+          } else {
+            warnings.push(`${account.platform}｜${account.name} 已跳过无有效数据的视频候选：${card.title || card.url}`);
+          }
         } catch (error) {
           warnings.push(`${account.platform}｜${account.name} 视频详情采集失败：${card.title || card.url}｜${error.message}`);
-          snapshots.push(extractSnapshotFromCard(account, card));
+          const snapshot = extractSnapshotFromCard(account, card);
+          if (isUsefulSnapshot(snapshot)) snapshots.push(snapshot);
         } finally {
           await detailPage.close().catch(() => {});
         }
@@ -562,7 +637,7 @@ function mergePayloads(existing, incoming) {
   return {
     accounts: mergeByKey([...(oldState.accounts || []), ...(newState.accounts || [])], (row) => [row.platform, row.name || row.accountName, row.accountType || "自有账号"].join("|")),
     accountAudits: mergeByKey([...(oldState.accountAudits || []), ...(newState.accountAudits || [])], (row) => row.id || [row.platform, row.accountName || row.name, row.capturedAt].join("|")),
-    snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])], (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
+    snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isUsefulSnapshot), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
     updatedAt: nowIso(),
     source: "mac-mini-playwright-agent"
   };

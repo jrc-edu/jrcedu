@@ -18,7 +18,7 @@ npm run video:init
 
 需要在配置里确认：
 
-- `apiBaseUrl`：网站 API 地址，例如 `https://你的域名/api`
+- `apiBaseUrl`：网站 API 地址，当前为 `https://jrcwork.cn/api`
 - `accounts`：要巡检的抖音、视频号账号
 - `dashboardUrl`：创作者中心首页
 - `videoListUrl`：作品/视频列表页
