@@ -339,6 +339,8 @@
             <h2>运营数据看板</h2>
           </div>
           <div class="actions">
+            <button class="button" id="quickImportJsonButton" type="button">导入本地采集文件</button>
+            <input id="quickImportJsonFileInput" type="file" accept=".json,application/json" style="display:none;">
             <button class="button secondary" id="copyWeeklyReportButton" type="button">复制本周复盘</button>
             <button class="button secondary" id="refreshCloudButton" type="button">同步云端</button>
           </div>
@@ -2392,16 +2394,35 @@
         throw new Error("未识别到 accounts / accountAudits / snapshots / videos 数据。");
       }
 
-      function importJson() {
+      function payloadCounts(payload = {}) {
+        return {
+          accounts: Array.isArray(payload.accounts) ? payload.accounts.length : 0,
+          accountAudits: Array.isArray(payload.accountAudits) ? payload.accountAudits.length : 0,
+          snapshots: Array.isArray(payload.snapshots) ? payload.snapshots.length : 0
+        };
+      }
+
+      function importJson(sourceName = "") {
         try {
           const payload = parseImportPayload(byId("importJsonInput").value);
+          const rawCounts = payloadCounts(payload);
           const imported = normalizeState(payload);
           if (!imported.accounts.length && !imported.accountAudits.length && !imported.snapshots.length) {
-            byId("videoOpsMessage").textContent = "没有导入有效账号或视频快照。";
+            byId("videoOpsMessage").textContent = [
+              `已读取${sourceName ? `「${sourceName}」` : "JSON"}，但没有导入有效账号或视频快照。`,
+              `原始数据：账号 ${rawCounts.accounts} 个、账号体检 ${rawCounts.accountAudits} 条、视频快照 ${rawCounts.snapshots} 条。`,
+              rawCounts.snapshots ? "视频被过滤，通常是标题/链接不像真实作品或没有播放点赞等指标；请把这个提示发给我继续查字段。" : "文件里没有 snapshots/videos 数据。"
+            ].join(" ");
             return;
           }
           state = mergeState(state, imported);
-          saveState(`已导入 ${imported.accounts.length} 个账号、${imported.accountAudits.length} 条账号体检、${imported.snapshots.length} 条视频快照。`);
+          const latestCount = latestSnapshots().length;
+          saveState([
+            `已导入${sourceName ? `「${sourceName}」` : "采集数据"}。`,
+            `原始读取：账号 ${rawCounts.accounts} 个、账号体检 ${rawCounts.accountAudits} 条、视频快照 ${rawCounts.snapshots} 条。`,
+            `成功入库：账号 ${imported.accounts.length} 个、账号体检 ${imported.accountAudits.length} 条、有效视频快照 ${imported.snapshots.length} 条。`,
+            `当前页面可显示视频档案 ${latestCount} 条。`
+          ].join(" "));
         } catch (error) {
           byId("videoOpsMessage").textContent = error.message || "导入失败。";
         }
@@ -2413,8 +2434,8 @@
         try {
           const text = await file.text();
           byId("importJsonInput").value = text;
-          importJson();
-          byId("videoOpsMessage").textContent += ` 文件：${file.name}`;
+          byId("videoOpsMessage").textContent = `正在读取「${file.name}」...`;
+          importJson(file.name);
         } catch (error) {
           byId("videoOpsMessage").textContent = `读取文件失败：${error?.message || error || "未知错误"}`;
         } finally {
@@ -2552,8 +2573,12 @@
           });
           byId("videoOpsMessage").textContent = "已载入账号配置，修改后点保存账号。";
         });
-        byId("importJsonButton").addEventListener("click", importJson);
+        byId("importJsonButton").addEventListener("click", () => importJson());
         byId("importJsonFileInput").addEventListener("change", importJsonFile);
+        byId("quickImportJsonButton").addEventListener("click", () => {
+          byId("quickImportJsonFileInput").click();
+        });
+        byId("quickImportJsonFileInput").addEventListener("change", importJsonFile);
         byId("sampleJsonButton").addEventListener("click", () => {
           byId("importJsonInput").value = JSON.stringify(samplePayload(), null, 2);
           byId("videoOpsMessage").textContent = "已生成示例数据格式，可以直接导入测试。";
