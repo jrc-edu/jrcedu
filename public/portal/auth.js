@@ -11,6 +11,7 @@ const JRC_LEGACY_BUSINESS_DATA_KEYS = [
   "jrc-curriculum-products-v2",
   "jrc-hr-training-tasks-v2",
   "jrc-campus-operations-v2",
+  "jrc-video-ops-monitor-v1",
   "jrc-suggestion-management-v2",
   "jrc-business-audit-log-v1",
   "jrc-last-local-backup-export",
@@ -56,6 +57,11 @@ const JRC_DATA_CONTRACTS = {
     owner: "全站反馈问题",
     feeds: ["建议与任务协同系统", "模块负责人任务", "管理员整改台账"],
     keyFields: ["feedbackId", "userName", "system", "type", "severity", "status", "taskId", "resolution"]
+  },
+  videoOps: {
+    owner: "短视频系统",
+    feeds: ["招生管理系统", "经营看板", "校区运营"],
+    keyFields: ["platform", "accountName", "videoId", "title", "capturedAt", "views", "likes", "leads", "platformAdvice"]
   }
 };
 const JRC_QUALITY_COEFFICIENTS = { S: 1.1, A: 1, B: 0.9, C: 0.8 };
@@ -156,6 +162,8 @@ const JRC_ROLE_PERMISSIONS = {
     "hr.edit",
     "campus.access",
     "campus.edit",
+    "videoOps.access",
+    "videoOps.edit",
     "admin.access"
   ],
   学管: [
@@ -170,14 +178,18 @@ const JRC_ROLE_PERMISSIONS = {
     "studentService.edit",
     "curriculum.access",
     "campus.access",
-    "campus.edit"
+    "campus.edit",
+    "videoOps.access",
+    "videoOps.edit"
   ],
   财务: [
     "portal.access",
     "ai.access",
     "suggestions.access",
     "finance.access",
-    "finance.edit"
+    "finance.edit",
+    "videoOps.access",
+    "videoOps.edit"
   ],
   授课老师: [
     "portal.access",
@@ -462,6 +474,7 @@ const JRC_ADMISSIONS_ADMIN_USERNAMES = ["chenyuqing", "chengzhihao", "yanyuhan",
 const JRC_CURRICULUM_ADMIN_USERNAMES = ["zhaoxuan", "chengzhihao"];
 const JRC_TEACHING_QUALITY_ADMIN_USERNAMES = ["zhengjiayi", "chengzhihao"];
 const JRC_STUDENT_SERVICE_ADMIN_USERNAMES = ["yanyuhan", "zhoushan", "gaofangyan", "chengzhihao"];
+const JRC_VIDEO_OPS_ADMIN_USERNAMES = ["chengzhihao", "gaofangyan", "chenyuqing"];
 const JRC_DEPARTED_EMPLOYEE_USERNAMES = new Set(["zhangyan", "hejianjun"]);
 const JRC_GRANULAR_MODULES = [
   ["studentService", "学生服务"],
@@ -504,6 +517,8 @@ const JRC_PERMISSION_OPTIONS = [
   ["campus.access", "校区运营进入"],
   ["campus.edit", "校区运营管理"],
   ...JRC_GRANULAR_ACTIONS.map(([action, label]) => [`campus.${action}`, `校区运营${label}`]),
+  ["videoOps.access", "短视频运营进入"],
+  ["videoOps.edit", "短视频运营管理"],
   ["finance.access", "财务进入"],
   ["finance.edit", "财务修改"],
   ["admin.access", "系统管理"]
@@ -1180,6 +1195,8 @@ function jrcGetPermissions(subject) {
       "hr.edit",
       "campus.access",
       "campus.edit",
+      "videoOps.access",
+      "videoOps.edit",
       "finance.access",
       "finance.edit",
       "admin.access"
@@ -1221,6 +1238,10 @@ function jrcGetPermissions(subject) {
     permissions.add("studentService.access");
     permissions.add("studentService.edit");
   }
+  if (JRC_VIDEO_OPS_ADMIN_USERNAMES.includes(username)) {
+    permissions.add("videoOps.access");
+    permissions.add("videoOps.edit");
+  }
   (subject.permissions || []).forEach((permission) => permissions.add(permission));
   jrcExpandGranularPermissions(permissions);
 
@@ -1240,6 +1261,7 @@ function jrcGetPermissionHint(permissionKey, employee = jrcResolveCurrentEmploye
     "admissions.access": "招生管理系统主要给学管和招生相关管理员使用。",
     "hr.access": "人事管理涉及员工档案和权限，仅总管理员使用。",
     "campus.access": "校区运营已开放查看；修改值班和校区事务仅限程志豪、陈雨晴。",
+    "videoOps.access": "短视频系统主要给管理员、学管和运营负责人使用。",
     "paike.edit": "排课修改权限只给排课管理员开放，其他老师可以查看课表。",
     "admin.access": "该入口仅总管理员可用。"
   };
@@ -1260,6 +1282,7 @@ function jrcGetRoleSummary(employee = jrcResolveCurrentEmployee()) {
   if (permissions.includes("finance.access")) summaries.push("财务");
   if (permissions.includes("knowledge.access")) summaries.push("学管知识库");
   if (permissions.includes("suggestions.access")) summaries.push("建议");
+  if (permissions.includes("videoOps.access")) summaries.push("短视频运营");
   return summaries.join(" / ") || "仅登录访问";
 }
 

@@ -7,6 +7,7 @@
     "jrc-hr-training-tasks-v2": "hr",
     "jrc-hr-role-directory-v1": "hr",
     "jrc-campus-operations-v2": "campus",
+    "jrc-video-ops-monitor-v1": "videoOps",
     "jrc-suggestion-management-v2": "suggestions"
   };
   const nowText = () => new Date().toLocaleString("zh-CN", { hour12: false });

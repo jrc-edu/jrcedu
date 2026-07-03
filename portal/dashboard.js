@@ -407,6 +407,13 @@
     return leads.filter((lead) => lead?.status === "定金 / 已报名" || Number(lead?.enrolledAmount || 0) > 0);
   }
 
+  function admissionLeadRequiresPaike(lead) {
+    if (!lead) return false;
+    if (lead.requiresPaike === false) return false;
+    if (["程老师班课", "科学班课"].includes(String(lead.courseProduct || "").trim())) return false;
+    return true;
+  }
+
   function scheduleStudentNameSet(scheduleRows) {
     const names = new Set();
     (Array.isArray(scheduleRows) ? scheduleRows : []).forEach((row) => {
@@ -422,7 +429,7 @@
     const scheduleNames = scheduleStudentNameSet(scheduleRows);
     const unscheduledLeads = enrolled.filter((lead) => {
       const name = normalizePersonName(lead.studentName);
-      return name && !scheduleNames.has(name);
+      return name && admissionLeadRequiresPaike(lead) && !scheduleNames.has(name);
     });
     const todayScheduleRows = scheduleRows.filter((row) => row.date === today);
     const attendanceKeys = new Set((Array.isArray(attendanceSessions) ? attendanceSessions : []).map(attendanceSessionKey).filter(Boolean));
@@ -1314,7 +1321,8 @@
         ["课堂反馈AI", "快速整理课堂反馈草稿", "./ai-assistant.html", "ai.access"],
         ["反馈整改", "看待复核、仍有问题和本轮待处理", "./trial-feedback.html", "suggestions.access"],
         ["财务月结", "按老师工资单核对月结", "./finance.html", "finance.access"],
-        ["学生服务", "点名、课消、反馈归档", "./student-service.html", "studentService.access"]
+        ["学生服务", "点名、课消、反馈归档", "./student-service.html", "studentService.access"],
+        ["短视频系统", "账号巡检、视频诊断和周报", "./video-ops.html", "videoOps.access"]
       ];
     }
     if (role.includes("财务")) {
@@ -1329,6 +1337,7 @@
       return [
         ["学生服务", "点名、缺勤、家长沟通", "./student-service.html", "studentService.access"],
         ["招生跟进", "线索、试听、报名交接", "/jrcedu/advice-system/index.html", "admissions.access"],
+        ["短视频系统", "查看账号数据和拍摄建议", "./video-ops.html", "videoOps.access"],
         ["课堂反馈AI", "整理老师课堂反馈草稿", "./ai-assistant.html", "ai.access"],
         ["我的反馈", "查看问题处理进展", "./trial-feedback.html", "suggestions.access"]
       ];
