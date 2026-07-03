@@ -79,6 +79,14 @@
       .strategy-item { padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.76); }
       .strategy-item span { display: block; color: var(--muted); font-size: 12px; }
       .strategy-item strong { display: block; margin-top: 5px; font-size: 14px; line-height: 1.45; }
+      .readiness-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+      .readiness-card { min-height: 116px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: #fff; }
+      .readiness-card span { display: block; color: var(--muted); font-size: 12px; }
+      .readiness-card strong { display: block; margin-top: 8px; font-size: 24px; line-height: 1.1; }
+      .readiness-card p { margin-top: 7px; font-size: 12px; line-height: 1.55; }
+      .readiness-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.06); }
+      .readiness-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.06); }
+      .readiness-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.05); }
       .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
       label.field { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
       .field input, .field select, .field textarea, .toolbar input, .toolbar select, textarea {
@@ -146,13 +154,14 @@
         .audit-columns { grid-template-columns: 1fr; }
         .benchmark-grid { grid-template-columns: 1fr; }
         .strategy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 720px) {
         .topbar { align-items: flex-start; flex-direction: column; }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
-        .strategy-grid { grid-template-columns: 1fr; }
+        .strategy-grid, .readiness-grid { grid-template-columns: 1fr; }
         .span-3 { grid-column: auto; }
         .button, .nav-link { width: 100%; min-height: 46px; }
         .video-card-head { flex-direction: column; }
@@ -210,6 +219,19 @@
           <h3 id="collectorCurrentTask">等待采集</h3>
           <p id="collectorCurrentDetail" style="margin-top:8px;">运行 Mac mini 采集器后，这里会显示正在打开哪个平台、正在采哪条作品、是否已经完成。</p>
         </aside>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Data Readiness</p>
+            <h2>数据完整度体检</h2>
+          </div>
+          <span class="badge" id="dataReadinessBadge">等待数据</span>
+        </div>
+        <p id="dataReadinessSummary" style="margin-top:8px;">先看数据够不够，再决定能不能做账号级判断，避免拿几条样本下重结论。</p>
+        <div class="readiness-grid" id="dataReadinessGrid"></div>
+        <div class="decision-list" id="nextActionList"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -1290,6 +1312,125 @@
         byId("collectionCommandHint").textContent = "指挥采集：日常看最近作品用 npm run video:run；阶段体检用 npm run video:run -- --max-videos 100；首次建档或月度深扫可用 npm run video:run -- --max-videos 200。";
       }
 
+      function dataReadinessProfile() {
+        const latest = latestSnapshots();
+        const ownRows = latest.filter((row) => row.accountType !== "同行账号");
+        const peerRows = latest.filter((row) => row.accountType === "同行账号");
+        const audits = latestAccountAudits();
+        const withCoreMetrics = latest.filter((row) => row.views || row.likes || row.comments || row.favorites || row.shares || row.impressions);
+        const withRetention = latest.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds);
+        const withConversion = latest.filter((row) => row.profileVisits || row.messages || row.leads);
+        const withAdvice = latest.filter((row) => row.platformAdvice);
+        const status = state.collectorStatus || {};
+        const total = latest.length;
+        const ownCount = ownRows.length;
+        const peerCount = peerRows.length;
+        let level = 0;
+        if (audits.length) level = Math.max(level, 1);
+        if (ownCount || total) level = Math.max(level, 2);
+        if (ownCount >= 8 && withCoreMetrics.length >= 8) level = Math.max(level, 3);
+        if (ownCount >= 20 && withRetention.length >= 8) level = Math.max(level, 4);
+        if (ownCount >= 50 && withConversion.length >= 10 && peerCount >= 10) level = Math.max(level, 5);
+        if (status.status === "running") level = Math.max(level, 1);
+        const labels = [
+          ["等待采集", "还没有足够数据。先让 Mac mini 跑一轮采集。", "danger"],
+          ["账号概览", "可以看账号总览，但还不能判断具体哪条视频好坏。", "warn"],
+          ["作品初判", "可以看单条视频基础表现，但账号方向只能轻判断。", "warn"],
+          ["近期复盘", "可以做近期内容复盘，适合决定复拍和重剪。", "good"],
+          ["账号体检", "可以做比较稳的账号级判断，适合调整选题结构。", "good"],
+          ["阶段深扫", "样本已经适合做阶段复盘、同行对比和下月内容规划。", "good"]
+        ];
+        const [label, summary, tone] = labels[level] || labels[0];
+        const gaps = [];
+        if (!audits.length) gaps.push("缺账号级数据：粉丝、主页访问、搜索词、平台账号建议。");
+        if (ownCount < 20) gaps.push(`自有视频样本只有 ${ownCount} 条，建议先补到 20 条以上再定账号方向。`);
+        if (withRetention.length < Math.min(8, Math.max(ownCount, 1))) gaps.push("留存/完播数据偏少，暂时难判断开头和节奏。");
+        if (withConversion.length < Math.min(5, Math.max(ownCount, 1))) gaps.push("主页访问、私信、线索数据偏少，暂时难判断播放是否能带来咨询。");
+        if (peerCount < 10) gaps.push("同行公开样本偏少，暂时不能做扎实标杆对比。");
+        const commands = [];
+        if (status.status === "running") {
+          commands.push("当前采集器正在运行，先等本轮结束再看结论。");
+        } else if (ownCount < 20) {
+          commands.push("下一步建议：在 Mac mini 运行 npm run video:run -- --max-videos 30，先把近期作品采稳。");
+        } else if (ownCount < 80 || peerCount < 10) {
+          commands.push("下一步建议：运行 npm run video:run -- --max-videos 100，做一次阶段体检，并补充同行公开账号。");
+        } else {
+          commands.push("下一步建议：保持每日采集，重点看复拍题材、转化承接和同行差距。");
+        }
+        return {
+          level,
+          label,
+          summary,
+          tone,
+          total,
+          ownCount,
+          peerCount,
+          auditsCount: audits.length,
+          withCoreMetrics: withCoreMetrics.length,
+          withRetention: withRetention.length,
+          withConversion: withConversion.length,
+          withAdvice: withAdvice.length,
+          gaps,
+          commands
+        };
+      }
+
+      function renderDataReadiness() {
+        const profile = dataReadinessProfile();
+        const badge = byId("dataReadinessBadge");
+        badge.textContent = profile.label;
+        badge.className = `badge ${profile.tone === "danger" ? "danger" : profile.tone === "warn" ? "warn" : "good"}`;
+        byId("dataReadinessSummary").textContent = profile.summary;
+        const cards = [
+          {
+            tone: profile.ownCount >= 20 ? "good" : profile.ownCount ? "warn" : "danger",
+            label: "自有视频样本",
+            value: `${profile.ownCount} 条`,
+            note: profile.ownCount >= 20 ? "可以做近期复盘" : "先补够 20 条再定方向"
+          },
+          {
+            tone: profile.withRetention >= 8 ? "good" : profile.withRetention ? "warn" : "danger",
+            label: "留存/完播数据",
+            value: `${profile.withRetention} 条`,
+            note: profile.withRetention ? "用于判断开头和节奏" : "缺少节奏判断依据"
+          },
+          {
+            tone: profile.withConversion >= 5 ? "good" : profile.withConversion ? "warn" : "danger",
+            label: "咨询转化信号",
+            value: `${profile.withConversion} 条`,
+            note: profile.withConversion ? "用于判断播放到咨询" : "缺主页/私信/线索数据"
+          },
+          {
+            tone: profile.peerCount >= 10 ? "good" : profile.peerCount ? "warn" : "danger",
+            label: "同行公开样本",
+            value: `${profile.peerCount} 条`,
+            note: profile.peerCount >= 10 ? "可以做标杆对比" : "建议补 5-10 个同行号"
+          }
+        ];
+        byId("dataReadinessGrid").innerHTML = cards.map((card) => `
+          <div class="readiness-card ${escapeHtml(card.tone)}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        const actionCards = [
+          ...profile.commands.map((item) => ({ tone: "good", title: "下一步采集", body: item })),
+          ...profile.gaps.slice(0, 3).map((item) => ({ tone: "warn", title: "当前缺口", body: item }))
+        ];
+        byId("nextActionList").innerHTML = actionCards.length ? actionCards.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone)}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("") : `
+          <div class="decision-card good">
+            <strong>数据状态较完整</strong>
+            <p>可以进入账号体检、作品复盘和同行标杆对比。</p>
+          </div>
+        `;
+      }
+
       function renderExpertFramework() {
         const rows = [
           {
@@ -1725,6 +1866,7 @@
         renderAuditAccountSelect();
         renderCollectorStatus();
         renderCollectionPlan();
+        renderDataReadiness();
         renderExpertFramework();
         renderIndustryBenchmark();
         renderMetrics();
