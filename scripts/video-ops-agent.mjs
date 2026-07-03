@@ -167,7 +167,8 @@ function defaultConfig() {
       maxDelayMs: 2200,
       manualConfirm: false,
       strictCollection: true,
-      autoOpenDetails: false
+      autoOpenDetails: false,
+      deepOwnDetails: false
     },
     benchmarks: {
       enabled: true,
@@ -320,6 +321,9 @@ function applyRuntimeOptions(config, options = {}) {
     next.benchmarks.publicCollection.videosPerAccount = Math.max(1, Math.min(50, Math.round(benchmarkVideos)));
   }
   next.benchmarks.publicCollection.enabled = false;
+  if (options.benchmarkTop || options["benchmark-top"] || process.env.VIDEO_OPS_BENCHMARK_TOP === "1") {
+    next.benchmarks.publicCollection.rotateDaily = false;
+  }
   if (options.withBenchmarks || options["with-benchmarks"] || process.env.VIDEO_OPS_WITH_BENCHMARKS === "1") {
     next.benchmarks.publicCollection.enabled = true;
   }
@@ -332,6 +336,9 @@ function applyRuntimeOptions(config, options = {}) {
   }
   if (options.openDetails || options["open-details"] || process.env.VIDEO_OPS_OPEN_DETAILS === "1") {
     next.limits.autoOpenDetails = true;
+  }
+  if (options.deepOwn || options["deep-own"] || options.ownDetails || options["own-details"] || process.env.VIDEO_OPS_DEEP_OWN === "1") {
+    next.limits.deepOwnDetails = true;
   }
   if (options.fresh || options.rebuild || options["replace-data"] || process.env.VIDEO_OPS_FRESH === "1") {
     next.rebuildMode = true;
@@ -351,6 +358,7 @@ function collectionPlan(config) {
     targetPerAccount: maxVideos,
     benchmarkAccountsPerRun: benchmarkAccounts,
     benchmarkVideosPerAccount: benchmarkVideos,
+    deepOwnDetails: Boolean(config.limits?.deepOwnDetails),
     sampleMethod: benchmarkEnabled
       ? `自有账号自动读取后台并用可信度规则过滤；标杆账号仅在明确开启时采公开视频，本轮计划 ${benchmarkAccounts} 个标杆账号、每个最多 ${benchmarkVideos} 条。`
       : "自动读取自有账号后台；默认只采自有账号，不再自动采标杆公开搜索结果。页面不对、权限没进、字段不可信时自动跳过。",
@@ -1050,7 +1058,8 @@ async function collectAccount(context, account, config, onProgress = async () =>
         });
         const listSnapshot = extractSnapshotFromCard(account, card);
         let snapshot = isUsefulSnapshot(listSnapshot) ? listSnapshot : null;
-        if (config.limits?.autoOpenDetails && isNavigableHttpUrl(card.url)) {
+        const shouldOpenDetails = config.limits?.autoOpenDetails || (config.limits?.deepOwnDetails && (account.accountType || "自有账号") !== "同行账号");
+        if (shouldOpenDetails && isNavigableHttpUrl(card.url)) {
           const detailPage = await context.newPage();
           try {
             await gotoSafe(detailPage, card.url, config);
@@ -1061,7 +1070,7 @@ async function collectAccount(context, account, config, onProgress = async () =>
           } finally {
             await detailPage.close().catch(() => {});
           }
-        } else if (config.limits?.autoOpenDetails && card.cardSelector && Number.isInteger(card.cardIndex)) {
+        } else if (shouldOpenDetails && card.cardSelector && Number.isInteger(card.cardIndex)) {
           try {
             const clickSnapshot = await clickCardForSnapshot(page, account, card, config);
             if (clickSnapshot) snapshot = mergeSnapshotData(clickSnapshot, listSnapshot);
@@ -1406,7 +1415,7 @@ function usage() {
   node scripts/video-ops-agent.mjs login [--config 路径]
   node scripts/video-ops-agent.mjs collect [--config 路径] [--fresh] [--max-videos 数量] [--manual]
   node scripts/video-ops-agent.mjs push [--config 路径] [--file JSON路径] [--fresh]
-  node scripts/video-ops-agent.mjs run [--config 路径] [--fresh] [--max-videos 数量] [--manual] [--with-benchmarks]
+  node scripts/video-ops-agent.mjs run [--config 路径] [--fresh] [--max-videos 数量] [--manual] [--deep-own] [--with-benchmarks]
 
 说明：
   init     创建配置文件
@@ -1419,8 +1428,9 @@ function usage() {
   自有账号不是随机采集，而是按创作者中心作品列表优先采最近作品。
   默认不再自动点详情页，不再自动采标杆公开视频，避免把菜单页、验证码页、搜索噪音当成作品数据。
   无用数据由程序自动判断并跳过；只有需要人工盯页面时才加 --manual。
-  本轮重建建议 npm run video:run -- --fresh --max-videos 30。
-  如以后确实要采标杆公开样本，再显式加 --with-benchmarks，并人工复核结果。
+  小剂量试验建议 npm run video:trial：自有账号最多 30 条并深度采集，标杆前 10 个博主每人 3 条。
+  日常重建建议 npm run video:rebuild：只采自有账号，不采标杆。
+  如以后确实要扩大标杆公开样本，再显式调整 --benchmark-accounts 和 --benchmark-videos。
 `);
 }
 

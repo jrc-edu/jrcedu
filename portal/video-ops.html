@@ -1532,6 +1532,7 @@
         const rows = [
           ["自有账号采多少", `每个自有账号最多 ${plan.targetPerAccount} 条后台作品数据，系统自动过滤无效页面和低可信字段`],
           ["标杆账号采多少", plan.benchmarkAccountsPerRun ? `本轮显式开启标杆采集：${plan.benchmarkAccountsPerRun} 个账号，每个最多 ${plan.benchmarkVideosPerAccount || 8} 条` : "默认不采标杆公开搜索，只保留标杆名单用于人工学习"],
+          ["自有账号是否深采", plan.deepOwnDetails ? "本轮会尝试打开自有账号作品详情页，补更多官方后台数据" : "本轮只采列表可见数据，不自动点详情页"],
           ["为什么这样采", plan.purpose],
           ["结论边界", plan.conclusionBoundary],
           ["是不是随机", "不是随机。自有账号按后台作品列表；页面不对、权限没进、字段不可信时直接跳过。"]
@@ -1542,7 +1543,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "指挥采集：本轮重建用 npm run video:rebuild；阶段体检用 npm run video:run -- --fresh --max-videos 100。只有特殊排查才加 --manual；采标杆公开样本必须显式加 --with-benchmarks。";
+        byId("collectionCommandHint").textContent = "指挥采集：小剂量试验用 npm run video:trial；日常重建用 npm run video:rebuild；阶段体检用 npm run video:run -- --fresh --max-videos 100。只有特殊排查才加 --manual。";
       }
 
       function dataReadinessProfile() {
@@ -1586,7 +1587,7 @@
         if (status.status === "running") {
           commands.push("当前采集器正在运行，先等本轮结束再看结论。");
         } else if (ownCount < 20) {
-          commands.push("下一步建议：在 Mac mini 运行 npm run video:rebuild，先自动重建可信近期作品数据。");
+          commands.push("下一步建议：先在 Mac mini 运行 npm run video:trial，小剂量验证：自有账号深采，标杆 10 个博主每人 3 条。");
         } else if (ownCount < 80 || peerCount < 10) {
           commands.push("下一步建议：运行 npm run video:run -- --fresh --max-videos 100，做一次自动阶段体检。");
         } else {
