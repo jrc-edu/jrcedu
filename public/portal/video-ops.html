@@ -246,6 +246,18 @@
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
+            <p class="eyebrow">Benchmark Accounts</p>
+            <h2>百万粉丝数学标杆账号库</h2>
+          </div>
+          <span class="badge">抖音账号库｜视频号待匹配</span>
+        </div>
+        <p style="margin-top:8px;">这里显示的是已经整理好的同行账号名单；“视频数据档案”里的 0 指的是还没有采集这些账号的公开视频作品，不代表账号库没有接入。</p>
+        <div class="benchmark-library" id="benchmarkLibraryTopPanel"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
             <p class="eyebrow">AI Expert Report</p>
             <h2>MiniMax 短视频专家报告</h2>
           </div>
@@ -953,7 +965,12 @@
             renderAll();
           }
         } else {
-          renderAll();
+          state.accounts = normalizeAccounts([...state.accounts, ...rows]);
+          if (options.persist !== false) {
+            saveState(`标杆账号库已确认：${rows.length} 个抖音数学大号，视频号待匹配。`);
+          } else {
+            renderAll();
+          }
         }
       }
 
@@ -1856,24 +1873,26 @@
       }
 
       function renderBenchmarkLibrary() {
-        const box = byId("benchmarkLibraryPanel");
-        if (!box) return;
+        const boxes = [byId("benchmarkLibraryTopPanel"), byId("benchmarkLibraryPanel")].filter(Boolean);
+        if (!boxes.length) return;
         const rows = benchmarkAccountsFromState();
         const stats = benchmarkStats(rows);
+        let html = "";
         if (!rows.length) {
-          box.innerHTML = `
+          html = `
             <div class="benchmark-library-head">
               <div>
                 <h3>百万粉丝数学标杆账号库</h3>
                 <p style="margin-top:6px;">还没有加载截图里的标杆账号。可点击右侧按钮从系统内置库导入。</p>
               </div>
-              <button class="button" id="importBenchmarkLibraryButton" type="button">导入标杆账号库</button>
+              <button class="button" data-benchmark-action="import" type="button">导入标杆账号库</button>
             </div>
           `;
+          boxes.forEach((box) => { box.innerHTML = html; });
           return;
         }
         const topRows = rows.slice(0, 8);
-        box.innerHTML = `
+        html = `
           <div class="benchmark-library-head">
             <div>
               <h3>百万粉丝数学标杆账号库</h3>
@@ -1882,8 +1901,8 @@
               </p>
             </div>
             <div class="actions">
-              <button class="button secondary" id="importBenchmarkLibraryButton" type="button">重新导入账号库</button>
-              <button class="button secondary" id="copyBenchmarkLibraryButton" type="button">复制完整清单</button>
+              <button class="button secondary" data-benchmark-action="import" type="button">重新导入账号库</button>
+              <button class="button secondary" data-benchmark-action="copy" type="button">复制完整清单</button>
             </div>
           </div>
           <div class="benchmark-library-list">
@@ -1896,6 +1915,7 @@
             `).join("")}
           </div>
         `;
+        boxes.forEach((box) => { box.innerHTML = html; });
       }
 
       function renderIndustryBenchmark() {
@@ -2452,11 +2472,11 @@
       function bindEvents() {
         byId("accountForm").addEventListener("submit", handleAccountSubmit);
         document.addEventListener("click", async (event) => {
-          if (event.target.closest("#importBenchmarkLibraryButton")) {
+          if (event.target.closest("[data-benchmark-action='import']")) {
             await loadBenchmarkAccountLibrary({ persist: true });
             byId("videoOpsMessage").textContent = "标杆账号库已检查并合并；视频号对应账号保持待匹配，等确认后再补。";
           }
-          if (event.target.closest("#copyBenchmarkLibraryButton")) {
+          if (event.target.closest("[data-benchmark-action='copy']")) {
             await navigator.clipboard?.writeText(benchmarkLibraryText());
             byId("videoOpsMessage").textContent = "已复制完整标杆账号清单。";
           }
