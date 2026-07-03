@@ -169,7 +169,14 @@ function defaultConfig() {
     benchmarks: {
       enabled: true,
       source: DEFAULT_BENCHMARK_ACCOUNTS_PATH,
-      note: "公开标杆账号库只作为对比背景和账号清单，不自动采集未授权后台数据。"
+      publicCollection: {
+        enabled: true,
+        accountsPerRun: 8,
+        videosPerAccount: 8,
+        rotateDaily: true,
+        searchUrlTemplate: "https://www.douyin.com/search/{keyword}?type=video"
+      },
+      note: "公开标杆账号库会随自有账号一起分批采公开视频；不采未授权后台数据。"
     },
     accounts: [
       {
@@ -248,6 +255,17 @@ async function loadBenchmarkAccounts(benchmarks = {}) {
     .filter((row) => row.name);
 }
 
+function mergeBenchmarkConfig(defaults = {}, incoming = {}) {
+  return {
+    ...defaults,
+    ...incoming,
+    publicCollection: {
+      ...(defaults.publicCollection || {}),
+      ...(incoming.publicCollection || {})
+    }
+  };
+}
+
 function mergeAccountConfigs(primaryAccounts = [], benchmarkAccounts = []) {
   const map = new Map();
   [...benchmarkAccounts, ...primaryAccounts].forEach((account) => {
@@ -273,7 +291,7 @@ async function loadConfig(configPath) {
     ...userConfig,
     limits: { ...defaults.limits, ...(userConfig.limits || {}) },
     operator: { ...defaults.operator, ...(userConfig.operator || {}) },
-    benchmarks: { ...defaults.benchmarks, ...(userConfig.benchmarks || {}) },
+    benchmarks: mergeBenchmarkConfig(defaults.benchmarks, userConfig.benchmarks || {}),
     accounts: Array.isArray(userConfig.accounts) ? userConfig.accounts : defaults.accounts
   };
   const benchmarkAccounts = await loadBenchmarkAccounts(config.benchmarks);
@@ -283,22 +301,42 @@ async function loadConfig(configPath) {
 function applyRuntimeOptions(config, options = {}) {
   const next = {
     ...config,
-    limits: { ...(config.limits || {}) }
+    limits: { ...(config.limits || {}) },
+    benchmarks: mergeBenchmarkConfig(defaultConfig().benchmarks, config.benchmarks || {})
   };
   const maxVideos = parseNumber(options.maxVideos || options["max-videos"] || process.env.VIDEO_OPS_MAX_VIDEOS);
   if (maxVideos > 0) next.limits.maxVideosPerAccount = Math.max(1, Math.min(500, Math.round(maxVideos)));
   const scanMode = normalizeText(options.scanMode || options["scan-mode"] || process.env.VIDEO_OPS_SCAN_MODE);
   if (scanMode) next.scanMode = scanMode;
+  const benchmarkAccounts = parseNumber(options.benchmarkAccounts || options["benchmark-accounts"] || process.env.VIDEO_OPS_BENCHMARK_ACCOUNTS);
+  if (benchmarkAccounts > 0) {
+    next.benchmarks.publicCollection.accountsPerRun = Math.max(1, Math.min(47, Math.round(benchmarkAccounts)));
+  }
+  const benchmarkVideos = parseNumber(options.benchmarkVideos || options["benchmark-videos"] || process.env.VIDEO_OPS_BENCHMARK_VIDEOS);
+  if (benchmarkVideos > 0) {
+    next.benchmarks.publicCollection.videosPerAccount = Math.max(1, Math.min(50, Math.round(benchmarkVideos)));
+  }
+  if (options.noBenchmarks || options["no-benchmarks"] || process.env.VIDEO_OPS_NO_BENCHMARKS === "1") {
+    next.benchmarks.publicCollection.enabled = false;
+  }
   return next;
 }
 
 function collectionPlan(config) {
   const maxVideos = Number(config.limits?.maxVideosPerAccount || 30);
   const mode = normalizeText(config.scanMode) || (maxVideos <= 30 ? "日常巡检" : maxVideos <= 100 ? "深度体检" : "全量基准扫描");
+  const publicCollection = config.benchmarks?.publicCollection || {};
+  const benchmarkEnabled = publicCollection.enabled !== false;
+  const benchmarkAccounts = benchmarkEnabled ? Number(publicCollection.accountsPerRun || 8) : 0;
+  const benchmarkVideos = benchmarkEnabled ? Number(publicCollection.videosPerAccount || 8) : 0;
   return {
     mode,
     targetPerAccount: maxVideos,
-    sampleMethod: "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
+    benchmarkAccountsPerRun: benchmarkAccounts,
+    benchmarkVideosPerAccount: benchmarkVideos,
+    sampleMethod: benchmarkEnabled
+      ? `自有账号按创作者中心作品列表采集；标杆账号按公开抖音搜索分批采集，本轮计划 ${benchmarkAccounts} 个标杆账号、每个最多 ${benchmarkVideos} 条公开视频。`
+      : "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
     purpose: maxVideos <= 30
       ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。"
       : maxVideos <= 100
@@ -310,7 +348,7 @@ function collectionPlan(config) {
         ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。"
         : "可以做较完整账号体检，但仍受平台后台可见数据限制。",
     fullScan: maxVideos >= 150,
-    operatorControl: "可以用 --max-videos 指定本轮每个账号最多采多少条。"
+    operatorControl: "可以用 --max-videos 指定自有账号最多采多少条；用 --benchmark-accounts 和 --benchmark-videos 调整标杆采集量。"
   };
 }
 
@@ -620,7 +658,7 @@ async function extractAccountAudit(page, account, config) {
 }
 
 async function collectVideoCards(page, account, config) {
-  const maxVideos = Number(config.limits?.maxVideosPerAccount || 30);
+  const maxVideos = Number(account.maxVideosPerRun || config.limits?.maxVideosPerAccount || 30);
   const listSelectors = account.selectors?.videoList || {};
   if (listSelectors.card) {
     const cards = await page.locator(listSelectors.card).evaluateAll((nodes, selectors) => nodes.slice(0, 80).map((node) => {
@@ -715,8 +753,8 @@ async function extractVideoSnapshot(page, account, card, config) {
     leads: selectors.leads ? await readSelectorNumber(page, selectors.leads) : valueAfterLabels(text, METRIC_LABELS.leads),
     followersGained: selectors.followersGained ? await readSelectorNumber(page, selectors.followersGained) : valueAfterLabels(text, ["涨粉", "新增粉丝"]),
     platformAdvice,
-    notes: "",
-    source: "playwright-agent"
+    notes: account.publicCollectionUnverified ? "标杆公开视频搜索样本，需人工复核是否来自目标账号。" : "",
+    source: account.publicCollectionUnverified ? "public-benchmark-search" : "playwright-agent"
   };
   snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
   return snapshot;
@@ -738,7 +776,8 @@ function extractSnapshotFromCard(account, card) {
     capturedAt: nowIso(),
     ...metrics,
     platformAdvice: "",
-    source: "playwright-agent-list"
+    notes: account.publicCollectionUnverified ? "标杆公开视频搜索列表样本，需人工复核是否来自目标账号。" : "",
+    source: account.publicCollectionUnverified ? "public-benchmark-search-list" : "playwright-agent-list"
   };
   snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
   return snapshot;
@@ -782,6 +821,71 @@ function mergeSnapshotData(primary, fallback) {
   merged.source = [detail.source, base.source].filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index).join("+") || "playwright-agent";
   merged.id = `snapshot-${hashText([merged.platform, merged.accountName, merged.videoId || merged.url || merged.title, merged.capturedAt].join("|"))}`;
   return merged;
+}
+
+function benchmarkSearchKeyword(account = {}) {
+  return normalizeText(
+    account.publicSearchKeyword ||
+    account.douyinSearchKeyword ||
+    account.wechatVideoSearchKeyword ||
+    account.name ||
+    account.douyinId
+  );
+}
+
+function buildBenchmarkSearchUrl(account = {}, config = {}) {
+  const collection = config.benchmarks?.publicCollection || {};
+  const template = normalizeText(collection.searchUrlTemplate) || "https://www.douyin.com/search/{keyword}?type=video";
+  const keyword = benchmarkSearchKeyword(account);
+  return template
+    .replaceAll("{keyword}", encodeURIComponent(keyword))
+    .replaceAll("{name}", encodeURIComponent(account.name || ""))
+    .replaceAll("{douyinId}", encodeURIComponent(account.douyinId || ""));
+}
+
+function rotateRows(rows, offset) {
+  if (!rows.length) return [];
+  const normalizedOffset = ((offset % rows.length) + rows.length) % rows.length;
+  return [...rows.slice(normalizedOffset), ...rows.slice(0, normalizedOffset)];
+}
+
+function publicBenchmarkCollectionAccounts(config = {}) {
+  const collection = config.benchmarks?.publicCollection || {};
+  if (collection.enabled === false) return [];
+  const limit = Math.max(1, Math.min(47, Math.round(Number(collection.accountsPerRun || 8))));
+  const maxVideos = Math.max(1, Math.min(50, Math.round(Number(collection.videosPerAccount || 8))));
+  const rows = (config.accounts || [])
+    .filter((account) => account.enabled !== false)
+    .filter((account) => (account.accountType || "自有账号") === "同行账号")
+    .filter((account) => (account.platform || "抖音") === "抖音")
+    .filter((account) => account.douyinId || account.name)
+    .sort((left, right) => Number(right.douyinFollowersWan || 0) - Number(left.douyinFollowersWan || 0));
+  const dayIndex = Math.floor(Date.now() / (24 * 3600 * 1000));
+  const offset = collection.rotateDaily === false ? 0 : (dayIndex * limit) % Math.max(1, rows.length);
+  return rotateRows(rows, offset).slice(0, limit).map((account) => ({
+    ...account,
+    platform: "抖音",
+    accountType: "同行账号",
+    owner: account.owner || "公开标杆",
+    dashboardUrl: "",
+    videoListUrl: account.publicProfileUrl || account.publicVideoListUrl || buildBenchmarkSearchUrl(account, config),
+    maxVideosPerRun: maxVideos,
+    collectionEnabled: true,
+    publicCollectionUnverified: true,
+    note: [
+      account.note || "公开标杆账号库。",
+      "本轮通过抖音公开搜索采集公开视频样本；采集结果需人工复核账号归属。"
+    ].filter(Boolean).join(" ")
+  }));
+}
+
+function accountCollectionKey(account = {}) {
+  return [
+    normalizeText(account.platform),
+    normalizeText(account.accountType || "自有账号"),
+    normalizeText(account.name),
+    normalizeText(account.dashboardUrl || account.videoListUrl || account.url)
+  ].join("|");
 }
 
 async function clickCardForSnapshot(page, account, card, config) {
@@ -919,10 +1023,12 @@ function normalizeAccountsForPayload(config) {
 async function collect(configPath, runtimeOptions = {}) {
   const config = applyRuntimeOptions(await loadConfig(configPath), runtimeOptions);
   await ensureDir(config.dataDir || DEFAULT_DATA_DIR);
-  const enabledAccounts = (config.accounts || [])
+  const authorizedAccounts = (config.accounts || [])
     .filter((account) => account.enabled !== false)
     .filter((account) => account.collectionEnabled !== false)
     .filter((account) => account.dashboardUrl || account.videoListUrl);
+  const benchmarkAccounts = publicBenchmarkCollectionAccounts(config);
+  const enabledAccounts = mergeByKey([...authorizedAccounts, ...benchmarkAccounts], accountCollectionKey);
   const runId = `video-run-${Date.now().toString(36)}`;
   const startedAt = nowIso();
   let completedPhases = 0;
@@ -954,7 +1060,7 @@ async function collect(configPath, runtimeOptions = {}) {
       auditsCount: 0,
       snapshotsCount: 0,
       warningsCount: 0,
-      message: `Mac mini 正在准备打开创作者中心。本轮为${plan.mode}，每个账号最多采 ${plan.targetPerAccount} 条作品。`
+      message: `Mac mini 正在准备采集。本轮为${plan.mode}：自有账号采后台，标杆账号采公开视频。`
     }
   };
   let context = null;
@@ -1194,20 +1300,21 @@ function usage() {
 用法：
   node scripts/video-ops-agent.mjs init [--config 路径]
   node scripts/video-ops-agent.mjs login [--config 路径]
-  node scripts/video-ops-agent.mjs collect [--config 路径] [--max-videos 数量]
+  node scripts/video-ops-agent.mjs collect [--config 路径] [--max-videos 数量] [--benchmark-accounts 数量] [--benchmark-videos 数量]
   node scripts/video-ops-agent.mjs push [--config 路径] [--file JSON路径]
-  node scripts/video-ops-agent.mjs run [--config 路径] [--max-videos 数量]
+  node scripts/video-ops-agent.mjs run [--config 路径] [--max-videos 数量] [--benchmark-accounts 数量] [--benchmark-videos 数量] [--no-benchmarks]
 
 说明：
   init     创建配置文件
   login    打开独立 Chrome 档案，人工扫码登录抖音/视频号后台
-  collect  自动打开后台并采集账号体检、视频数据、平台建议；默认每个账号采最近 30 条
+  collect  自动打开后台采自有账号，并分批采标杆账号公开作品；默认自有账号 30 条，标杆 8 个账号、每个 8 条
   push     推送 latest-video-ops-payload.json 到网站短视频系统
   run      collect + push；如果没有 API Token，会保留本地 JSON，不会丢数据
 
 采集策略：
-  默认不是随机采集，而是按创作者中心作品列表顺序优先采最近作品。
-  日常巡检建议 30 条；阶段体检建议 80-100 条；首次建档可用 150-300 条。
+  自有账号不是随机采集，而是按创作者中心作品列表顺序优先采最近作品。
+  标杆账号只采公开视频，不采未授权后台；默认每天轮换 8 个标杆账号。
+  日常巡检建议 npm run video:run；阶段体检可用 --max-videos 100 --benchmark-accounts 16 --benchmark-videos 12。
 `);
 }
 

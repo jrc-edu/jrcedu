@@ -20,7 +20,14 @@
   "benchmarks": {
     "enabled": true,
     "source": "data/video_benchmark_accounts.json",
-    "note": "公开标杆账号库只作为对比背景和账号清单，不自动采集未授权后台数据。"
+    "publicCollection": {
+      "enabled": true,
+      "accountsPerRun": 8,
+      "videosPerAccount": 8,
+      "rotateDaily": true,
+      "searchUrlTemplate": "https://www.douyin.com/search/{keyword}?type=video"
+    },
+    "note": "公开标杆账号库会随自有账号一起分批采公开视频；不采未授权后台数据。"
   },
   "accounts": [
     {

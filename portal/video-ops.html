@@ -601,6 +601,7 @@
       function sourceLabel(value) {
         const raw = normalizeText(value);
         if (!raw) return "来源待确认";
+        if (raw.includes("public-benchmark-search")) return "标杆公开采集";
         if (raw.includes("+") && raw.includes("playwright-agent") && raw.includes("list")) return "机器人列表+详情";
         if (raw.includes("playwright-agent-list")) return "机器人列表采集";
         if (raw.includes("playwright-agent")) return "机器人详情采集";
@@ -636,10 +637,14 @@
       function normalizeCollectionPlan(value = {}) {
         const source = value && typeof value === "object" ? value : {};
         const target = parseNumber(source.targetPerAccount) || 30;
+        const benchmarkAccounts = parseNumber(source.benchmarkAccountsPerRun);
+        const benchmarkVideos = parseNumber(source.benchmarkVideosPerAccount);
         const mode = normalizeText(source.mode) || (target <= 30 ? "日常巡检" : target <= 100 ? "深度体检" : "全量基准扫描");
         return {
           mode,
           targetPerAccount: target,
+          benchmarkAccountsPerRun: benchmarkAccounts,
+          benchmarkVideosPerAccount: benchmarkVideos,
           sampleMethod: normalizeText(source.sampleMethod) || "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
           purpose: normalizeText(source.purpose) || (target <= 30 ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。" : target <= 100 ? "适合做账号阶段体检，判断题材、留存、互动和转化的大方向。" : "适合首次建档或月度复盘，用更大历史样本建立账号基准。"),
           conclusionBoundary: normalizeText(source.conclusionBoundary) || (target < 20 ? "样本偏少，只能做方向提示，不能下账号级重结论。" : target < 80 ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。" : "可以做较完整账号体检，但仍受平台后台可见数据限制。"),
@@ -1504,7 +1509,9 @@
           ...(state.collectionPlan || {}),
           mode: state.collectionPlan?.mode || status.scanMode,
           targetPerAccount: state.collectionPlan?.targetPerAccount || status.targetPerAccount,
-          sampleMethod: state.collectionPlan?.sampleMethod || status.sampleMethod
+          sampleMethod: state.collectionPlan?.sampleMethod || status.sampleMethod,
+          benchmarkAccountsPerRun: state.collectionPlan?.benchmarkAccountsPerRun,
+          benchmarkVideosPerAccount: state.collectionPlan?.benchmarkVideosPerAccount
         });
         return plan;
       }
@@ -1514,10 +1521,11 @@
         byId("collectionPlanBadge").textContent = `${plan.mode}｜每账号 ${plan.targetPerAccount} 条`;
         byId("collectionPlanSummary").textContent = plan.sampleMethod;
         const rows = [
-          ["本轮采多少", `每个账号最多 ${plan.targetPerAccount} 条作品`],
+          ["自有账号采多少", `每个自有账号最多 ${plan.targetPerAccount} 条后台作品数据`],
+          ["标杆账号采多少", plan.benchmarkAccountsPerRun ? `本轮采 ${plan.benchmarkAccountsPerRun} 个标杆账号，每个最多 ${plan.benchmarkVideosPerAccount || 8} 条公开视频` : "本轮未启用标杆公开采集"],
           ["为什么这样采", plan.purpose],
           ["结论边界", plan.conclusionBoundary],
-          ["是不是随机", "不是随机。按后台作品列表顺序，优先近期作品。"]
+          ["是不是随机", "不是随机。自有账号按后台作品列表，标杆账号按公开搜索队列分批轮换。"]
         ];
         byId("collectionStrategyGrid").innerHTML = rows.map(([label, value]) => `
           <div class="strategy-item">
@@ -1525,7 +1533,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "指挥采集：日常看最近作品用 npm run video:run；阶段体检用 npm run video:run -- --max-videos 100；首次建档或月度深扫可用 npm run video:run -- --max-videos 200。";
+        byId("collectionCommandHint").textContent = "指挥采集：日常统一采集用 npm run video:run；阶段体检用 npm run video:run -- --max-videos 100 --benchmark-accounts 16 --benchmark-videos 12；只采自有账号可加 --no-benchmarks。";
       }
 
       function dataReadinessProfile() {
