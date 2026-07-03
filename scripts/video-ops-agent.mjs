@@ -164,19 +164,22 @@ function defaultConfig() {
       maxVideosPerAccount: 30,
       navigationTimeoutMs: 60000,
       minDelayMs: 900,
-      maxDelayMs: 2200
+      maxDelayMs: 2200,
+      manualConfirm: true,
+      strictCollection: true,
+      autoOpenDetails: false
     },
     benchmarks: {
       enabled: true,
       source: DEFAULT_BENCHMARK_ACCOUNTS_PATH,
       publicCollection: {
-        enabled: true,
+        enabled: false,
         accountsPerRun: 8,
         videosPerAccount: 8,
         rotateDaily: true,
         searchUrlTemplate: "https://www.douyin.com/search/{keyword}?type=video"
       },
-      note: "公开标杆账号库会随自有账号一起分批采公开视频；不采未授权后台数据。"
+      note: "标杆账号库只作为对照名单。默认不自动采集公开视频，避免公开搜索结果混入无效信息。"
     },
     accounts: [
       {
@@ -316,15 +319,31 @@ function applyRuntimeOptions(config, options = {}) {
   if (benchmarkVideos > 0) {
     next.benchmarks.publicCollection.videosPerAccount = Math.max(1, Math.min(50, Math.round(benchmarkVideos)));
   }
+  next.benchmarks.publicCollection.enabled = false;
+  if (options.withBenchmarks || options["with-benchmarks"] || process.env.VIDEO_OPS_WITH_BENCHMARKS === "1") {
+    next.benchmarks.publicCollection.enabled = true;
+  }
   if (options.noBenchmarks || options["no-benchmarks"] || process.env.VIDEO_OPS_NO_BENCHMARKS === "1") {
     next.benchmarks.publicCollection.enabled = false;
+  }
+  if (options.auto || options["no-manual"] || process.env.VIDEO_OPS_NO_MANUAL === "1") {
+    next.limits.manualConfirm = false;
+  }
+  if (options.manual || options["manual-confirm"] || process.env.VIDEO_OPS_MANUAL_CONFIRM === "1") {
+    next.limits.manualConfirm = true;
+  }
+  if (options.openDetails || options["open-details"] || process.env.VIDEO_OPS_OPEN_DETAILS === "1") {
+    next.limits.autoOpenDetails = true;
+  }
+  if (options.fresh || options.rebuild || options["replace-data"] || process.env.VIDEO_OPS_FRESH === "1") {
+    next.rebuildMode = true;
   }
   return next;
 }
 
 function collectionPlan(config) {
   const maxVideos = Number(config.limits?.maxVideosPerAccount || 30);
-  const mode = normalizeText(config.scanMode) || (maxVideos <= 30 ? "日常巡检" : maxVideos <= 100 ? "深度体检" : "全量基准扫描");
+  const mode = normalizeText(config.scanMode) || (maxVideos <= 30 ? "人工确认可信采集" : maxVideos <= 100 ? "人工确认阶段体检" : "人工确认深度扫描");
   const publicCollection = config.benchmarks?.publicCollection || {};
   const benchmarkEnabled = publicCollection.enabled !== false;
   const benchmarkAccounts = benchmarkEnabled ? Number(publicCollection.accountsPerRun || 8) : 0;
@@ -335,8 +354,8 @@ function collectionPlan(config) {
     benchmarkAccountsPerRun: benchmarkAccounts,
     benchmarkVideosPerAccount: benchmarkVideos,
     sampleMethod: benchmarkEnabled
-      ? `自有账号按创作者中心作品列表采集；标杆账号按公开抖音搜索分批采集，本轮计划 ${benchmarkAccounts} 个标杆账号、每个最多 ${benchmarkVideos} 条公开视频。`
-      : "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
+      ? `自有账号必须人工确认进入正确后台页面后再采集；标杆账号仅在明确开启时采公开视频，本轮计划 ${benchmarkAccounts} 个标杆账号、每个最多 ${benchmarkVideos} 条。`
+      : "人工确认进入正确创作者中心/作品列表后才采集；默认只采自有账号，不再自动采标杆公开搜索结果。",
     purpose: maxVideos <= 30
       ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。"
       : maxVideos <= 100
@@ -348,7 +367,7 @@ function collectionPlan(config) {
         ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。"
         : "可以做较完整账号体检，但仍受平台后台可见数据限制。",
     fullScan: maxVideos >= 150,
-    operatorControl: "可以用 --max-videos 指定自有账号最多采多少条；用 --benchmark-accounts 和 --benchmark-videos 调整标杆采集量。"
+    operatorControl: "建议用 --fresh 重建本轮可信数据；用 --max-videos 指定自有账号最多采多少条。标杆采集需显式加 --with-benchmarks。"
   };
 }
 
@@ -401,6 +420,25 @@ async function saveEvidence(page, config, prefix) {
   const filePath = path.join(dir, `${safePrefix}-${Date.now()}.png`);
   await page.screenshot({ path: filePath, fullPage: true }).catch(() => {});
   return filePath;
+}
+
+async function askOperator(config, question) {
+  if (!config.__readline) return "";
+  return normalizeText(await config.__readline.question(question));
+}
+
+async function waitForOperatorConfirmation(page, config, label, account, warnings) {
+  if (!config.limits?.manualConfirm) return true;
+  const screenshot = await saveEvidence(page, config, `${account.name}-${label}-before-confirm`);
+  console.log("");
+  console.log(`请人工确认：${account.platform}｜${account.name}｜${label}`);
+  console.log(`截图已保存：${screenshot}`);
+  console.log("如果当前 Chrome 页面已经是正确后台/正确作品列表，并且能看到真实数据，输入 y 后回车。");
+  console.log("如果还没进去，请先在 Chrome 里手动登录、点菜单、打开正确页面，再回到终端输入 y。");
+  const answer = await askOperator(config, "确认可以采集？输入 y 继续，直接回车跳过这个账号：");
+  const confirmed = /^y|yes|好|确认|可以|继续$/i.test(answer);
+  if (!confirmed) warnings.push(`${account.platform}｜${account.name}｜${label} 未经人工确认，已跳过，避免采集无效页面。截图：${screenshot}`);
+  return confirmed;
 }
 
 async function readSelector(page, selector) {
@@ -618,6 +656,47 @@ function isUsefulSnapshot(snapshot = {}) {
   if (title && INVALID_VIDEO_TITLE_RE.test(title)) return false;
   if (url && INVALID_VIDEO_URL_RE.test(url)) return false;
   return hasSnapshotMetrics(snapshot) || looksLikeVideoUrl(url);
+}
+
+function snapshotConfidence(snapshot = {}) {
+  const title = normalizeText(snapshot.title);
+  const url = normalizeText(snapshot.url);
+  let score = 0;
+  if (title.length >= 6 && !INVALID_VIDEO_TITLE_RE.test(title)) score += 25;
+  if (Number(snapshot.views) > 0) score += 28;
+  if (["likes", "comments", "favorites", "shares"].some((key) => Number(snapshot[key]) > 0)) score += 18;
+  if (["completeRate", "threeSecondRetention", "fiveSecondRetention", "avgWatchSeconds"].some((key) => Number(snapshot[key]) > 0)) score += 18;
+  if (["profileVisits", "messages", "leads"].some((key) => Number(snapshot[key]) > 0)) score += 15;
+  if (normalizeText(snapshot.publishedAt)) score += 8;
+  if (looksLikeVideoUrl(url)) score += 6;
+  if (normalizeText(snapshot.platformAdvice)) score += 6;
+  if (!hasSnapshotMetrics(snapshot)) score -= 40;
+  if (title && INVALID_VIDEO_TITLE_RE.test(title)) score -= 50;
+  if (url && INVALID_VIDEO_URL_RE.test(url)) score -= 40;
+  return Math.max(0, Math.min(100, score));
+}
+
+function isTrustedSnapshot(snapshot = {}) {
+  const title = normalizeText(snapshot.title);
+  if (!title || INVALID_VIDEO_TITLE_RE.test(title)) return false;
+  if (!hasSnapshotMetrics(snapshot)) return false;
+  return snapshotConfidence(snapshot) >= 55;
+}
+
+function auditConfidence(audit = {}) {
+  let score = 0;
+  if (normalizeText(audit.accountName)) score += 20;
+  if (Number(audit.followers) > 0) score += 22;
+  if (Number(audit.totalVideos) > 0) score += 16;
+  if (Number(audit.totalViews) > 0 || Number(audit.recentViews) > 0) score += 18;
+  if (Number(audit.profileVisits) > 0 || Number(audit.messages) > 0 || Number(audit.leads) > 0) score += 14;
+  if (Object.values(audit.trafficSources || {}).some((value) => Number(value) > 0)) score += 14;
+  if (normalizeText(audit.platformAdvice || audit.audienceSummary)) score += 10;
+  return Math.max(0, Math.min(100, score));
+}
+
+function isTrustedAudit(audit = {}) {
+  return auditConfidence(audit) >= 35;
 }
 
 async function extractAccountAudit(page, account, config) {
@@ -933,8 +1012,18 @@ async function collectAccount(context, account, config, onProgress = async () =>
         const screenshot = await saveEvidence(page, config, `${account.name}-login-required`);
         warnings.push(`${account.platform}｜${account.name} 可能需要重新登录或验证，截图：${screenshot}`);
       }
+      if (!await waitForOperatorConfirmation(page, config, "账号首页/数据概览", account, warnings)) {
+        return { accountAudits, snapshots, warnings };
+      }
       await onProgress(`读取${account.platform}账号概览`, { currentAccount: account.name, currentPlatform: account.platform });
-      accountAudits.push(await extractAccountAudit(page, account, config));
+      const audit = await extractAccountAudit(page, account, config);
+      audit.confidence = auditConfidence(audit);
+      audit.source = `${audit.source || "playwright-agent"}+manual-confirmed`;
+      if (isTrustedAudit(audit)) {
+        accountAudits.push(audit);
+      } else {
+        warnings.push(`${account.platform}｜${account.name} 账号概览可信度不足（${audit.confidence}/100），未入库。请确认页面是否显示粉丝、作品、播放、访问等真实账号数据。`);
+      }
     }
 
     if (account.videoListUrl) {
@@ -944,6 +1033,9 @@ async function collectAccount(context, account, config, onProgress = async () =>
       if (hasLoginBarrier(text)) {
         const screenshot = await saveEvidence(page, config, `${account.name}-video-list-login-required`);
         warnings.push(`${account.platform}｜${account.name} 视频列表可能需要登录验证，截图：${screenshot}`);
+      }
+      if (!await waitForOperatorConfirmation(page, config, "作品列表", account, warnings)) {
+        return { accountAudits, snapshots, warnings };
       }
       await onProgress(`识别${account.platform}作品卡片`, { currentAccount: account.name, currentPlatform: account.platform });
       const cards = await collectVideoCards(page, account, config);
@@ -960,7 +1052,7 @@ async function collectAccount(context, account, config, onProgress = async () =>
         });
         const listSnapshot = extractSnapshotFromCard(account, card);
         let snapshot = isUsefulSnapshot(listSnapshot) ? listSnapshot : null;
-        if (isNavigableHttpUrl(card.url)) {
+        if (config.limits?.autoOpenDetails && isNavigableHttpUrl(card.url)) {
           const detailPage = await context.newPage();
           try {
             await gotoSafe(detailPage, card.url, config);
@@ -971,7 +1063,7 @@ async function collectAccount(context, account, config, onProgress = async () =>
           } finally {
             await detailPage.close().catch(() => {});
           }
-        } else if (card.cardSelector && Number.isInteger(card.cardIndex)) {
+        } else if (config.limits?.autoOpenDetails && card.cardSelector && Number.isInteger(card.cardIndex)) {
           try {
             const clickSnapshot = await clickCardForSnapshot(page, account, card, config);
             if (clickSnapshot) snapshot = mergeSnapshotData(clickSnapshot, listSnapshot);
@@ -979,10 +1071,14 @@ async function collectAccount(context, account, config, onProgress = async () =>
             warnings.push(`${account.platform}｜${account.name} 点击作品卡片详情失败，已保留列表数据：${card.title || card.url}｜${error.message}`);
           }
         }
-        if (snapshot && isUsefulSnapshot(snapshot)) {
+        if (snapshot) {
+          snapshot.confidence = snapshotConfidence(snapshot);
+          snapshot.source = `${snapshot.source || "playwright-agent"}+manual-confirmed`;
+        }
+        if (snapshot && isTrustedSnapshot(snapshot)) {
           snapshots.push(snapshot);
         } else {
-          warnings.push(`${account.platform}｜${account.name} 已跳过无有效数据的视频候选：${card.title || card.url}`);
+          warnings.push(`${account.platform}｜${account.name} 已跳过可信度不足的视频候选：${card.title || card.url}｜可信度 ${snapshot?.confidence || 0}/100`);
         }
       }
     }
@@ -1023,6 +1119,11 @@ function normalizeAccountsForPayload(config) {
 async function collect(configPath, runtimeOptions = {}) {
   const config = applyRuntimeOptions(await loadConfig(configPath), runtimeOptions);
   await ensureDir(config.dataDir || DEFAULT_DATA_DIR);
+  let rl = null;
+  if (config.limits?.manualConfirm) {
+    rl = readline.createInterface({ input, output });
+    config.__readline = rl;
+  }
   const authorizedAccounts = (config.accounts || [])
     .filter((account) => account.enabled !== false)
     .filter((account) => account.collectionEnabled !== false)
@@ -1041,6 +1142,7 @@ async function collect(configPath, runtimeOptions = {}) {
     warnings: [],
     collectedAt: nowIso(),
     source: "mac-mini-playwright-agent",
+    rebuildMode: Boolean(config.rebuildMode),
     collectionPlan: plan,
     collectorStatus: {
       status: "running",
@@ -1060,7 +1162,7 @@ async function collect(configPath, runtimeOptions = {}) {
       auditsCount: 0,
       snapshotsCount: 0,
       warningsCount: 0,
-      message: `Mac mini 正在准备采集。本轮为${plan.mode}：自有账号采后台，标杆账号采公开视频。`
+      message: `Mac mini 正在准备采集。本轮为${plan.mode}：人工确认页面后才入库，默认不采标杆公开搜索。`
     }
   };
   let context = null;
@@ -1136,6 +1238,8 @@ async function collect(configPath, runtimeOptions = {}) {
     throw error;
   } finally {
     if (context) await context.close().catch(() => {});
+    if (rl) rl.close();
+    delete config.__readline;
   }
 
   const outputFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-payload.json");
@@ -1153,7 +1257,7 @@ async function collect(configPath, runtimeOptions = {}) {
     auditsCount: payload.accountAudits.length,
     snapshotsCount: payload.snapshots.length,
     warningsCount: payload.warnings.length,
-    message: `采集结束：账号体检 ${payload.accountAudits.length} 条，视频快照 ${payload.snapshots.length} 条。`
+    message: `可信采集结束：账号体检 ${payload.accountAudits.length} 条，可信视频快照 ${payload.snapshots.length} 条。${payload.warnings.length ? "有部分页面未入库，需人工查看异常提示。" : ""}`
   };
   await writeJson(outputFile, payload);
   await writeJson(datedFile, payload);
@@ -1234,16 +1338,17 @@ function mergePayloads(existing, incoming) {
   return {
     accounts: mergeByKey([...(oldState.accounts || []), ...(newState.accounts || [])], (row) => [row.platform, row.name || row.accountName, row.accountType || "自有账号"].join("|")),
     accountAudits: mergeByKey([...(oldState.accountAudits || []), ...(newState.accountAudits || [])], (row) => row.id || [row.platform, row.accountName || row.name, row.capturedAt].join("|")),
-    snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isUsefulSnapshot), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
+    snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isTrustedSnapshot), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
     collectorStatus: newState.collectorStatus || oldState.collectorStatus || null,
     collectionPlan: newState.collectionPlan || oldState.collectionPlan || null,
     warnings: [...(oldState.warnings || []), ...(newState.warnings || [])].slice(-40),
+    rebuildMode: Boolean(newState.rebuildMode),
     updatedAt: nowIso(),
     source: "mac-mini-playwright-agent"
   };
 }
 
-async function pushPayload(configPath, filePath = "") {
+async function pushPayload(configPath, filePath = "", runtimeOptions = {}) {
   const config = await loadConfig(configPath);
   const token = apiToken(config);
   if (!config.apiBaseUrl || !/^https?:\/\//.test(config.apiBaseUrl)) {
@@ -1255,10 +1360,11 @@ async function pushPayload(configPath, filePath = "") {
   const payloadFile = filePath || path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-payload.json");
   const incoming = await readJson(payloadFile, null);
   if (!incoming) throw new Error(`未找到可推送数据：${payloadFile}`);
-  const existing = await readRemoteState(config, token);
+  const replaceExisting = Boolean(runtimeOptions.fresh || runtimeOptions.rebuild || runtimeOptions["replace-data"] || incoming.rebuildMode);
+  const existing = replaceExisting ? null : await readRemoteState(config, token);
   const merged = mergePayloads(existing, incoming);
   const resultText = await writeRemoteState(config, token, merged);
-  console.log(`推送成功：${resultText}`);
+  console.log(`${replaceExisting ? "重建推送成功" : "推送成功"}：${resultText}`);
   return resultText;
 }
 
@@ -1300,21 +1406,22 @@ function usage() {
 用法：
   node scripts/video-ops-agent.mjs init [--config 路径]
   node scripts/video-ops-agent.mjs login [--config 路径]
-  node scripts/video-ops-agent.mjs collect [--config 路径] [--max-videos 数量] [--benchmark-accounts 数量] [--benchmark-videos 数量]
-  node scripts/video-ops-agent.mjs push [--config 路径] [--file JSON路径]
-  node scripts/video-ops-agent.mjs run [--config 路径] [--max-videos 数量] [--benchmark-accounts 数量] [--benchmark-videos 数量] [--no-benchmarks]
+  node scripts/video-ops-agent.mjs collect [--config 路径] [--fresh] [--max-videos 数量]
+  node scripts/video-ops-agent.mjs push [--config 路径] [--file JSON路径] [--fresh]
+  node scripts/video-ops-agent.mjs run [--config 路径] [--fresh] [--max-videos 数量] [--with-benchmarks]
 
 说明：
   init     创建配置文件
   login    打开独立 Chrome 档案，人工扫码登录抖音/视频号后台
-  collect  自动打开后台采自有账号，并分批采标杆账号公开作品；默认自有账号 30 条，标杆 8 个账号、每个 8 条
+  collect  打开后台后等待人工确认，确认页面真实有效后才采自有账号数据；默认不采标杆公开搜索
   push     推送 latest-video-ops-payload.json 到网站短视频系统
-  run      collect + push；如果没有 API Token，会保留本地 JSON，不会丢数据
+  run      collect + push；建议本轮重建使用 --fresh，清掉旧脏数据，只保留新流程可信数据
 
 采集策略：
-  自有账号不是随机采集，而是按创作者中心作品列表顺序优先采最近作品。
-  标杆账号只采公开视频，不采未授权后台；默认每天轮换 8 个标杆账号。
-  日常巡检建议 npm run video:run；阶段体检可用 --max-videos 100 --benchmark-accounts 16 --benchmark-videos 12。
+  自有账号不是随机采集，而是人工确认进入正确创作者中心页面后，按作品列表优先采最近作品。
+  默认不再自动点详情页，不再自动采标杆公开视频，避免把菜单页、验证码页、搜索噪音当成作品数据。
+  本轮重建建议 npm run video:run -- --fresh --max-videos 30。
+  如以后确实要采标杆公开样本，再显式加 --with-benchmarks，并人工复核结果。
 `);
 }
 
@@ -1326,11 +1433,11 @@ async function main() {
   if (command === "init") return await initConfig(configPath);
   if (command === "login") return await login(configPath);
   if (command === "collect") return await collect(configPath, args);
-  if (command === "push") return await pushPayload(configPath, args.file ? path.resolve(String(args.file)) : "");
+  if (command === "push") return await pushPayload(configPath, args.file ? path.resolve(String(args.file)) : "", args);
   if (command === "run") {
     const collected = await collect(configPath, args);
     try {
-      await pushPayload(configPath);
+      await pushPayload(configPath, "", args);
     } catch (error) {
       console.warn(`自动推送未完成：${error.message}`);
       console.warn(`采集已经完成，数据没有丢。本地文件：${collected?.outputFile || path.join(DEFAULT_DATA_DIR, "latest-video-ops-payload.json")}`);

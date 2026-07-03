@@ -49,6 +49,8 @@
       .hero-text { margin-top: 12px; }
       .tag-row, .actions, .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
       .tag, .badge { display: inline-flex; align-items: center; width: fit-content; border-radius: 999px; padding: 5px 10px; background: var(--brand-soft); color: var(--brand-dark); font-size: 12px; font-weight: 900; }
+      .inline-check { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 12px; font-weight: 800; }
+      .inline-check input { width: 15px; height: 15px; margin: 0; }
       .badge.warn { background: rgba(180,83,9,0.12); color: var(--warn); }
       .badge.danger { background: rgba(185,28,28,0.10); color: var(--danger); }
       .badge.good { background: rgba(22,163,74,0.12); color: var(--good); }
@@ -194,7 +196,7 @@
         <article class="card">
           <p class="eyebrow">Video Ops Monitor</p>
           <h1>短视频系统</h1>
-          <p class="hero-text">Mac mini 机器人定时读取自有账号创作者中心数据，按中国大陆一到九年级数学教培逻辑沉淀视频档案、同行差距和下一步拍摄建议。</p>
+          <p class="hero-text">Mac mini 打开自有账号创作者中心，由人工确认进入正确后台页面后再采集可信数据，按中国大陆一到九年级数学教培逻辑沉淀视频档案、同行差距和下一步拍摄建议。</p>
           <div class="tag-row" style="margin-top:14px;">
             <span class="tag">自有账号巡检</span>
             <span class="tag">平台建议归档</span>
@@ -206,9 +208,9 @@
         </article>
         <aside class="card">
           <p class="eyebrow">机器人逻辑</p>
-          <h2>只巡检有权限的数据</h2>
-          <p style="margin-top:10px;">Mac mini 采集器后续只需要定时登录你们自己的创作者中心，把能看到的视频数据和平台建议写入本系统；同行账号只做公开数据对比。</p>
-          <div class="notice warn">如果平台要求验证码或重新登录，采集器应暂停并提醒人工处理，不做绕过。</div>
+          <h2>人工确认后才入库</h2>
+          <p style="margin-top:10px;">采集器只负责打开页面、读取页面和保存进度；遇到登录、验证码、菜单跳转、权限页时必须人工确认。没有真实标题和指标的数据不进入正式视频档案。</p>
+          <div class="notice warn">本轮废弃旧的自动乱点路线。旧数据可用“重建数据”导入或 `npm run video:rebuild` 清掉。</div>
         </aside>
       </section>
 
@@ -341,6 +343,7 @@
           <div class="actions">
             <button class="button" id="quickImportJsonButton" type="button">导入本地采集文件</button>
             <input id="quickImportJsonFileInput" type="file" accept=".json,application/json" style="display:none;">
+            <label class="inline-check"><input id="replaceVideoDataOnImport" type="checkbox" checked>重建数据</label>
             <button class="button secondary" id="copyWeeklyReportButton" type="button">复制本周复盘</button>
             <button class="button secondary" id="refreshCloudButton" type="button">同步云端</button>
           </div>
@@ -1527,11 +1530,11 @@
         byId("collectionPlanBadge").textContent = `${plan.mode}｜每账号 ${plan.targetPerAccount} 条`;
         byId("collectionPlanSummary").textContent = plan.sampleMethod;
         const rows = [
-          ["自有账号采多少", `每个自有账号最多 ${plan.targetPerAccount} 条后台作品数据`],
-          ["标杆账号采多少", plan.benchmarkAccountsPerRun ? `本轮采 ${plan.benchmarkAccountsPerRun} 个标杆账号，每个最多 ${plan.benchmarkVideosPerAccount || 8} 条公开视频` : "本轮未启用标杆公开采集"],
+          ["自有账号采多少", `每个自有账号最多 ${plan.targetPerAccount} 条后台作品数据，必须人工确认页面后才入库`],
+          ["标杆账号采多少", plan.benchmarkAccountsPerRun ? `本轮显式开启标杆采集：${plan.benchmarkAccountsPerRun} 个账号，每个最多 ${plan.benchmarkVideosPerAccount || 8} 条` : "默认不采标杆公开搜索，只保留标杆名单用于人工学习"],
           ["为什么这样采", plan.purpose],
           ["结论边界", plan.conclusionBoundary],
-          ["是不是随机", "不是随机。自有账号按后台作品列表，标杆账号按公开搜索队列分批轮换。"]
+          ["是不是随机", "不是随机。自有账号按后台作品列表；页面不对、权限没进、字段不可信时直接跳过。"]
         ];
         byId("collectionStrategyGrid").innerHTML = rows.map(([label, value]) => `
           <div class="strategy-item">
@@ -1539,7 +1542,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "指挥采集：日常统一采集用 npm run video:run；阶段体检用 npm run video:run -- --max-videos 100 --benchmark-accounts 16 --benchmark-videos 12；只采自有账号可加 --no-benchmarks。";
+        byId("collectionCommandHint").textContent = "指挥采集：本轮重建用 npm run video:rebuild；阶段体检用 npm run video:run -- --fresh --max-videos 100。采标杆公开样本必须显式加 --with-benchmarks，并人工复核结果。";
       }
 
       function dataReadinessProfile() {
@@ -1583,9 +1586,9 @@
         if (status.status === "running") {
           commands.push("当前采集器正在运行，先等本轮结束再看结论。");
         } else if (ownCount < 20) {
-          commands.push("下一步建议：在 Mac mini 运行 npm run video:run -- --max-videos 30，先把近期作品采稳。");
+          commands.push("下一步建议：在 Mac mini 运行 npm run video:rebuild，按提示人工确认后台页面，先重建可信近期作品数据。");
         } else if (ownCount < 80 || peerCount < 10) {
-          commands.push("下一步建议：运行 npm run video:run -- --max-videos 100，做一次阶段体检，并补充同行公开账号。");
+          commands.push("下一步建议：运行 npm run video:run -- --fresh --max-videos 100，做一次人工确认阶段体检。");
         } else {
           commands.push("下一步建议：保持每日采集，重点看复拍题材、转化承接和同行差距。");
         }
@@ -2388,7 +2391,8 @@
             snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : (Array.isArray(parsed.videos) ? parsed.videos : []),
             collectorStatus: parsed.collectorStatus || {},
             collectionPlan: parsed.collectionPlan || {},
-            warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
+            warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
+            rebuildMode: Boolean(parsed.rebuildMode || parsed.fresh || parsed.replaceData)
           };
         }
         throw new Error("未识别到 accounts / accountAudits / snapshots / videos 数据。");
@@ -2415,10 +2419,12 @@
             ].join(" ");
             return;
           }
-          state = mergeState(state, imported);
+          const replaceExisting = Boolean(payload.rebuildMode || byId("replaceVideoDataOnImport")?.checked);
+          const baseState = replaceExisting ? { accounts: [], accountAudits: [], snapshots: [], warnings: [] } : state;
+          state = mergeState(baseState, imported);
           const latestCount = latestSnapshots().length;
           saveState([
-            `已导入${sourceName ? `「${sourceName}」` : "采集数据"}。`,
+            `${replaceExisting ? "已重建导入" : "已导入"}${sourceName ? `「${sourceName}」` : "采集数据"}。`,
             `原始读取：账号 ${rawCounts.accounts} 个、账号体检 ${rawCounts.accountAudits} 条、视频快照 ${rawCounts.snapshots} 条。`,
             `成功入库：账号 ${imported.accounts.length} 个、账号体检 ${imported.accountAudits.length} 条、有效视频快照 ${imported.snapshots.length} 条。`,
             `当前页面可显示视频档案 ${latestCount} 条。`

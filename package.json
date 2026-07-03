@@ -10,6 +10,7 @@
     "video:collect": "node scripts/video-ops-agent.mjs collect",
     "video:push": "node scripts/video-ops-agent.mjs push",
     "video:run": "node scripts/video-ops-agent.mjs run",
+    "video:rebuild": "node scripts/video-ops-agent.mjs run --fresh --max-videos 30",
     "build": "next build",
     "start": "next start"
   },
