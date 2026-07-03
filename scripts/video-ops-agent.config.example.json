@@ -1,0 +1,62 @@
+{
+  "apiBaseUrl": "https://你的域名/api",
+  "apiTokenEnv": "JRC_API_TOKEN",
+  "storeKey": "jrc-video-ops-monitor-v1",
+  "moduleKey": "videoOps",
+  "operator": {
+    "name": "Mac mini 短视频机器人",
+    "username": "video_ops_agent"
+  },
+  "dataDir": "/Users/chengzhihao/Documents/JRC-Video-Ops-Agent",
+  "profileDir": "/Users/chengzhihao/Library/Application Support/JRC Video Ops Agent/ChromeProfile",
+  "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "headless": false,
+  "limits": {
+    "maxVideosPerAccount": 30,
+    "navigationTimeoutMs": 60000,
+    "minDelayMs": 900,
+    "maxDelayMs": 2200
+  },
+  "accounts": [
+    {
+      "platform": "抖音",
+      "accountType": "自有账号",
+      "name": "程志豪个人号",
+      "owner": "程志豪",
+      "weeklyTarget": 7,
+      "dashboardUrl": "https://creator.douyin.com/creator-micro/home",
+      "videoListUrl": "https://creator.douyin.com/creator-micro/content/manage",
+      "defaultTopic": "数学教育",
+      "enabled": true,
+      "selectors": {
+        "accountAudit": {},
+        "videoList": {
+          "card": "",
+          "title": "",
+          "url": ""
+        },
+        "videoDetail": {}
+      }
+    },
+    {
+      "platform": "视频号",
+      "accountType": "自有账号",
+      "name": "程志豪视频号",
+      "owner": "程志豪",
+      "weeklyTarget": 5,
+      "dashboardUrl": "https://channels.weixin.qq.com/platform",
+      "videoListUrl": "https://channels.weixin.qq.com/platform/post/list",
+      "defaultTopic": "数学教育",
+      "enabled": true,
+      "selectors": {
+        "accountAudit": {},
+        "videoList": {
+          "card": "",
+          "title": "",
+          "url": ""
+        },
+        "videoDetail": {}
+      }
+    }
+  ]
+}

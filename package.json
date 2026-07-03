@@ -5,11 +5,17 @@
   "scripts": {
     "dev": "next dev",
     "audit:data-links": "node scripts/audit-system-data-links.mjs",
+    "video:init": "node scripts/video-ops-agent.mjs init",
+    "video:login": "node scripts/video-ops-agent.mjs login",
+    "video:collect": "node scripts/video-ops-agent.mjs collect",
+    "video:push": "node scripts/video-ops-agent.mjs push",
+    "video:run": "node scripts/video-ops-agent.mjs run",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
     "next": "14.2.0",
+    "playwright": "^1.61.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   }

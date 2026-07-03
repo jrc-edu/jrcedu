@@ -33,10 +33,10 @@ const moduleOwnerPermissionRules = {
     "curriculum.reset"
   ],
   zhoushan: ["paike.access", "paike.edit", "studentService.access", "studentService.edit"],
-  gaofangyan: ["studentService.access", "studentService.edit"],
+  gaofangyan: ["studentService.access", "studentService.edit", "videoOps.access", "videoOps.edit"],
   yeyuanze: ["suggestions.access", "suggestions.edit"],
-  chengzhihao: ["knowledge.access", "knowledge.edit", "admin.access"],
-  chenyuqing: ["hr.access", "hr.edit", "admin.access"],
+  chengzhihao: ["knowledge.access", "knowledge.edit", "videoOps.access", "videoOps.edit", "admin.access"],
+  chenyuqing: ["hr.access", "hr.edit", "videoOps.access", "videoOps.edit", "admin.access"],
   lishu: ["ai.access"],
   zhengjiayi: ["teachingQuality.access", "teachingQuality.edit"]
 };
@@ -57,6 +57,8 @@ const roleDefaultPermissions = {
     "hr.edit",
     "campus.access",
     "campus.edit",
+    "videoOps.access",
+    "videoOps.edit",
     "admin.access"
   ],
   学管: [
@@ -75,14 +77,18 @@ const roleDefaultPermissions = {
     "studentService.edit",
     "curriculum.access",
     "campus.access",
-    "campus.edit"
+    "campus.edit",
+    "videoOps.access",
+    "videoOps.edit"
   ],
   财务: [
     "portal.access",
     "ai.access",
     "suggestions.access",
     "finance.access",
-    "finance.edit"
+    "finance.edit",
+    "videoOps.access",
+    "videoOps.edit"
   ],
   授课老师: [
     "portal.access",
