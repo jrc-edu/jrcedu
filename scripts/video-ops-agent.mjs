@@ -134,6 +134,14 @@ async function writeJson(filePath, payload) {
   await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+function apiBase(config) {
+  return String(config.apiBaseUrl || "").replace(/\/+$/, "");
+}
+
+function apiToken(config) {
+  return process.env[config.apiTokenEnv || "JRC_API_TOKEN"] || process.env.JRC_API_TOKEN || config.apiToken || "";
+}
+
 function defaultConfig() {
   return {
     apiBaseUrl: "https://jrcwork.cn/api",
@@ -213,6 +221,40 @@ async function loadConfig(configPath) {
     limits: { ...defaultConfig().limits, ...(userConfig.limits || {}) },
     operator: { ...defaultConfig().operator, ...(userConfig.operator || {}) },
     accounts: Array.isArray(userConfig.accounts) ? userConfig.accounts : defaultConfig().accounts
+  };
+}
+
+function applyRuntimeOptions(config, options = {}) {
+  const next = {
+    ...config,
+    limits: { ...(config.limits || {}) }
+  };
+  const maxVideos = parseNumber(options.maxVideos || options["max-videos"] || process.env.VIDEO_OPS_MAX_VIDEOS);
+  if (maxVideos > 0) next.limits.maxVideosPerAccount = Math.max(1, Math.min(500, Math.round(maxVideos)));
+  const scanMode = normalizeText(options.scanMode || options["scan-mode"] || process.env.VIDEO_OPS_SCAN_MODE);
+  if (scanMode) next.scanMode = scanMode;
+  return next;
+}
+
+function collectionPlan(config) {
+  const maxVideos = Number(config.limits?.maxVideosPerAccount || 30);
+  const mode = normalizeText(config.scanMode) || (maxVideos <= 30 ? "日常巡检" : maxVideos <= 100 ? "深度体检" : "全量基准扫描");
+  return {
+    mode,
+    targetPerAccount: maxVideos,
+    sampleMethod: "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
+    purpose: maxVideos <= 30
+      ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。"
+      : maxVideos <= 100
+        ? "适合做账号阶段体检，判断题材、留存、互动和转化的大方向。"
+        : "适合首次建档或月度复盘，用更大历史样本建立账号基准。",
+    conclusionBoundary: maxVideos < 20
+      ? "样本偏少，只能做方向提示，不能下账号级重结论。"
+      : maxVideos < 80
+        ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。"
+        : "可以做较完整账号体检，但仍受平台后台可见数据限制。",
+    fullScan: maxVideos >= 150,
+    operatorControl: "可以用 --max-videos 指定本轮每个账号最多采多少条。"
   };
 }
 
@@ -699,7 +741,7 @@ async function clickCardForSnapshot(page, account, card, config) {
   }
 }
 
-async function collectAccount(context, account, config) {
+async function collectAccount(context, account, config, onProgress = async () => {}) {
   const page = await context.newPage();
   const warnings = [];
   const accountAudits = [];
@@ -707,28 +749,38 @@ async function collectAccount(context, account, config) {
 
   try {
     if (account.dashboardUrl) {
+      await onProgress(`打开${account.platform}账号首页`, { currentAccount: account.name, currentPlatform: account.platform });
       await gotoSafe(page, account.dashboardUrl, config);
       const text = await pageText(page);
       if (hasLoginBarrier(text)) {
         const screenshot = await saveEvidence(page, config, `${account.name}-login-required`);
         warnings.push(`${account.platform}｜${account.name} 可能需要重新登录或验证，截图：${screenshot}`);
       }
+      await onProgress(`读取${account.platform}账号概览`, { currentAccount: account.name, currentPlatform: account.platform });
       accountAudits.push(await extractAccountAudit(page, account, config));
     }
 
     if (account.videoListUrl) {
+      await onProgress(`进入${account.platform}作品列表`, { currentAccount: account.name, currentPlatform: account.platform });
       await gotoSafe(page, account.videoListUrl, config);
       const text = await pageText(page);
       if (hasLoginBarrier(text)) {
         const screenshot = await saveEvidence(page, config, `${account.name}-video-list-login-required`);
         warnings.push(`${account.platform}｜${account.name} 视频列表可能需要登录验证，截图：${screenshot}`);
       }
+      await onProgress(`识别${account.platform}作品卡片`, { currentAccount: account.name, currentPlatform: account.platform });
       const cards = await collectVideoCards(page, account, config);
       if (!cards.length) {
         const screenshot = await saveEvidence(page, config, `${account.name}-video-list-no-cards`);
         warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要补充 selectors，或后台列表当前没有展示视频数据。截图：${screenshot}`);
       }
-      for (const card of cards) {
+      for (let cardIndex = 0; cardIndex < cards.length; cardIndex += 1) {
+        const card = cards[cardIndex];
+        await onProgress(`采集第 ${cardIndex + 1}/${cards.length} 条作品`, {
+          currentAccount: account.name,
+          currentPlatform: account.platform,
+          currentVideo: card.title || card.url || ""
+        });
         const listSnapshot = extractSnapshotFromCard(account, card);
         let snapshot = isUsefulSnapshot(listSnapshot) ? listSnapshot : null;
         if (isNavigableHttpUrl(card.url)) {
@@ -779,36 +831,139 @@ function normalizeAccountsForPayload(config) {
     .filter((account) => account.platform && account.name);
 }
 
-async function collect(configPath) {
-  const config = await loadConfig(configPath);
+async function collect(configPath, runtimeOptions = {}) {
+  const config = applyRuntimeOptions(await loadConfig(configPath), runtimeOptions);
   await ensureDir(config.dataDir || DEFAULT_DATA_DIR);
-  const context = await openContext(config);
+  const enabledAccounts = (config.accounts || []).filter((account) => account.enabled !== false);
+  const runId = `video-run-${Date.now().toString(36)}`;
+  const startedAt = nowIso();
+  let completedPhases = 0;
+  const totalPhases = Math.max(1, enabledAccounts.length * 6 + 4);
+  const plan = collectionPlan(config);
   const payload = {
     accounts: normalizeAccountsForPayload(config),
     accountAudits: [],
     snapshots: [],
     warnings: [],
     collectedAt: nowIso(),
-    source: "mac-mini-playwright-agent"
+    source: "mac-mini-playwright-agent",
+    collectionPlan: plan,
+    collectorStatus: {
+      status: "running",
+      runId,
+      startedAt,
+      updatedAt: startedAt,
+      progress: 0,
+      stepLabel: "准备启动采集器",
+      currentAccount: "",
+      currentPlatform: "",
+      currentVideo: "",
+      totalAccounts: enabledAccounts.length,
+      targetPerAccount: plan.targetPerAccount,
+      scanMode: plan.mode,
+      sampleMethod: plan.sampleMethod,
+      accountsDone: 0,
+      auditsCount: 0,
+      snapshotsCount: 0,
+      warningsCount: 0,
+      message: `Mac mini 正在准备打开创作者中心。本轮为${plan.mode}，每个账号最多采 ${plan.targetPerAccount} 条作品。`
+    }
+  };
+  let context = null;
+  let lastStatusSyncAt = 0;
+
+  const updateStatus = async (stepLabel, extra = {}) => {
+    if (extra.increment !== false) completedPhases = Math.min(totalPhases, completedPhases + 1);
+    payload.collectorStatus = {
+      ...payload.collectorStatus,
+      status: extra.status || "running",
+      updatedAt: nowIso(),
+      stepLabel,
+      progress: Number.isFinite(extra.progress) ? extra.progress : Math.min(98, Math.round((completedPhases / totalPhases) * 100)),
+      accountsDone: extra.accountsDone ?? payload.collectorStatus.accountsDone,
+      auditsCount: payload.accountAudits.length,
+      snapshotsCount: payload.snapshots.length,
+      warningsCount: payload.warnings.length,
+      targetPerAccount: plan.targetPerAccount,
+      scanMode: plan.mode,
+      sampleMethod: plan.sampleMethod,
+      currentAccount: extra.currentAccount ?? payload.collectorStatus.currentAccount,
+      currentPlatform: extra.currentPlatform ?? payload.collectorStatus.currentPlatform,
+      currentVideo: extra.currentVideo ?? "",
+      message: extra.message || stepLabel
+    };
+    console.log(`进度 ${payload.collectorStatus.progress}%｜${stepLabel}`);
+    const shouldPublish = extra.force || payload.collectorStatus.status !== "running" || Date.now() - lastStatusSyncAt >= 2500;
+    if (shouldPublish) {
+      lastStatusSyncAt = Date.now();
+      await publishCollectorStatus(config, payload.collectorStatus);
+    } else {
+      const statusFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-status.json");
+      await writeJson(statusFile, payload.collectorStatus).catch(() => {});
+    }
   };
 
   try {
-    for (const account of config.accounts || []) {
-      if (account.enabled === false) continue;
+    await updateStatus("启动独立 Chrome", { progress: 3, force: true, message: "正在打开专门用于采集的 Chrome 档案。" });
+    context = await openContext(config);
+    for (let accountIndex = 0; accountIndex < enabledAccounts.length; accountIndex += 1) {
+      const account = enabledAccounts[accountIndex];
       console.log(`采集 ${account.platform}｜${account.name}`);
-      const result = await collectAccount(context, account, config);
+      await updateStatus(`开始采集 ${account.platform}｜${account.name}`, {
+        currentAccount: account.name,
+        currentPlatform: account.platform,
+        message: `正在处理第 ${accountIndex + 1}/${enabledAccounts.length} 个账号。`
+      });
+      const result = await collectAccount(context, account, config, async (label, extra = {}) => {
+        await updateStatus(label, extra);
+      });
       payload.accountAudits.push(...result.accountAudits);
       payload.snapshots.push(...result.snapshots);
       payload.warnings.push(...result.warnings);
+      await updateStatus(`完成 ${account.platform}｜${account.name}`, {
+        accountsDone: accountIndex + 1,
+        currentAccount: account.name,
+        currentPlatform: account.platform,
+        message: `该账号采集完成，累计采到账号体检 ${payload.accountAudits.length} 条、视频快照 ${payload.snapshots.length} 条。`
+      });
     }
+    await updateStatus("整理采集结果", { force: true, message: "正在保存本地文件，并准备推送到网站。" });
+  } catch (error) {
+    payload.collectorStatus = {
+      ...payload.collectorStatus,
+      status: "failed",
+      finishedAt: nowIso(),
+      updatedAt: nowIso(),
+      stepLabel: "采集失败",
+      message: error?.message || String(error),
+      warningsCount: payload.warnings.length + 1
+    };
+    await publishCollectorStatus(config, payload.collectorStatus);
+    throw error;
   } finally {
-    await context.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
   }
 
   const outputFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-payload.json");
   const datedFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "history", `video-ops-${new Date().toISOString().slice(0, 10)}-${Date.now()}.json`);
+  payload.collectorStatus = {
+    ...payload.collectorStatus,
+    status: payload.warnings.length ? "warning" : "success",
+    finishedAt: nowIso(),
+    updatedAt: nowIso(),
+    progress: 100,
+    stepLabel: payload.warnings.length ? "采集完成，有部分内容需要查看" : "采集完成",
+    currentAccount: "",
+    currentPlatform: "",
+    currentVideo: "",
+    auditsCount: payload.accountAudits.length,
+    snapshotsCount: payload.snapshots.length,
+    warningsCount: payload.warnings.length,
+    message: `采集结束：账号体检 ${payload.accountAudits.length} 条，视频快照 ${payload.snapshots.length} 条。`
+  };
   await writeJson(outputFile, payload);
   await writeJson(datedFile, payload);
+  await publishCollectorStatus(config, payload.collectorStatus);
   console.log(`采集完成：账号体检 ${payload.accountAudits.length} 条，视频快照 ${payload.snapshots.length} 条`);
   console.log(`本地文件：${outputFile}`);
   if (payload.warnings.length) {
@@ -820,12 +975,53 @@ async function collect(configPath) {
 
 async function readRemoteState(config, token) {
   if (!config.apiBaseUrl || !token) return null;
-  const response = await fetch(`${String(config.apiBaseUrl).replace(/\/+$/, "")}/module-data?storeKey=${encodeURIComponent(config.storeKey || DEFAULT_STORE_KEY)}`, {
+  const response = await fetch(`${apiBase(config)}/module-data?storeKey=${encodeURIComponent(config.storeKey || DEFAULT_STORE_KEY)}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!response.ok) return null;
   const result = await response.json();
   return result?.payload || result?.data?.payload || null;
+}
+
+async function writeRemoteState(config, token, payload) {
+  if (!config.apiBaseUrl || !token) return null;
+  const response = await fetch(`${apiBase(config)}/module-data`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      storeKey: config.storeKey || DEFAULT_STORE_KEY,
+      moduleKey: config.moduleKey || DEFAULT_MODULE_KEY,
+      payload,
+      replaceMode: "replace",
+      operatorName: config.operator?.name || "Mac mini 短视频机器人",
+      operatorUsername: config.operator?.username || "video_ops_agent"
+    })
+  });
+  const resultText = await response.text();
+  if (!response.ok) throw new Error(`推送失败 ${response.status}: ${resultText}`);
+  return resultText;
+}
+
+async function publishCollectorStatus(config, statusPatch) {
+  const status = {
+    updatedAt: nowIso(),
+    ...statusPatch
+  };
+  const statusFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-status.json");
+  await writeJson(statusFile, status).catch(() => {});
+  const token = apiToken(config);
+  if (!token || !config.apiBaseUrl) return status;
+  try {
+    const existing = await readRemoteState(config, token);
+    const merged = mergePayloads(existing, { collectorStatus: status });
+    await writeRemoteState(config, token, merged);
+  } catch (error) {
+    console.warn(`进度同步到网页失败：${error.message}`);
+  }
+  return status;
 }
 
 function mergeByKey(rows, keyFn) {
@@ -845,6 +1041,9 @@ function mergePayloads(existing, incoming) {
     accounts: mergeByKey([...(oldState.accounts || []), ...(newState.accounts || [])], (row) => [row.platform, row.name || row.accountName, row.accountType || "自有账号"].join("|")),
     accountAudits: mergeByKey([...(oldState.accountAudits || []), ...(newState.accountAudits || [])], (row) => row.id || [row.platform, row.accountName || row.name, row.capturedAt].join("|")),
     snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isUsefulSnapshot), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
+    collectorStatus: newState.collectorStatus || oldState.collectorStatus || null,
+    collectionPlan: newState.collectionPlan || oldState.collectionPlan || null,
+    warnings: [...(oldState.warnings || []), ...(newState.warnings || [])].slice(-40),
     updatedAt: nowIso(),
     source: "mac-mini-playwright-agent"
   };
@@ -852,7 +1051,7 @@ function mergePayloads(existing, incoming) {
 
 async function pushPayload(configPath, filePath = "") {
   const config = await loadConfig(configPath);
-  const token = process.env[config.apiTokenEnv || "JRC_API_TOKEN"] || process.env.JRC_API_TOKEN || config.apiToken || "";
+  const token = apiToken(config);
   if (!config.apiBaseUrl || !/^https?:\/\//.test(config.apiBaseUrl)) {
     throw new Error("config.apiBaseUrl 未配置，无法推送。");
   }
@@ -864,23 +1063,7 @@ async function pushPayload(configPath, filePath = "") {
   if (!incoming) throw new Error(`未找到可推送数据：${payloadFile}`);
   const existing = await readRemoteState(config, token);
   const merged = mergePayloads(existing, incoming);
-  const response = await fetch(`${String(config.apiBaseUrl).replace(/\/+$/, "")}/module-data`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      storeKey: config.storeKey || DEFAULT_STORE_KEY,
-      moduleKey: config.moduleKey || DEFAULT_MODULE_KEY,
-      payload: merged,
-      replaceMode: "replace",
-      operatorName: config.operator?.name || "Mac mini 短视频机器人",
-      operatorUsername: config.operator?.username || "video_ops_agent"
-    })
-  });
-  const resultText = await response.text();
-  if (!response.ok) throw new Error(`推送失败 ${response.status}: ${resultText}`);
+  const resultText = await writeRemoteState(config, token, merged);
   console.log(`推送成功：${resultText}`);
   return resultText;
 }
@@ -923,16 +1106,20 @@ function usage() {
 用法：
   node scripts/video-ops-agent.mjs init [--config 路径]
   node scripts/video-ops-agent.mjs login [--config 路径]
-  node scripts/video-ops-agent.mjs collect [--config 路径]
+  node scripts/video-ops-agent.mjs collect [--config 路径] [--max-videos 数量]
   node scripts/video-ops-agent.mjs push [--config 路径] [--file JSON路径]
-  node scripts/video-ops-agent.mjs run [--config 路径]
+  node scripts/video-ops-agent.mjs run [--config 路径] [--max-videos 数量]
 
 说明：
   init     创建配置文件
   login    打开独立 Chrome 档案，人工扫码登录抖音/视频号后台
-  collect  自动打开后台并采集账号体检、视频数据、平台建议
+  collect  自动打开后台并采集账号体检、视频数据、平台建议；默认每个账号采最近 30 条
   push     推送 latest-video-ops-payload.json 到网站短视频系统
   run      collect + push；如果没有 API Token，会保留本地 JSON，不会丢数据
+
+采集策略：
+  默认不是随机采集，而是按创作者中心作品列表顺序优先采最近作品。
+  日常巡检建议 30 条；阶段体检建议 80-100 条；首次建档可用 150-300 条。
 `);
 }
 
@@ -943,10 +1130,10 @@ async function main() {
   if (command === "help" || command === "--help") return usage();
   if (command === "init") return await initConfig(configPath);
   if (command === "login") return await login(configPath);
-  if (command === "collect") return await collect(configPath);
+  if (command === "collect") return await collect(configPath, args);
   if (command === "push") return await pushPayload(configPath, args.file ? path.resolve(String(args.file)) : "");
   if (command === "run") {
-    await collect(configPath);
+    await collect(configPath, args);
     try {
       await pushPayload(configPath);
     } catch (error) {

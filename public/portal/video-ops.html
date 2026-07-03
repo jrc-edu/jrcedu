@@ -59,6 +59,26 @@
       .metric span { display: block; color: var(--muted); font-size: 12px; }
       .metric strong { display: block; margin-top: 8px; font-size: 26px; }
       .metric p { margin-top: 4px; font-size: 12px; line-height: 1.5; }
+      .progress-panel { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 16px; margin-top: 18px; }
+      .progress-track { height: 14px; margin-top: 14px; border-radius: 999px; overflow: hidden; background: rgba(100,116,139,0.14); }
+      .progress-fill { display: block; height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), #16a34a); transition: width 0.35s ease; }
+      .status-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); box-shadow: 0 0 0 5px rgba(100,116,139,0.10); }
+      .status-dot.running { background: var(--brand); box-shadow: 0 0 0 5px rgba(13,148,136,0.12); }
+      .status-dot.success { background: var(--good); box-shadow: 0 0 0 5px rgba(21,128,61,0.12); }
+      .status-dot.warning { background: var(--warn); box-shadow: 0 0 0 5px rgba(180,83,9,0.12); }
+      .status-dot.failed { background: var(--danger); box-shadow: 0 0 0 5px rgba(185,28,28,0.12); }
+      .decision-list { display: grid; gap: 10px; margin-top: 14px; }
+      .decision-card { padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: #fff; }
+      .decision-card strong { display: block; font-size: 15px; }
+      .decision-card p { margin-top: 6px; font-size: 13px; line-height: 1.65; }
+      .decision-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.06); }
+      .decision-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.06); }
+      .decision-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.05); }
+      .strategy-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+      .strategy-item { padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.76); }
+      .strategy-item span { display: block; color: var(--muted); font-size: 12px; }
+      .strategy-item strong { display: block; margin-top: 5px; font-size: 14px; line-height: 1.45; }
       .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
       label.field { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
       .field input, .field select, .field textarea, .toolbar input, .toolbar select, textarea {
@@ -101,18 +121,38 @@
       .bar { height: 8px; border-radius: 999px; background: rgba(100,116,139,0.14); overflow: hidden; margin-top: 8px; }
       .bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), #16a34a); }
       .report { white-space: pre-wrap; margin-top: 12px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: #fff; color: var(--ink); line-height: 1.8; }
+      .audit-report { display: grid; gap: 12px; white-space: normal; }
+      .audit-report h3 { font-size: 16px; }
+      .audit-report p { color: var(--ink); }
+      .audit-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      .audit-block { padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.78); }
+      .audit-block strong { display: block; margin-bottom: 6px; font-size: 13px; }
+      .audit-block span { display: block; color: var(--muted); font-size: 13px; line-height: 1.65; }
+      .benchmark-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+      .benchmark-card { padding: 15px; border-radius: 16px; border: 1px solid var(--line); background: #fff; }
+      .benchmark-card strong { display: block; font-size: 15px; }
+      .benchmark-card p { margin-top: 7px; font-size: 13px; line-height: 1.7; }
       .account-audit-layout { display: grid; grid-template-columns: minmax(0, 0.75fr) minmax(360px, 1.25fr); gap: 16px; margin-top: 16px; }
       .empty { padding: 18px; border-radius: 16px; border: 1px dashed rgba(100,116,139,0.35); color: var(--muted); background: rgba(255,255,255,0.62); line-height: 1.7; }
+      details.panel > summary { cursor: pointer; list-style: none; font-weight: 900; color: var(--ink); }
+      details.panel > summary::-webkit-details-marker { display: none; }
+      details.panel > summary::after { content: "展开"; float: right; color: var(--brand-dark); font-size: 12px; }
+      details.panel[open] > summary::after { content: "收起"; }
       .code-block { margin-top: 12px; padding: 12px; border-radius: 14px; background: #172132; color: #e5f5f2; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.65; overflow: auto; }
       @media (max-width: 980px) {
         .hero, .grid { grid-template-columns: 1fr; }
+        .progress-panel { grid-template-columns: 1fr; }
         .account-audit-layout { grid-template-columns: 1fr; }
+        .audit-columns { grid-template-columns: 1fr; }
+        .benchmark-grid { grid-template-columns: 1fr; }
+        .strategy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 720px) {
         .topbar { align-items: flex-start; flex-direction: column; }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
+        .strategy-grid { grid-template-columns: 1fr; }
         .span-3 { grid-column: auto; }
         .button, .nav-link { width: 100%; min-height: 46px; }
         .video-card-head { flex-direction: column; }
@@ -154,6 +194,61 @@
         </aside>
       </section>
 
+      <section class="card progress-panel" id="collectorProgressCard">
+        <article>
+          <p class="eyebrow">Collector Progress</p>
+          <h2>采集进度</h2>
+          <p id="collectorStatusText" style="margin-top:8px;">等待 Mac mini 采集器同步状态。</p>
+          <div class="progress-track"><i class="progress-fill" id="collectorProgressFill"></i></div>
+          <div class="status-line">
+            <i class="status-dot" id="collectorStatusDot"></i>
+            <span id="collectorStatusMeta">暂无正在运行的采集任务。</span>
+          </div>
+        </article>
+        <aside>
+          <p class="eyebrow">Current Task</p>
+          <h3 id="collectorCurrentTask">等待采集</h3>
+          <p id="collectorCurrentDetail" style="margin-top:8px;">运行 Mac mini 采集器后，这里会显示正在打开哪个平台、正在采哪条作品、是否已经完成。</p>
+        </aside>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Collection Strategy</p>
+            <h2>本轮采集策略</h2>
+          </div>
+          <span class="badge" id="collectionPlanBadge">默认日常巡检</span>
+        </div>
+        <p id="collectionPlanSummary" style="margin-top:8px;">默认按平台后台作品列表顺序采最近作品，不随机抽样。</p>
+        <div class="strategy-grid" id="collectionStrategyGrid"></div>
+        <div class="notice" id="collectionCommandHint"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Expert Framework</p>
+            <h2>专家评价框架</h2>
+          </div>
+          <span class="badge">平台规则 + 传播理论 + 本账号数据</span>
+        </div>
+        <p style="margin-top:8px;">系统的建议不按单一播放量下结论，而是按“进入、留住、互动、转化、复利”五层判断，并标注样本是否足够。</p>
+        <div class="decision-list" id="expertFrameworkList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Industry Benchmark</p>
+            <h2>数学教培行业标杆对比</h2>
+          </div>
+          <span class="badge">1-9 年级数学｜家长决策｜咨询转化</span>
+        </div>
+        <p style="margin-top:8px;">这里专门按一到九年级数学校外培训来判断，不简单套用娱乐号逻辑。同行公开账号只采公开数据，用来做标题、选题、开头、证明力和转化承接的对比。</p>
+        <div class="benchmark-grid" id="industryBenchmarkGrid"></div>
+      </section>
+
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
@@ -172,6 +267,7 @@
           <div class="metric"><span>需复盘视频</span><strong id="metricWeak">0</strong><p>低于均值或平台提示明显</p></div>
           <div class="metric"><span>最近采集</span><strong id="metricLastSync">-</strong><p id="metricLastSyncNote">等待机器人同步</p></div>
         </div>
+        <div class="decision-list" id="executiveSummaryList"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -194,7 +290,8 @@
 
       <section class="grid">
         <div>
-          <article class="panel">
+          <details class="panel">
+            <summary>账号巡检配置（不常用）</summary>
             <div class="toolbar" style="justify-content:space-between;">
               <div>
                 <p class="eyebrow">Accounts</p>
@@ -251,7 +348,7 @@
                 <tbody id="accountTableBody"></tbody>
               </table>
             </div>
-          </article>
+          </details>
 
           <article class="panel">
             <div class="toolbar" style="justify-content:space-between;">
@@ -281,7 +378,8 @@
         </div>
 
         <aside>
-          <article class="panel">
+          <details class="panel">
+            <summary>技术设置与数据导入（平时不用看）</summary>
             <p class="eyebrow">Robot Inbox</p>
             <h2>机器人数据收件箱</h2>
             <p style="margin-top:8px;">这里不是让老师日常手填，而是给 Mac mini 采集器推送数据。现在可以先粘贴采集器导出的 JSON 做联调。</p>
@@ -292,7 +390,7 @@
               <button class="button secondary" id="clearImportButton" type="button">清空</button>
             </div>
             <div class="code-block" id="agentContractBox"></div>
-          </article>
+          </details>
 
           <article class="panel">
             <p class="eyebrow">Ranking</p>
@@ -421,6 +519,45 @@
         return raw;
       }
 
+      function normalizeCollectorStatus(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        return {
+          status: normalizeText(source.status || "idle"),
+          runId: normalizeText(source.runId),
+          startedAt: normalizeText(source.startedAt),
+          finishedAt: normalizeText(source.finishedAt),
+          updatedAt: normalizeText(source.updatedAt),
+          progress: Math.max(0, Math.min(100, parseNumber(source.progress))),
+          stepLabel: normalizeText(source.stepLabel),
+          currentAccount: normalizeText(source.currentAccount),
+          currentPlatform: normalizeText(source.currentPlatform),
+          currentVideo: normalizeText(source.currentVideo),
+          totalAccounts: parseNumber(source.totalAccounts),
+          targetPerAccount: parseNumber(source.targetPerAccount),
+          scanMode: normalizeText(source.scanMode),
+          sampleMethod: normalizeText(source.sampleMethod),
+          accountsDone: parseNumber(source.accountsDone),
+          auditsCount: parseNumber(source.auditsCount),
+          snapshotsCount: parseNumber(source.snapshotsCount),
+          warningsCount: parseNumber(source.warningsCount),
+          message: normalizeText(source.message)
+        };
+      }
+
+      function normalizeCollectionPlan(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        const target = parseNumber(source.targetPerAccount) || 30;
+        const mode = normalizeText(source.mode) || (target <= 30 ? "日常巡检" : target <= 100 ? "深度体检" : "全量基准扫描");
+        return {
+          mode,
+          targetPerAccount: target,
+          sampleMethod: normalizeText(source.sampleMethod) || "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
+          purpose: normalizeText(source.purpose) || (target <= 30 ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。" : target <= 100 ? "适合做账号阶段体检，判断题材、留存、互动和转化的大方向。" : "适合首次建档或月度复盘，用更大历史样本建立账号基准。"),
+          conclusionBoundary: normalizeText(source.conclusionBoundary) || (target < 20 ? "样本偏少，只能做方向提示，不能下账号级重结论。" : target < 80 ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。" : "可以做较完整账号体检，但仍受平台后台可见数据限制。"),
+          operatorControl: normalizeText(source.operatorControl) || "可以用 --max-videos 指定本轮每个账号最多采多少条。"
+        };
+      }
+
       function readLocalState() {
         const parsed = safeParse(localStorage.getItem(STORE_KEY), {});
         return normalizeState(parsed);
@@ -432,6 +569,9 @@
           accounts: normalizeAccounts(source.accounts || []),
           accountAudits: normalizeAccountAudits(source.accountAudits || source.accountScans || source.audits || []),
           snapshots: normalizeSnapshots(source.snapshots || source.videos || []),
+          collectorStatus: normalizeCollectorStatus(source.collectorStatus || {}),
+          collectionPlan: normalizeCollectionPlan(source.collectionPlan || {}),
+          warnings: Array.isArray(source.warnings) ? source.warnings.map(normalizeText).filter(Boolean).slice(-40) : [],
           updatedAt: source.updatedAt || ""
         };
       }
@@ -607,15 +747,26 @@
         const accountMap = new Map();
         const auditMap = new Map();
         const snapshotMap = new Map();
+        let collectorStatus = normalizeCollectorStatus({});
+        let collectionPlan = normalizeCollectionPlan({});
+        let warnings = [];
         states.map(normalizeState).forEach((item) => {
           item.accounts.forEach((row) => accountMap.set(row.id || accountKey(row), { ...(accountMap.get(row.id || accountKey(row)) || {}), ...row }));
           item.accountAudits.forEach((row) => auditMap.set(row.id || auditKey(row), { ...(auditMap.get(row.id || auditKey(row)) || {}), ...row }));
           item.snapshots.forEach((row) => snapshotMap.set(row.id || snapshotKey(row), { ...(snapshotMap.get(row.id || snapshotKey(row)) || {}), ...row }));
+          warnings = [...warnings, ...(item.warnings || [])].slice(-40);
+          if (item.collectorStatus?.updatedAt && (!collectorStatus.updatedAt || String(item.collectorStatus.updatedAt).localeCompare(String(collectorStatus.updatedAt)) >= 0)) {
+            collectorStatus = item.collectorStatus;
+          }
+          if (item.collectionPlan?.mode) collectionPlan = item.collectionPlan;
         });
         return normalizeState({
           accounts: [...accountMap.values()],
           accountAudits: [...auditMap.values()],
           snapshots: [...snapshotMap.values()],
+          collectorStatus,
+          collectionPlan,
+          warnings,
           updatedAt: new Date().toISOString()
         });
       }
@@ -970,6 +1121,37 @@
         };
       }
 
+      function accountVerdict(audit) {
+        if (!audit.rows.length) return "目前只采到账户层数据，还不能判断具体哪类视频有效。先把单条作品数据采稳定，再做账号策略判断。";
+        if (audit.rows.length < 8) return `现在只有 ${audit.rows.length} 条视频样本，能看趋势，但还不能下重结论。建议先连续采集几天，把样本扩到 20 条以上。`;
+        if (audit.healthScore >= 75) return "账号整体方向可以继续推进，重点不是大改，而是把表现好的题材做系列化，持续复拍验证。";
+        if (audit.healthScore >= 58) return "账号不是完全跑偏，但内容表现不够稳定。现在要先抓住高分视频的共同结构，同时修掉低分视频的开头和转化。";
+        return "账号当前需要优先复盘，不建议盲目加大发布量。先解决标题封面、前3秒留存、完播和咨询承接。";
+      }
+
+      function accountAuditHtml(key) {
+        if (!key) return `<div class="empty">请选择一个账号。</div>`;
+        const audit = buildAccountAudit(key);
+        const good = audit.strengths.slice(0, 2).join("；") || "暂时没有稳定优势。";
+        const risk = audit.weaknesses.slice(0, 2).join("；") || "暂时没有明显系统性风险。";
+        const action = audit.actions.slice(0, 2).join("；") || "继续采集更多样本后再判断。";
+        const topic = audit.topics.length
+          ? audit.topics.slice(0, 3).map((item) => `${item.topic}：${item.count} 条，均分 ${Math.round(item.avgScore)}`).join("；")
+          : "题材样本不足，暂时不能判断。";
+        return `
+          <div class="audit-report">
+            <h3>${escapeHtml(audit.platform)}｜${escapeHtml(audit.name)}</h3>
+            <p><strong>一句话结论：</strong>${escapeHtml(accountVerdict(audit))}</p>
+            <div class="audit-columns">
+              <div class="audit-block"><strong>做得好的地方</strong><span>${escapeHtml(good)}</span></div>
+              <div class="audit-block"><strong>主要问题</strong><span>${escapeHtml(risk)}</span></div>
+              <div class="audit-block"><strong>下一步动作</strong><span>${escapeHtml(action)}</span></div>
+            </div>
+            <div class="audit-block"><strong>题材判断</strong><span>${escapeHtml(topic)}</span></div>
+          </div>
+        `;
+      }
+
       function accountAuditText(key) {
         if (!key) return "请选择一个账号。";
         const audit = buildAccountAudit(key);
@@ -1047,6 +1229,216 @@
         if (hours <= 14) return "采集正常";
         if (hours <= 36) return "建议今晚再采一次";
         return "超过 36 小时未采集，请检查 Mac mini";
+      }
+
+      function collectorStatusName(status) {
+        if (status === "running") return "正在采集";
+        if (status === "success") return "采集完成";
+        if (status === "warning") return "完成但有异常";
+        if (status === "failed") return "采集失败";
+        return "等待采集";
+      }
+
+      function renderCollectorStatus() {
+        const status = state.collectorStatus || normalizeCollectorStatus({});
+        const dot = byId("collectorStatusDot");
+        const progress = status.status === "idle" && !status.updatedAt ? 0 : status.progress || 0;
+        byId("collectorProgressFill").style.width = `${Math.max(0, Math.min(100, progress))}%`;
+        dot.className = `status-dot ${escapeHtml(status.status || "idle")}`;
+        byId("collectorStatusText").textContent = status.message || "等待 Mac mini 采集器同步状态。";
+        const timeText = status.updatedAt ? `最近更新 ${shortDate(status.updatedAt)}` : "暂无更新时间";
+        byId("collectorStatusMeta").textContent = `${collectorStatusName(status.status)}｜${progress || 0}%｜${timeText}`;
+        byId("collectorCurrentTask").textContent = status.stepLabel || collectorStatusName(status.status);
+        const details = [
+          status.currentPlatform && status.currentAccount ? `${status.currentPlatform}｜${status.currentAccount}` : "",
+          status.currentVideo ? `正在处理：${status.currentVideo}` : "",
+          status.totalAccounts ? `账号 ${status.accountsDone || 0}/${status.totalAccounts}` : "",
+          `账号体检 ${status.auditsCount || latestAccountAudits().length} 条`,
+          `视频快照 ${status.snapshotsCount || latestSnapshots().length} 条`,
+          status.warningsCount ? `异常 ${status.warningsCount} 条` : ""
+        ].filter(Boolean).join("｜");
+        byId("collectorCurrentDetail").textContent = details || "运行采集器后，这里会显示当前步骤。";
+      }
+
+      function currentCollectionPlan() {
+        const status = state.collectorStatus || {};
+        const plan = normalizeCollectionPlan({
+          ...(state.collectionPlan || {}),
+          mode: state.collectionPlan?.mode || status.scanMode,
+          targetPerAccount: state.collectionPlan?.targetPerAccount || status.targetPerAccount,
+          sampleMethod: state.collectionPlan?.sampleMethod || status.sampleMethod
+        });
+        return plan;
+      }
+
+      function renderCollectionPlan() {
+        const plan = currentCollectionPlan();
+        byId("collectionPlanBadge").textContent = `${plan.mode}｜每账号 ${plan.targetPerAccount} 条`;
+        byId("collectionPlanSummary").textContent = plan.sampleMethod;
+        const rows = [
+          ["本轮采多少", `每个账号最多 ${plan.targetPerAccount} 条作品`],
+          ["为什么这样采", plan.purpose],
+          ["结论边界", plan.conclusionBoundary],
+          ["是不是随机", "不是随机。按后台作品列表顺序，优先近期作品。"]
+        ];
+        byId("collectionStrategyGrid").innerHTML = rows.map(([label, value]) => `
+          <div class="strategy-item">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value)}</strong>
+          </div>
+        `).join("");
+        byId("collectionCommandHint").textContent = "指挥采集：日常看最近作品用 npm run video:run；阶段体检用 npm run video:run -- --max-videos 100；首次建档或月度深扫可用 npm run video:run -- --max-videos 200。";
+      }
+
+      function renderExpertFramework() {
+        const rows = [
+          {
+            tone: "good",
+            title: "第一层：能不能被点进来",
+            body: "看标题、封面、前一句话是否直接命中家长痛点。数学教培号不能只写知识点，要把问题说成家长听得懂的结果，比如粗心、掉队、几何不会、暑假怎么补。"
+          },
+          {
+            tone: "",
+            title: "第二层：能不能留住",
+            body: "看前 3 秒、完播率、平均观看时长。讲题类内容要少铺垫，先抛结论或典型错误，再解释方法；否则家长和学生容易划走。"
+          },
+          {
+            tone: "warn",
+            title: "第三层：有没有信任证明",
+            body: "教育培训不能只追热点，要证明老师专业。系统会关注是否有错题拆解、学生变化、课程方法、年级痛点、家长可验证的学习建议。"
+          },
+          {
+            tone: "",
+            title: "第四层：有没有咨询转化",
+            body: "播放高但私信、主页访问、线索弱，说明内容可能好看但不卖课。要检查结尾口播、评论区关键词、主页置顶和课程承接。"
+          },
+          {
+            tone: "good",
+            title: "第五层：能不能形成系列",
+            body: "一个爆款不是方向，连续 3 条以上同题材稳定才算方向。数学教培更适合做年级系列、题型系列、家长误区系列、暑假规划系列。"
+          }
+        ];
+        byId("expertFrameworkList").innerHTML = rows.map((row) => `
+          <div class="decision-card ${escapeHtml(row.tone)}">
+            <strong>${escapeHtml(row.title)}</strong>
+            <p>${escapeHtml(row.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function textHasAny(text, words) {
+        const raw = normalizeText(text);
+        return words.some((word) => raw.includes(word));
+      }
+
+      function educationTopicSignals(rows) {
+        return {
+          grade: rows.filter((row) => textHasAny(`${row.title} ${row.topic}`, ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "初一", "初二", "初三", "七年级", "八年级", "九年级", "小升初", "中考"])).length,
+          pain: rows.filter((row) => textHasAny(`${row.title} ${row.topic}`, ["粗心", "不会", "掉队", "跟不上", "提分", "压轴", "几何", "计算", "应用题", "暑假", "预习", "复习"])).length,
+          proof: rows.filter((row) => textHasAny(`${row.title} ${row.topic} ${row.platformAdvice}`, ["案例", "成绩", "进步", "提分", "方法", "模型", "体系", "错题", "反馈"])).length,
+          conversion: rows.filter((row) => (row.profileVisits || row.messages || row.leads)).length
+        };
+      }
+
+      function renderIndustryBenchmark() {
+        const ownRows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
+        const peerRows = latestSnapshots().filter((row) => row.accountType === "同行账号");
+        const own = educationTopicSignals(ownRows);
+        const peer = educationTopicSignals(peerRows);
+        const ownAvgScore = ownRows.length ? Math.round(average(ownRows.map((row) => diagnoseVideo(row).score))) : 0;
+        const peerAvgViews = peerRows.length ? Math.round(average(peerRows.map((row) => row.views))) : 0;
+        const ownAvgViews = ownRows.length ? Math.round(average(ownRows.map((row) => row.views))) : 0;
+        const rows = [];
+        if (!peerRows.length) {
+          rows.push({
+            title: "同行标杆样本还没有接入",
+            body: "现在只能看自有账号，不能真正判断我们和顶级数学教培博主差在哪里。下一步要把 5-10 个你认可的大号加入“同行账号”，只采公开作品数据做对比。"
+          });
+        } else {
+          rows.push({
+            title: "播放差距",
+            body: `自有账号平均播放 ${formatNumber(ownAvgViews)}，同行公开样本平均播放 ${formatNumber(peerAvgViews)}。这个差距主要用来判断选题和包装，不直接等于教学能力。`
+          });
+        }
+        rows.push({
+          title: "年级定位清晰度",
+          body: ownRows.length
+            ? `自有作品里明确指向年级/升学节点的比例约 ${formatPercent(safeRate(own.grade, ownRows.length))}。数学教培建议多写清“一到九年级哪个阶段、哪个问题、什么后果”。`
+            : "还没有自有作品样本，暂时不能判断年级定位。"
+        });
+        rows.push({
+          title: "家长痛点命中",
+          body: ownRows.length
+            ? `自有作品里直接命中痛点的比例约 ${formatPercent(safeRate(own.pain, ownRows.length))}。建议标题更多使用“孩子为什么不会、暑假怎么补、几何怎么开窍、计算怎么稳”等家长语言。`
+            : "采到作品后，会判断标题是否真的打到家长痛点。"
+        });
+        rows.push({
+          title: "专业证明和转化",
+          body: ownRows.length
+            ? `专业证明信号约 ${formatPercent(safeRate(own.proof, ownRows.length))}，有主页/咨询信号的作品约 ${formatPercent(safeRate(own.conversion, ownRows.length))}。建议每条视频都带一个可验证的学习方法或案例，再接到咨询入口。`
+            : "还没有足够数据判断专业证明和转化承接。"
+        });
+        rows.push({
+          title: "当前系统判断边界",
+          body: ownRows.length < 20
+            ? `当前自有样本 ${ownRows.length} 条，账号级方向还不能定死。先扩样本，再跟同行标杆对比。`
+            : `当前自有样本 ${ownRows.length} 条，平均诊断分 ${ownAvgScore}。可以开始做题材系列和同行差距复盘。`
+        });
+        byId("industryBenchmarkGrid").innerHTML = rows.map((row) => `
+          <div class="benchmark-card">
+            <strong>${escapeHtml(row.title)}</strong>
+            <p>${escapeHtml(row.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function executiveCards() {
+        const rows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
+        const audits = latestAccountAudits();
+        const status = state.collectorStatus || {};
+        const cards = [];
+        if (status.status === "running") {
+          cards.push({ tone: "good", title: "采集器正在工作", body: `${status.stepLabel || "正在采集"}。先等这轮跑完，再看视频诊断会更准。` });
+        }
+        if (status.status === "failed") {
+          cards.push({ tone: "danger", title: "本轮采集失败", body: status.message || "采集器异常结束，需要看终端最后几行或 evidence 截图。" });
+        }
+        if (!rows.length) {
+          cards.push({
+            tone: audits.length ? "warn" : "",
+            title: audits.length ? "目前只够做账号概览" : "还没有可分析的视频数据",
+            body: audits.length
+              ? "现在能看到账号层数据，但还不能判断哪条视频好、哪条视频差。下一步重点是让采集器稳定拿到单条作品数据。"
+              : "先跑一次 Mac mini 采集器。采到单条作品后，系统才会给出复拍、复盘和转化建议。"
+          });
+          return cards.slice(0, 4);
+        }
+        const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
+        const top = diagnostics.slice().sort((a, b) => b.diagnosis.score - a.diagnosis.score)[0];
+        const weak = diagnostics.slice().sort((a, b) => a.diagnosis.score - b.diagnosis.score)[0];
+        const avgScore = Math.round(average(diagnostics.map((item) => item.diagnosis.score)));
+        const avgConversion = average(rows.map((row) => conversionRate(row)));
+        if (rows.length < 8) {
+          cards.push({ tone: "warn", title: "样本还偏少", body: `当前只有 ${rows.length} 条视频快照，结论先当方向参考。建议连续采集 3-5 天，至少累积 20 条作品后再定策略。` });
+        } else {
+          cards.push({ tone: avgScore >= 72 ? "good" : avgScore >= 58 ? "warn" : "danger", title: `整体视频平均分 ${avgScore}`, body: avgScore >= 72 ? "内容方向总体可继续测试，重点找可复拍结构。" : "整体表现还不稳，需要先抓标题、前3秒、完播和转化这几处短板。" });
+        }
+        if (top) cards.push({ tone: "good", title: "优先复拍", body: `「${top.row.title}」当前诊断分 ${top.diagnosis.score}。先拆它的标题、开头和表达结构，连续追拍 2-3 条相近选题。` });
+        if (weak && weak.diagnosis.score < 60) cards.push({ tone: "danger", title: "优先复盘", body: `「${weak.row.title}」当前诊断分 ${weak.diagnosis.score}。先看前3秒、标题封面和视频中段节奏。` });
+        if (avgConversion < 0.003) cards.push({ tone: "warn", title: "播放到咨询偏弱", body: "建议统一补强结尾口播、评论区关键词、主页置顶和私信承接，不然有播放也不一定带来咨询。" });
+        if (state.warnings?.length) cards.push({ tone: "warn", title: "有采集异常待看", body: state.warnings.slice(-2).join("；") });
+        return cards.slice(0, 4);
+      }
+
+      function renderExecutiveSummary() {
+        const box = byId("executiveSummaryList");
+        const cards = executiveCards();
+        box.innerHTML = cards.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
       }
 
       function renderAccounts() {
@@ -1262,7 +1654,7 @@
         const report = byId("accountAuditReport");
         if (!key) {
           metrics.innerHTML = `<div class="empty">选择一个自有账号后，会显示账号体检指标。</div>`;
-          report.textContent = "等待选择账号。";
+          report.innerHTML = "等待选择账号。";
           return;
         }
         const audit = buildAccountAudit(key);
@@ -1273,7 +1665,7 @@
           <div class="metric"><span>平均诊断分</span><strong>${audit.avgScore || "-"}</strong><p>单条视频五层模型均值</p></div>
           <div class="metric"><span>转化指数</span><strong>${audit.avgConversion ? formatPercent(audit.avgConversion) : "-"}</strong><p>主页访问、私信和线索综合</p></div>
         `;
-        report.textContent = accountAuditText(key);
+        report.innerHTML = accountAuditHtml(key);
       }
 
       function renderAgentContract() {
@@ -1314,7 +1706,12 @@
       function renderAll() {
         renderAccountFilter();
         renderAuditAccountSelect();
+        renderCollectorStatus();
+        renderCollectionPlan();
+        renderExpertFramework();
+        renderIndustryBenchmark();
         renderMetrics();
+        renderExecutiveSummary();
         renderAccounts();
         renderAccountAudit();
         renderVideos();
@@ -1349,7 +1746,10 @@
           return {
             accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
             accountAudits: Array.isArray(parsed.accountAudits) ? parsed.accountAudits : (Array.isArray(parsed.accountScans) ? parsed.accountScans : []),
-            snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : (Array.isArray(parsed.videos) ? parsed.videos : [])
+            snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : (Array.isArray(parsed.videos) ? parsed.videos : []),
+            collectorStatus: parsed.collectorStatus || {},
+            collectionPlan: parsed.collectionPlan || {},
+            warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
           };
         }
         throw new Error("未识别到 accounts / accountAudits / snapshots / videos 数据。");
@@ -1533,6 +1933,9 @@
       bindEvents();
       renderAll();
       hydrateCloud();
+      setInterval(() => {
+        if (state.collectorStatus?.status === "running") hydrateCloud();
+      }, 12000);
     </script>
     <script src="/jrcedu/portal/mobile-unified.js?v=20260629a"></script>
   </body>
