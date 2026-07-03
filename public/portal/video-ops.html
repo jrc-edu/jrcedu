@@ -624,13 +624,28 @@
         renderAll();
         try {
           const result = await window.JRC_CLOUD?.readModuleData?.(STORE_KEY);
+          if (!result) {
+            byId("videoOpsMessage").textContent = "云端接口未加载，当前只显示本机缓存。";
+            return;
+          }
+          if (!result.ok) {
+            const detail = result.status === 401
+              ? "云端登录凭证已失效，请退出系统后重新登录，再点“同步云端”。"
+              : `云端同步失败：${result.status || result.error || result.reason || "未知错误"}`;
+            byId("videoOpsMessage").textContent = detail;
+            return;
+          }
           if (result?.ok && result.data?.found && result.data.payload) {
             state = mergeState(state, result.data.payload);
             localStorage.setItem(STORE_KEY, JSON.stringify(state));
             renderAll();
-            byId("videoOpsMessage").textContent = "已同步云端短视频运营数据。";
+            byId("videoOpsMessage").textContent = `已同步云端短视频运营数据：${state.accounts.length} 个账号、${state.accountAudits.length} 条账号体检、${state.snapshots.length} 条有效视频快照。`;
+          } else {
+            byId("videoOpsMessage").textContent = "云端暂未找到短视频系统数据；请确认 Mac mini 已重新采集并推送。";
           }
-        } catch (_) {}
+        } catch (error) {
+          byId("videoOpsMessage").textContent = `云端同步异常：${error?.message || error || "未知错误"}`;
+        }
       }
 
       function videoKey(row) {
@@ -994,8 +1009,8 @@
 
       function renderMetrics() {
         const latest = latestSnapshots();
-        const own = latest.filter((row) => row.accountType !== "同行账号");
         const accountAuditRows = latestAccountAudits();
+        const own = latest.filter((row) => row.accountType !== "同行账号");
         const accountKeys = new Set([
           ...state.accounts.map((row) => [row.platform, row.name].join("|")),
           ...accountAuditRows.map((row) => accountIdentity(row)),
@@ -1110,7 +1125,7 @@
               </div>
             </article>
           `;
-        }).join("") : `<div class="empty">暂无可显示视频。等 Mac mini 采集器同步数据后，这里会按视频自动生成诊断。</div>`;
+        }).join("") : `<div class="empty">${latestAccountAudits().length ? "账号级数据已同步；当前没有有效单条视频快照。下一步需要让采集器进入作品列表/详情页补采播放、点赞、留存等单条视频数据。" : "暂无可显示视频。等 Mac mini 采集器同步数据后，这里会按视频自动生成诊断。"}</div>`;
       }
 
       function renderRankings() {
@@ -1145,7 +1160,19 @@
 
       function buildWeeklyReport() {
         const rows = weeklyRows();
-        if (!rows.length) return "本周暂无已采集的视频数据。Mac mini 采集器同步后，会在这里自动生成复盘。";
+        if (!rows.length) {
+          const audits = latestAccountAudits();
+          if (audits.length) {
+            return [
+              "账号级巡检数据已同步，但还没有有效单条视频快照。",
+              "",
+              ...audits.map((audit) => `${audit.platform}｜${audit.accountName}：粉丝 ${audit.followers ? formatNumber(audit.followers) : "待补采"}，近期播放 ${audit.recentViews ? formatNumber(audit.recentViews) : "待补采"}，涨粉 ${audit.followerGrowth ? formatNumber(audit.followerGrowth) : "待补采"}。`),
+              "",
+              "下一步：需要继续补强 Mac mini 采集器对作品列表和视频详情页的识别，采到每条视频的播放、点赞、留存、完播和咨询数据后，这里会生成真正的视频复盘。"
+            ].join("\n");
+          }
+          return "本周暂无已采集的视频数据。Mac mini 采集器同步后，会在这里自动生成复盘。";
+        }
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
         const top = diagnostics.slice().sort((a, b) => b.diagnosis.score - a.diagnosis.score)[0];
         const weak = diagnostics.slice().sort((a, b) => a.diagnosis.score - b.diagnosis.score)[0];
