@@ -247,6 +247,7 @@
         </div>
         <p style="margin-top:8px;">系统把当前采集到的账号、作品、平台建议、数据完整度和同行样本交给 MiniMax，由它按中国大陆一到九年级数学教培短视频逻辑输出运营建议。</p>
         <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
+        <div class="decision-list" id="aiActionCards"></div>
         <div class="report" id="aiExpertReport">等待生成。</div>
       </section>
 
@@ -596,6 +597,49 @@
         };
       }
 
+      function textFromReportItem(item) {
+        if (item == null) return "";
+        if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") return normalizeText(item);
+        if (Array.isArray(item)) return item.map(textFromReportItem).filter(Boolean).join("；");
+        if (typeof item === "object") {
+          const title = normalizeText(item.title || item.name || item.topic || item.direction || item.action || item.item || "");
+          const detail = normalizeText(item.reason || item.body || item.detail || item.description || item.suggestion || item.scriptAngle || item.angle || "");
+          if (title && detail) return `${title}：${detail}`;
+          if (title) return title;
+          if (detail) return detail;
+          return Object.entries(item)
+            .map(([key, value]) => {
+              const text = textFromReportItem(value);
+              return text ? `${key}：${text}` : "";
+            })
+            .filter(Boolean)
+            .join("；");
+        }
+        return "";
+      }
+
+      function reportList(value) {
+        if (!value) return [];
+        if (Array.isArray(value)) return value.map(textFromReportItem).filter(Boolean);
+        if (typeof value === "object") return Object.values(value).map(textFromReportItem).filter(Boolean);
+        return normalizeText(value).split(/\n|；|;|\d+[.、]\s*/).map(normalizeText).filter(Boolean);
+      }
+
+      function normalizeReportStructuredData(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        return {
+          dataReadiness: normalizeText(source.dataReadiness || source.readiness || source["数据完整度"]),
+          accountVerdict: normalizeText(source.accountVerdict || source.verdict || source["账号判断"] || source["总判断"]),
+          strengths: reportList(source.strengths || source.advantages || source["账号优势"]),
+          weaknesses: reportList(source.weaknesses || source.problems || source["主要问题"]),
+          remakeDirections: reportList(source.remakeDirections || source.retakeDirections || source["复拍方向"] || source["值得复拍的方向"]),
+          stopDoing: reportList(source.stopDoing || source.stopList || source["停止事项"] || source["需要停止或重做的内容"]),
+          weeklyShootingPlan: reportList(source.weeklyShootingPlan || source.shootingPlan || source["下周拍摄清单"]),
+          missingData: reportList(source.missingData || source.dataGaps || source["补采字段"] || source["还需要补采哪些字段"]),
+          complianceRisks: reportList(source.complianceRisks || source.risks || source["合规风险"])
+        };
+      }
+
       function normalizeAiReport(value = {}) {
         const source = value && typeof value === "object" ? value : {};
         return {
@@ -606,6 +650,7 @@
           riskLevel: normalizeText(source.riskLevel),
           provider: normalizeText(source.provider),
           model: normalizeText(source.model),
+          structuredData: normalizeReportStructuredData(source.structuredData || {}),
           todoItems: Array.isArray(source.todoItems) ? source.todoItems.map(normalizeText).filter(Boolean) : []
         };
       }
@@ -1544,6 +1589,40 @@
         ].filter(Boolean).join("\n");
       }
 
+      function reportCardHtml(title, items, tone = "") {
+        const rows = Array.isArray(items) ? items.filter(Boolean).slice(0, 6) : [];
+        if (!rows.length) return "";
+        return `
+          <div class="decision-card ${escapeHtml(tone)}">
+            <strong>${escapeHtml(title)}</strong>
+            <p>${rows.map((item, index) => `${index + 1}. ${item}`).map(escapeHtml).join("<br>")}</p>
+          </div>
+        `;
+      }
+
+      function renderAiActionCards(report = state.aiReport) {
+        const box = byId("aiActionCards");
+        if (!box) return;
+        const row = normalizeAiReport(report || {});
+        const data = row.structuredData || {};
+        const cards = [
+          data.accountVerdict || data.dataReadiness ? `
+            <div class="decision-card good">
+              <strong>AI 总判断</strong>
+              <p>${escapeHtml([data.accountVerdict, data.dataReadiness].filter(Boolean).join("；"))}</p>
+            </div>
+          ` : "",
+          reportCardHtml("下周拍摄清单", data.weeklyShootingPlan, "good"),
+          reportCardHtml("值得复拍的方向", data.remakeDirections, "good"),
+          reportCardHtml("主要问题", data.weaknesses, "warn"),
+          reportCardHtml("需要停止或重做", data.stopDoing, "danger"),
+          reportCardHtml("还要补采的数据", data.missingData, "warn"),
+          reportCardHtml("合规风险提醒", data.complianceRisks, "warn"),
+          !data.weeklyShootingPlan?.length && row.todoItems.length ? reportCardHtml("下一步动作", row.todoItems, "good") : ""
+        ].filter(Boolean);
+        box.innerHTML = cards.length ? cards.join("") : "";
+      }
+
       function renderAiExpertReport() {
         const report = normalizeAiReport(state.aiReport || {});
         const status = byId("aiReportStatus");
@@ -1551,6 +1630,7 @@
         if (!report.polishedText && !report.summary) {
           status.textContent = "还没有生成 AI 专家报告。先同步或采集数据，再点击生成。";
           box.textContent = "等待生成。";
+          renderAiActionCards({});
           return;
         }
         const meta = [
@@ -1559,6 +1639,7 @@
           report.model ? `模型 ${report.model}` : ""
         ].filter(Boolean).join("｜");
         status.textContent = meta || "AI 专家报告已生成。";
+        renderAiActionCards(report);
         box.textContent = aiReportDisplayText(report);
       }
 
@@ -1594,6 +1675,7 @@
             polishedText: ai.polishedText || ai.parentMessage || ai.internalNote || "",
             riskLevel: ai.riskLevel || "",
             todoItems: Array.isArray(ai.todoItems) ? ai.todoItems : [],
+            structuredData: ai.structuredData || {},
             provider: result.data.provider || "minimax",
             model: result.data.model || ""
           });

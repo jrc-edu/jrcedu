@@ -1621,7 +1621,8 @@ function buildAiUserPrompt(body) {
       "下周拍摄清单要尽量具体到标题方向或选题脚本角度，例如“初一暑假数学不补会掉在哪里”“几何不开窍的三个信号”。",
       "如果有同行公开样本，请指出可以学习的结构；如果没有同行样本，请提醒先补 5-10 个大陆数学教培标杆账号。",
       "parentMessage 留空；polishedText 写完整专家报告；todoItems 写 5-8 个下一步执行动作；summary 写 80 字以内摘要；riskLevel 写 正常/关注/高风险。",
-      "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, remakeDirections, stopDoing, weeklyShootingPlan, missingData, complianceRisks。"
+      "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, remakeDirections, stopDoing, weeklyShootingPlan, missingData, complianceRisks。",
+      "其中 strengths、weaknesses、remakeDirections、stopDoing、weeklyShootingPlan、missingData、complianceRisks 尽量用字符串数组，便于页面直接展示成行动卡片。"
     ].join("\n") : "",
     mode === "todo" ? "拆成明确待办，尽量包含负责人、截止时间线索和下一步动作。" : "",
     mode === "suggestion" ? "整理成正式管理建议，包含现象、影响、建议方案和预期收益。" : "",
