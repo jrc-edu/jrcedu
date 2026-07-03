@@ -196,7 +196,7 @@
         <article class="card">
           <p class="eyebrow">Video Ops Monitor</p>
           <h1>短视频系统</h1>
-          <p class="hero-text">Mac mini 打开自有账号创作者中心，由人工确认进入正确后台页面后再采集可信数据，按中国大陆一到九年级数学教培逻辑沉淀视频档案、同行差距和下一步拍摄建议。</p>
+          <p class="hero-text">Mac mini 自动打开自有账号创作者中心，系统按可信度规则过滤无效页面和噪音数据，再按中国大陆一到九年级数学教培逻辑沉淀视频档案、同行差距和下一步拍摄建议。</p>
           <div class="tag-row" style="margin-top:14px;">
             <span class="tag">自有账号巡检</span>
             <span class="tag">平台建议归档</span>
@@ -208,9 +208,9 @@
         </article>
         <aside class="card">
           <p class="eyebrow">机器人逻辑</p>
-          <h2>人工确认后才入库</h2>
-          <p style="margin-top:10px;">采集器只负责打开页面、读取页面和保存进度；遇到登录、验证码、菜单跳转、权限页时必须人工确认。没有真实标题和指标的数据不进入正式视频档案。</p>
-          <div class="notice warn">本轮废弃旧的自动乱点路线。旧数据可用“重建数据”导入或 `npm run video:rebuild` 清掉。</div>
+          <h2>自动跑，严格入库</h2>
+          <p style="margin-top:10px;">采集器会自动打开页面、读取页面和保存进度；遇到登录页、验证码页、菜单页、权限页或字段不可信时，系统自动跳过并写入异常提示，不进入正式视频档案。</p>
+          <div class="notice warn">本轮废弃旧的自动乱点路线。旧数据可用“重建数据”导入或 `npm run video:rebuild` 清掉；只有特殊排查时才使用人工确认模式。</div>
         </aside>
       </section>
 
@@ -1530,7 +1530,7 @@
         byId("collectionPlanBadge").textContent = `${plan.mode}｜每账号 ${plan.targetPerAccount} 条`;
         byId("collectionPlanSummary").textContent = plan.sampleMethod;
         const rows = [
-          ["自有账号采多少", `每个自有账号最多 ${plan.targetPerAccount} 条后台作品数据，必须人工确认页面后才入库`],
+          ["自有账号采多少", `每个自有账号最多 ${plan.targetPerAccount} 条后台作品数据，系统自动过滤无效页面和低可信字段`],
           ["标杆账号采多少", plan.benchmarkAccountsPerRun ? `本轮显式开启标杆采集：${plan.benchmarkAccountsPerRun} 个账号，每个最多 ${plan.benchmarkVideosPerAccount || 8} 条` : "默认不采标杆公开搜索，只保留标杆名单用于人工学习"],
           ["为什么这样采", plan.purpose],
           ["结论边界", plan.conclusionBoundary],
@@ -1542,7 +1542,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "指挥采集：本轮重建用 npm run video:rebuild；阶段体检用 npm run video:run -- --fresh --max-videos 100。采标杆公开样本必须显式加 --with-benchmarks，并人工复核结果。";
+        byId("collectionCommandHint").textContent = "指挥采集：本轮重建用 npm run video:rebuild；阶段体检用 npm run video:run -- --fresh --max-videos 100。只有特殊排查才加 --manual；采标杆公开样本必须显式加 --with-benchmarks。";
       }
 
       function dataReadinessProfile() {
@@ -1586,9 +1586,9 @@
         if (status.status === "running") {
           commands.push("当前采集器正在运行，先等本轮结束再看结论。");
         } else if (ownCount < 20) {
-          commands.push("下一步建议：在 Mac mini 运行 npm run video:rebuild，按提示人工确认后台页面，先重建可信近期作品数据。");
+          commands.push("下一步建议：在 Mac mini 运行 npm run video:rebuild，先自动重建可信近期作品数据。");
         } else if (ownCount < 80 || peerCount < 10) {
-          commands.push("下一步建议：运行 npm run video:run -- --fresh --max-videos 100，做一次人工确认阶段体检。");
+          commands.push("下一步建议：运行 npm run video:run -- --fresh --max-videos 100，做一次自动阶段体检。");
         } else {
           commands.push("下一步建议：保持每日采集，重点看复拍题材、转化承接和同行差距。");
         }

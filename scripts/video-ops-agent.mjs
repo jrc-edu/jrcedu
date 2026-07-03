@@ -165,7 +165,7 @@ function defaultConfig() {
       navigationTimeoutMs: 60000,
       minDelayMs: 900,
       maxDelayMs: 2200,
-      manualConfirm: true,
+      manualConfirm: false,
       strictCollection: true,
       autoOpenDetails: false
     },
@@ -326,9 +326,7 @@ function applyRuntimeOptions(config, options = {}) {
   if (options.noBenchmarks || options["no-benchmarks"] || process.env.VIDEO_OPS_NO_BENCHMARKS === "1") {
     next.benchmarks.publicCollection.enabled = false;
   }
-  if (options.auto || options["no-manual"] || process.env.VIDEO_OPS_NO_MANUAL === "1") {
-    next.limits.manualConfirm = false;
-  }
+  next.limits.manualConfirm = false;
   if (options.manual || options["manual-confirm"] || process.env.VIDEO_OPS_MANUAL_CONFIRM === "1") {
     next.limits.manualConfirm = true;
   }
@@ -343,7 +341,7 @@ function applyRuntimeOptions(config, options = {}) {
 
 function collectionPlan(config) {
   const maxVideos = Number(config.limits?.maxVideosPerAccount || 30);
-  const mode = normalizeText(config.scanMode) || (maxVideos <= 30 ? "人工确认可信采集" : maxVideos <= 100 ? "人工确认阶段体检" : "人工确认深度扫描");
+  const mode = normalizeText(config.scanMode) || (maxVideos <= 30 ? "自动可信采集" : maxVideos <= 100 ? "自动阶段体检" : "自动深度扫描");
   const publicCollection = config.benchmarks?.publicCollection || {};
   const benchmarkEnabled = publicCollection.enabled !== false;
   const benchmarkAccounts = benchmarkEnabled ? Number(publicCollection.accountsPerRun || 8) : 0;
@@ -354,8 +352,8 @@ function collectionPlan(config) {
     benchmarkAccountsPerRun: benchmarkAccounts,
     benchmarkVideosPerAccount: benchmarkVideos,
     sampleMethod: benchmarkEnabled
-      ? `自有账号必须人工确认进入正确后台页面后再采集；标杆账号仅在明确开启时采公开视频，本轮计划 ${benchmarkAccounts} 个标杆账号、每个最多 ${benchmarkVideos} 条。`
-      : "人工确认进入正确创作者中心/作品列表后才采集；默认只采自有账号，不再自动采标杆公开搜索结果。",
+      ? `自有账号自动读取后台并用可信度规则过滤；标杆账号仅在明确开启时采公开视频，本轮计划 ${benchmarkAccounts} 个标杆账号、每个最多 ${benchmarkVideos} 条。`
+      : "自动读取自有账号后台；默认只采自有账号，不再自动采标杆公开搜索结果。页面不对、权限没进、字段不可信时自动跳过。",
     purpose: maxVideos <= 30
       ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。"
       : maxVideos <= 100
@@ -367,7 +365,7 @@ function collectionPlan(config) {
         ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。"
         : "可以做较完整账号体检，但仍受平台后台可见数据限制。",
     fullScan: maxVideos >= 150,
-    operatorControl: "建议用 --fresh 重建本轮可信数据；用 --max-videos 指定自有账号最多采多少条。标杆采集需显式加 --with-benchmarks。"
+    operatorControl: "建议用 --fresh 重建本轮可信数据；用 --max-videos 指定自有账号最多采多少条。需要人工确认时才显式加 --manual。"
   };
 }
 
@@ -1162,7 +1160,7 @@ async function collect(configPath, runtimeOptions = {}) {
       auditsCount: 0,
       snapshotsCount: 0,
       warningsCount: 0,
-      message: `Mac mini 正在准备采集。本轮为${plan.mode}：人工确认页面后才入库，默认不采标杆公开搜索。`
+      message: `Mac mini 正在准备采集。本轮为${plan.mode}：自动判断可信度，不可信数据不入库，默认不采标杆公开搜索。`
     }
   };
   let context = null;
@@ -1406,20 +1404,21 @@ function usage() {
 用法：
   node scripts/video-ops-agent.mjs init [--config 路径]
   node scripts/video-ops-agent.mjs login [--config 路径]
-  node scripts/video-ops-agent.mjs collect [--config 路径] [--fresh] [--max-videos 数量]
+  node scripts/video-ops-agent.mjs collect [--config 路径] [--fresh] [--max-videos 数量] [--manual]
   node scripts/video-ops-agent.mjs push [--config 路径] [--file JSON路径] [--fresh]
-  node scripts/video-ops-agent.mjs run [--config 路径] [--fresh] [--max-videos 数量] [--with-benchmarks]
+  node scripts/video-ops-agent.mjs run [--config 路径] [--fresh] [--max-videos 数量] [--manual] [--with-benchmarks]
 
 说明：
   init     创建配置文件
   login    打开独立 Chrome 档案，人工扫码登录抖音/视频号后台
-  collect  打开后台后等待人工确认，确认页面真实有效后才采自有账号数据；默认不采标杆公开搜索
+  collect  自动打开后台采自有账号数据，并用可信度规则过滤无效页面；默认不采标杆公开搜索
   push     推送 latest-video-ops-payload.json 到网站短视频系统
   run      collect + push；建议本轮重建使用 --fresh，清掉旧脏数据，只保留新流程可信数据
 
 采集策略：
-  自有账号不是随机采集，而是人工确认进入正确创作者中心页面后，按作品列表优先采最近作品。
+  自有账号不是随机采集，而是按创作者中心作品列表优先采最近作品。
   默认不再自动点详情页，不再自动采标杆公开视频，避免把菜单页、验证码页、搜索噪音当成作品数据。
+  无用数据由程序自动判断并跳过；只有需要人工盯页面时才加 --manual。
   本轮重建建议 npm run video:run -- --fresh --max-videos 30。
   如以后确实要采标杆公开样本，再显式加 --with-benchmarks，并人工复核结果。
 `);
