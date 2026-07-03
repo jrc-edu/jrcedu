@@ -465,7 +465,11 @@
             <summary>技术设置与数据导入（平时不用看）</summary>
             <p class="eyebrow">Robot Inbox</p>
             <h2>机器人数据收件箱</h2>
-            <p style="margin-top:8px;">这里不是让老师日常手填，而是给 Mac mini 采集器推送数据。现在可以先粘贴采集器导出的 JSON 做联调。</p>
+            <p style="margin-top:8px;">这里不是让老师日常手填，而是给 Mac mini 采集器推送数据。自动推送未配置时，可以直接选择采集器导出的 JSON 文件导入。</p>
+            <label class="field" style="margin-top:12px;">
+              <span>选择本地采集结果文件</span>
+              <input id="importJsonFileInput" type="file" accept=".json,application/json">
+            </label>
             <textarea id="importJsonInput" placeholder="粘贴 Mac mini 采集器输出的 JSON。支持 accounts、accountAudits、snapshots、videos 字段。"></textarea>
             <div class="actions" style="margin-top:10px;">
               <button class="button" id="importJsonButton" type="button">导入采集数据</button>
@@ -2403,6 +2407,21 @@
         }
       }
 
+      async function importJsonFile(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          byId("importJsonInput").value = text;
+          importJson();
+          byId("videoOpsMessage").textContent += ` 文件：${file.name}`;
+        } catch (error) {
+          byId("videoOpsMessage").textContent = `读取文件失败：${error?.message || error || "未知错误"}`;
+        } finally {
+          event.target.value = "";
+        }
+      }
+
       function samplePayload() {
         return {
           accounts: [
@@ -2534,6 +2553,7 @@
           byId("videoOpsMessage").textContent = "已载入账号配置，修改后点保存账号。";
         });
         byId("importJsonButton").addEventListener("click", importJson);
+        byId("importJsonFileInput").addEventListener("change", importJsonFile);
         byId("sampleJsonButton").addEventListener("click", () => {
           byId("importJsonInput").value = JSON.stringify(samplePayload(), null, 2);
           byId("videoOpsMessage").textContent = "已生成示例数据格式，可以直接导入测试。";

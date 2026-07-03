@@ -1328,12 +1328,14 @@ async function main() {
   if (command === "collect") return await collect(configPath, args);
   if (command === "push") return await pushPayload(configPath, args.file ? path.resolve(String(args.file)) : "");
   if (command === "run") {
-    await collect(configPath, args);
+    const collected = await collect(configPath, args);
     try {
       await pushPayload(configPath);
     } catch (error) {
-      console.warn(`推送未完成：${error.message}`);
-      console.warn("数据已保存到本地 latest-video-ops-payload.json，可以稍后重试 push 或复制到网页收件箱。");
+      console.warn(`自动推送未完成：${error.message}`);
+      console.warn(`采集已经完成，数据没有丢。本地文件：${collected?.outputFile || path.join(DEFAULT_DATA_DIR, "latest-video-ops-payload.json")}`);
+      console.warn("临时处理：进入短视频系统 -> 技术设置与数据导入 -> 选择本地采集结果文件，导入这个 JSON。");
+      console.warn("长期处理：在 Mac mini 配好 JRC_API_TOKEN 后，再运行 npm run video:push 或 npm run video:run。");
     }
     return;
   }
