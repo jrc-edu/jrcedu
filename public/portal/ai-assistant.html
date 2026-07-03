@@ -363,6 +363,75 @@
         return null;
       }
 
+      function aiTextFromValue(value, depth = 0) {
+        if (value == null || depth > 5) return "";
+        if (typeof value === "string") {
+          const parsed = parseJsonLikeText(value);
+          if (parsed) return aiTextFromValue(parsed, depth + 1);
+          return value.trim();
+        }
+        if (typeof value === "number" || typeof value === "boolean") return String(value);
+        if (Array.isArray(value)) {
+          return value
+            .map((item, index) => {
+              const text = aiTextFromValue(item, depth + 1);
+              if (!text) return "";
+              return /^\s*(?:\d+[.、]|[一二三四五六七八九十]+、)/.test(text) ? text : `${index + 1}. ${text}`;
+            })
+            .filter(Boolean)
+            .join("\n");
+        }
+        if (typeof value === "object") {
+          const preferredKeys = [
+            "parentMessage",
+            "feedbackText",
+            "message",
+            "polishedText",
+            "text",
+            "content",
+            "body",
+            "value",
+            "description",
+            "summary"
+          ];
+          for (const key of preferredKeys) {
+            if (Object.prototype.hasOwnProperty.call(value, key)) {
+              const text = aiTextFromValue(value[key], depth + 1);
+              if (text) return text;
+            }
+          }
+          const sectionKeys = [
+            ["classStatus", "一、上课状态："],
+            ["status", "一、上课状态："],
+            ["courseContent", "二、本次课上课内容："],
+            ["contentItems", "二、本次课上课内容："],
+            ["knowledgePoints", "三、知识点要点："],
+            ["keyPoints", "三、知识点要点："],
+            ["learningStatus", "四、学习掌握情况："],
+            ["mastery", "四、学习掌握情况："],
+            ["homework", "五、课后作业："]
+          ];
+          const sections = sectionKeys
+            .filter(([key]) => Object.prototype.hasOwnProperty.call(value, key))
+            .map(([key, label]) => {
+              const text = aiTextFromValue(value[key], depth + 1);
+              return text ? `${label}\n${text}` : "";
+            })
+            .filter(Boolean);
+          if (sections.length) return sections.join("\n\n");
+          return Object.entries(value)
+            .filter(([key]) => !/^_/.test(key) && !["structuredData", "quickTags", "todoItems"].includes(key))
+            .map(([key, item]) => {
+              const text = aiTextFromValue(item, depth + 1);
+              if (!text) return "";
+              return /^\d+$/.test(key) ? text : `${key}：${text}`;
+            })
+            .filter(Boolean)
+            .join("\n");
+        }
+        return "";
+      }
+
       function looksLikeJsonText(value) {
         const raw = String(value || "").trim();
         if (!raw) return false;
@@ -385,9 +454,9 @@
         if (nested) {
           result = { ...result, ...nested };
         }
-        const parentMessage = String(result.parentMessage || "").trim();
-        const polishedText = String(result.polishedText || "").trim();
-        const fallbackText = parentMessage || polishedText || String(result.summary || "").trim();
+        const parentMessage = aiTextFromValue(result.parentMessage).trim();
+        const polishedText = aiTextFromValue(result.polishedText).trim();
+        const fallbackText = parentMessage || polishedText || aiTextFromValue(result.summary).trim();
         return {
           ...result,
           parentMessage: parentMessage || fallbackText,
@@ -1235,11 +1304,12 @@
       }
 
       function textFromStructuredStudent(studentPart) {
-        return String(
+        return aiTextFromValue(
           studentPart?.parentMessage
           || studentPart?.feedbackText
           || studentPart?.message
           || studentPart?.polishedText
+          || studentPart
           || ""
         ).trim();
       }

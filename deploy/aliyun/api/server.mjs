@@ -1552,7 +1552,7 @@ function buildAiUserPrompt(body) {
         "当前是多个学生：请直接为同课学生名单中的每个学生生成一份完整课堂反馈草稿。",
         "如果他们上的是同一节课，本次课上课内容、知识点要点、课后作业可以保持一致；上课状态和学习掌握情况要按老师原始描述分别写。",
         "structuredData 必须包含 students 数组；每个元素必须包含 name 和 parentMessage。",
-        "students[].parentMessage 必须是该学生可直接发给家长的完整五段课堂反馈正文，不要只返回片段，不要返回对象数组。",
+        "students[].parentMessage 尽量直接给出该学生可发给家长的完整五段课堂反馈正文，不要只返回片段。",
         "每份 parentMessage 里只写该学生姓名，不要写其他学生姓名。"
       ].join("\n") : "",
       "某某的家长您好，这是春季小课第__次课程反馈：",
@@ -1626,6 +1626,83 @@ function stripThinkingText(text) {
     .trim();
 }
 
+function aiTextFromValue(value, depth = 0) {
+  if (value == null || depth > 5) return "";
+  if (typeof value === "string") {
+    const raw = stripThinkingText(value);
+    const firstBrace = raw.indexOf("{");
+    const lastBrace = raw.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      try {
+        return aiTextFromValue(JSON.parse(raw.slice(firstBrace, lastBrace + 1)), depth + 1);
+      } catch {
+        // Keep raw text when it only looks like JSON.
+      }
+    }
+    return raw;
+  }
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map((item, index) => {
+        const text = aiTextFromValue(item, depth + 1);
+        if (!text) return "";
+        return /^\s*(?:\d+[.、]|[一二三四五六七八九十]+、)/.test(text) ? text : `${index + 1}. ${text}`;
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (typeof value === "object") {
+    const preferredKeys = [
+      "parentMessage",
+      "feedbackText",
+      "message",
+      "polishedText",
+      "text",
+      "content",
+      "body",
+      "value",
+      "description",
+      "summary"
+    ];
+    for (const key of preferredKeys) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const text = aiTextFromValue(value[key], depth + 1);
+        if (text) return text;
+      }
+    }
+    const sectionKeys = [
+      ["classStatus", "一、上课状态："],
+      ["status", "一、上课状态："],
+      ["courseContent", "二、本次课上课内容："],
+      ["contentItems", "二、本次课上课内容："],
+      ["knowledgePoints", "三、知识点要点："],
+      ["keyPoints", "三、知识点要点："],
+      ["learningStatus", "四、学习掌握情况："],
+      ["mastery", "四、学习掌握情况："],
+      ["homework", "五、课后作业："]
+    ];
+    const sections = sectionKeys
+      .filter(([key]) => Object.prototype.hasOwnProperty.call(value, key))
+      .map(([key, label]) => {
+        const text = aiTextFromValue(value[key], depth + 1);
+        return text ? `${label}\n${text}` : "";
+      })
+      .filter(Boolean);
+    if (sections.length) return sections.join("\n\n");
+    return Object.entries(value)
+      .filter(([key]) => !/^_/.test(key) && !["structuredData", "quickTags", "todoItems"].includes(key))
+      .map(([key, item]) => {
+        const text = aiTextFromValue(item, depth + 1);
+        if (!text) return "";
+        return /^\d+$/.test(key) ? text : `${key}：${text}`;
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
+
 function parseAiJson(text, fallback) {
   const raw = stripThinkingText(text);
   if (!raw) return fallback;
@@ -1688,20 +1765,21 @@ function ensureClassFeedbackResult(result, body) {
       ? result.structuredData.studentFeedbacks
       : [];
   if (Array.isArray(body?.batchStudents) && body.batchStudents.length > 1 && structuredStudents.length) {
+    const parentMessage = aiTextFromValue(result?.parentMessage || result?.polishedText || "同课多学生结构化课堂反馈");
     return {
       ...result,
       title: result?.title || `批量课堂反馈｜${body.batchStudents.length}人`,
       summary: result?.summary || "MiniMax 已按同一节课提取公共内容，并拆分每个学生个人表现。",
-      parentMessage: result?.parentMessage || result?.polishedText || "同课多学生结构化课堂反馈",
-      polishedText: result?.polishedText || result?.parentMessage || "同课多学生结构化课堂反馈",
+      parentMessage,
+      polishedText: aiTextFromValue(result?.polishedText || result?.parentMessage || parentMessage),
       lessonSeason: result?.lessonSeason || body?.lessonSeason || extractFeedbackSeason(body?.text || ""),
       lessonNumber: result?.lessonNumber || body?.lessonNumber || resolveFeedbackLessonNumber(body?.target || "", body?.text || "", body),
       todoItems: Array.isArray(result?.todoItems) ? result.todoItems : [],
       internalNote: result?.internalNote || "MiniMax 已按一课多生模式返回结构化课堂反馈；系统会保持公共课程内容一致，并按学生拆分个人表现。"
     };
   }
-  const rawAiText = String(result?._rawAiText || result?.polishedText || result?.parentMessage || "");
-  const parentMessage = String(result?.parentMessage || rawAiText || "");
+  const rawAiText = aiTextFromValue(result?._rawAiText || result?.polishedText || result?.parentMessage || "");
+  const parentMessage = aiTextFromValue(result?.parentMessage || rawAiText || "");
   const hasTemplate = parentMessage.includes("小课第") && parentMessage.includes("一、上课状态") && parentMessage.includes("本次课上课内容") && parentMessage.includes("知识点要点") && parentMessage.includes("学习掌握情况") && parentMessage.includes("课后作业");
   if (parentMessage && !looksLikeJsonText(parentMessage)) {
     const formatted = formatClassFeedbackText(parentMessage, body?.target || "");
