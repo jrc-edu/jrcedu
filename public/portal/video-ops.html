@@ -176,12 +176,12 @@
         <article class="card">
           <p class="eyebrow">Video Ops Monitor</p>
           <h1>短视频系统</h1>
-          <p class="hero-text">Mac mini 机器人定时读取自有账号创作者中心数据，系统沉淀视频档案、平台诊断、同行差距和下一步拍摄建议。</p>
+          <p class="hero-text">Mac mini 机器人定时读取自有账号创作者中心数据，按中国大陆一到九年级数学教培逻辑沉淀视频档案、同行差距和下一步拍摄建议。</p>
           <div class="tag-row" style="margin-top:14px;">
             <span class="tag">自有账号巡检</span>
             <span class="tag">平台建议归档</span>
-            <span class="tag">视频优劣诊断</span>
-            <span class="tag">同行公开对比</span>
+            <span class="tag">数学教培诊断</span>
+            <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
@@ -229,11 +229,11 @@
         <div class="toolbar" style="justify-content:space-between;">
           <div>
             <p class="eyebrow">Expert Framework</p>
-            <h2>专家评价框架</h2>
+            <h2>中国大陆数学教培评价框架</h2>
           </div>
-          <span class="badge">平台规则 + 传播理论 + 本账号数据</span>
+          <span class="badge">抖音/视频号/小红书 + 家长决策 + 合规边界</span>
         </div>
-        <p style="margin-top:8px;">系统的建议不按单一播放量下结论，而是按“进入、留住、互动、转化、复利”五层判断，并标注样本是否足够。</p>
+        <p style="margin-top:8px;">系统的建议不按海外泛短视频逻辑下结论，而是围绕中国大陆一到九年级数学培优、奥数、补弱、升学焦虑和家长咨询决策来判断，并标注样本是否足够。</p>
         <div class="decision-list" id="expertFrameworkList"></div>
       </section>
 
@@ -241,11 +241,11 @@
         <div class="toolbar" style="justify-content:space-between;">
           <div>
             <p class="eyebrow">Industry Benchmark</p>
-            <h2>数学教培行业标杆对比</h2>
+            <h2>中国大陆数学教培标杆对比</h2>
           </div>
-          <span class="badge">1-9 年级数学｜家长决策｜咨询转化</span>
+          <span class="badge">培优/奥数/补弱｜升学节点｜本地家长</span>
         </div>
-        <p style="margin-top:8px;">这里专门按一到九年级数学校外培训来判断，不简单套用娱乐号逻辑。同行公开账号只采公开数据，用来做标题、选题、开头、证明力和转化承接的对比。</p>
+        <p style="margin-top:8px;">这里专门按中国大陆一到九年级数学校外培训来判断，不简单套用娱乐号或海外平台逻辑。同行公开账号只采公开数据，用来做标题、选题、开头、教学证明力、本地家长信任和咨询承接的对比。</p>
         <div class="benchmark-grid" id="industryBenchmarkGrid"></div>
       </section>
 
@@ -1125,8 +1125,8 @@
         if (!audit.rows.length) return "目前只采到账户层数据，还不能判断具体哪类视频有效。先把单条作品数据采稳定，再做账号策略判断。";
         if (audit.rows.length < 8) return `现在只有 ${audit.rows.length} 条视频样本，能看趋势，但还不能下重结论。建议先连续采集几天，把样本扩到 20 条以上。`;
         if (audit.healthScore >= 75) return "账号整体方向可以继续推进，重点不是大改，而是把表现好的题材做系列化，持续复拍验证。";
-        if (audit.healthScore >= 58) return "账号不是完全跑偏，但内容表现不够稳定。现在要先抓住高分视频的共同结构，同时修掉低分视频的开头和转化。";
-        return "账号当前需要优先复盘，不建议盲目加大发布量。先解决标题封面、前3秒留存、完播和咨询承接。";
+        if (audit.healthScore >= 58) return "账号不是完全跑偏，但内容表现不够稳定。现在要先抓住高分视频的年级定位、题型痛点和教学证明，同时修掉低分视频的开头与咨询承接。";
+        return "账号当前需要优先复盘，不建议盲目加大发布量。先解决年级定位、家长痛点、前3秒留存、教学证明和微信咨询承接。";
       }
 
       function accountAuditHtml(key) {
@@ -1294,28 +1294,38 @@
         const rows = [
           {
             tone: "good",
-            title: "第一层：能不能被点进来",
-            body: "看标题、封面、前一句话是否直接命中家长痛点。数学教培号不能只写知识点，要把问题说成家长听得懂的结果，比如粗心、掉队、几何不会、暑假怎么补。"
+            title: "第一层：本地家长是否有痛感",
+            body: "中国大陆数学教培短视频首先要命中家长真实焦虑：成绩下滑、计算粗心、几何不开窍、应用题读不懂、奥数跟不上、小升初/中考压力、暑假不补就掉队。不能只说知识点，要说家长听得懂的后果。"
           },
           {
             tone: "",
-            title: "第二层：能不能留住",
-            body: "看前 3 秒、完播率、平均观看时长。讲题类内容要少铺垫，先抛结论或典型错误，再解释方法；否则家长和学生容易划走。"
+            title: "第二层：年级和升学节点是否明确",
+            body: "一到九年级数学不是一个市场。小学低年级看习惯和计算，小学高年级看应用题/小升初，初一看代数入门，初二看几何分化，初三看中考压轴。标题和开头要让家长一眼知道是不是自己的孩子。"
           },
           {
             tone: "warn",
-            title: "第三层：有没有信任证明",
-            body: "教育培训不能只追热点，要证明老师专业。系统会关注是否有错题拆解、学生变化、课程方法、年级痛点、家长可验证的学习建议。"
+            title: "第三层：有没有教学证明力",
+            body: "教培号不能只靠情绪和口号，要展示老师会教。有效证明包括典型错题拆解、模型方法、学生常见误区、作业反馈、课堂片段、阶段变化。家长要看到“这个老师懂孩子为什么不会”。"
           },
           {
             tone: "",
-            title: "第四层：有没有咨询转化",
-            body: "播放高但私信、主页访问、线索弱，说明内容可能好看但不卖课。要检查结尾口播、评论区关键词、主页置顶和课程承接。"
+            title: "第四层：能不能留住",
+            body: "看前 3 秒、完播率、平均观看时长。讲题类内容要少铺垫，先抛典型错误或结论，再解释方法；政策/规划类内容要先说判断，再说原因。"
           },
           {
             tone: "good",
-            title: "第五层：能不能形成系列",
-            body: "一个爆款不是方向，连续 3 条以上同题材稳定才算方向。数学教培更适合做年级系列、题型系列、家长误区系列、暑假规划系列。"
+            title: "第五层：有没有咨询承接",
+            body: "播放高但私信、主页访问、线索弱，说明内容可能有热度但不带生源。要检查评论区关键词、主页置顶、课程入口、结尾口播和微信私域承接。"
+          },
+          {
+            tone: "",
+            title: "第六层：能不能形成系列",
+            body: "一个爆款不是方向，连续 3 条以上同题材稳定才算方向。数学教培适合做年级系列、题型系列、家长误区系列、暑假规划系列、压轴题拆解系列。"
+          },
+          {
+            tone: "warn",
+            title: "第七层：合规表达是否安全",
+            body: "教培内容要避免绝对化承诺、保证提分、过度焦虑营销和不实对比。建议用“适合/建议/常见问题/方法参考/阶段观察”表达，长期账号安全比短期刺激更重要。"
           }
         ];
         byId("expertFrameworkList").innerHTML = rows.map((row) => `
@@ -1333,9 +1343,10 @@
 
       function educationTopicSignals(rows) {
         return {
-          grade: rows.filter((row) => textHasAny(`${row.title} ${row.topic}`, ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "初一", "初二", "初三", "七年级", "八年级", "九年级", "小升初", "中考"])).length,
-          pain: rows.filter((row) => textHasAny(`${row.title} ${row.topic}`, ["粗心", "不会", "掉队", "跟不上", "提分", "压轴", "几何", "计算", "应用题", "暑假", "预习", "复习"])).length,
-          proof: rows.filter((row) => textHasAny(`${row.title} ${row.topic} ${row.platformAdvice}`, ["案例", "成绩", "进步", "提分", "方法", "模型", "体系", "错题", "反馈"])).length,
+          grade: rows.filter((row) => textHasAny(`${row.title} ${row.topic}`, ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "初一", "初二", "初三", "七年级", "八年级", "九年级", "小升初", "中考", "重点高中", "分班考", "期末", "月考"])).length,
+          pain: rows.filter((row) => textHasAny(`${row.title} ${row.topic}`, ["粗心", "不会", "掉队", "跟不上", "提分", "压轴", "几何", "计算", "应用题", "奥数", "培优", "拔高", "补弱", "暑假", "预习", "复习", "开窍", "分化"])).length,
+          proof: rows.filter((row) => textHasAny(`${row.title} ${row.topic} ${row.platformAdvice}`, ["案例", "成绩", "进步", "提分", "方法", "模型", "体系", "错题", "反馈", "课堂", "讲义", "出门测", "诊断", "分层", "训练"])).length,
+          complianceRisk: rows.filter((row) => textHasAny(`${row.title} ${row.topic}`, ["保证", "包提", "必上", "逆袭", "吊打", "秒杀", "唯一", "最强", "第一", "稳赚"])).length,
           conversion: rows.filter((row) => (row.profileVisits || row.messages || row.leads)).length
         };
       }
@@ -1363,13 +1374,13 @@
         rows.push({
           title: "年级定位清晰度",
           body: ownRows.length
-            ? `自有作品里明确指向年级/升学节点的比例约 ${formatPercent(safeRate(own.grade, ownRows.length))}。数学教培建议多写清“一到九年级哪个阶段、哪个问题、什么后果”。`
+            ? `自有作品里明确指向年级/升学节点的比例约 ${formatPercent(safeRate(own.grade, ownRows.length))}。中国大陆数学教培建议写清“几年级、哪个题型、哪个升学节点、什么后果”。`
             : "还没有自有作品样本，暂时不能判断年级定位。"
         });
         rows.push({
           title: "家长痛点命中",
           body: ownRows.length
-            ? `自有作品里直接命中痛点的比例约 ${formatPercent(safeRate(own.pain, ownRows.length))}。建议标题更多使用“孩子为什么不会、暑假怎么补、几何怎么开窍、计算怎么稳”等家长语言。`
+            ? `自有作品里直接命中痛点的比例约 ${formatPercent(safeRate(own.pain, ownRows.length))}。建议标题更多使用“计算为什么总错、几何为什么不开窍、小升初怎么培优、初二为什么分化、暑假怎么补弱”等本土家长语言。`
             : "采到作品后，会判断标题是否真的打到家长痛点。"
         });
         rows.push({
@@ -1377,6 +1388,12 @@
           body: ownRows.length
             ? `专业证明信号约 ${formatPercent(safeRate(own.proof, ownRows.length))}，有主页/咨询信号的作品约 ${formatPercent(safeRate(own.conversion, ownRows.length))}。建议每条视频都带一个可验证的学习方法或案例，再接到咨询入口。`
             : "还没有足够数据判断专业证明和转化承接。"
+        });
+        rows.push({
+          title: "合规表达风险",
+          body: ownRows.length
+            ? `疑似高风险表达比例约 ${formatPercent(safeRate(own.complianceRisk, ownRows.length))}。教培账号长期要避免“保证提分、包上岸、最强唯一”等绝对化表达，建议用方法参考和阶段观察来表达。`
+            : "采到作品后，会提示是否存在绝对化承诺或过度焦虑表达。"
         });
         rows.push({
           title: "当前系统判断边界",

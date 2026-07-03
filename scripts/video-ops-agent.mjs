@@ -405,7 +405,24 @@ function extractMetricsFromText(text) {
 function extractTopic(text, fallback = "") {
   const tagMatch = String(text || "").match(/#([\u4e00-\u9fa5A-Za-z0-9_-]{2,16})/);
   if (tagMatch) return tagMatch[1];
-  const candidates = ["初中数学", "小学数学", "科学", "暑假课程", "刷题班", "学习方法", "家长沟通", "提分", "出门测"];
+  const candidates = [
+    "初中数学",
+    "小学数学",
+    "奥数",
+    "培优",
+    "小升初",
+    "中考数学",
+    "压轴题",
+    "几何模型",
+    "计算能力",
+    "应用题",
+    "暑假课程",
+    "刷题班",
+    "学习方法",
+    "家长沟通",
+    "提分",
+    "出门测"
+  ];
   return candidates.find((item) => text.includes(item)) || fallback || "";
 }
 
