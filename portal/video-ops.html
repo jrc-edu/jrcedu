@@ -237,6 +237,22 @@
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
+            <p class="eyebrow">AI Expert Report</p>
+            <h2>MiniMax 短视频专家报告</h2>
+          </div>
+          <div class="actions">
+            <button class="button" id="generateAiReportButton" type="button">生成 AI 专家报告</button>
+            <button class="button secondary" id="copyAiReportButton" type="button">复制报告</button>
+          </div>
+        </div>
+        <p style="margin-top:8px;">系统把当前采集到的账号、作品、平台建议、数据完整度和同行样本交给 MiniMax，由它按中国大陆一到九年级数学教培短视频逻辑输出运营建议。</p>
+        <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
+        <div class="report" id="aiExpertReport">等待生成。</div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
             <p class="eyebrow">Collection Strategy</p>
             <h2>本轮采集策略</h2>
           </div>
@@ -580,6 +596,20 @@
         };
       }
 
+      function normalizeAiReport(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        return {
+          generatedAt: normalizeText(source.generatedAt),
+          title: normalizeText(source.title),
+          summary: normalizeText(source.summary),
+          polishedText: normalizeText(source.polishedText || source.text || source.content),
+          riskLevel: normalizeText(source.riskLevel),
+          provider: normalizeText(source.provider),
+          model: normalizeText(source.model),
+          todoItems: Array.isArray(source.todoItems) ? source.todoItems.map(normalizeText).filter(Boolean) : []
+        };
+      }
+
       function readLocalState() {
         const parsed = safeParse(localStorage.getItem(STORE_KEY), {});
         return normalizeState(parsed);
@@ -593,6 +623,7 @@
           snapshots: normalizeSnapshots(source.snapshots || source.videos || []),
           collectorStatus: normalizeCollectorStatus(source.collectorStatus || {}),
           collectionPlan: normalizeCollectionPlan(source.collectionPlan || {}),
+          aiReport: normalizeAiReport(source.aiReport || {}),
           warnings: Array.isArray(source.warnings) ? source.warnings.map(normalizeText).filter(Boolean).slice(-40) : [],
           updatedAt: source.updatedAt || ""
         };
@@ -771,6 +802,7 @@
         const snapshotMap = new Map();
         let collectorStatus = normalizeCollectorStatus({});
         let collectionPlan = normalizeCollectionPlan({});
+        let aiReport = normalizeAiReport({});
         let warnings = [];
         states.map(normalizeState).forEach((item) => {
           item.accounts.forEach((row) => accountMap.set(row.id || accountKey(row), { ...(accountMap.get(row.id || accountKey(row)) || {}), ...row }));
@@ -781,6 +813,9 @@
             collectorStatus = item.collectorStatus;
           }
           if (item.collectionPlan?.mode) collectionPlan = item.collectionPlan;
+          if (item.aiReport?.generatedAt && (!aiReport.generatedAt || String(item.aiReport.generatedAt).localeCompare(String(aiReport.generatedAt)) >= 0)) {
+            aiReport = item.aiReport;
+          }
         });
         return normalizeState({
           accounts: [...accountMap.values()],
@@ -788,6 +823,7 @@
           snapshots: [...snapshotMap.values()],
           collectorStatus,
           collectionPlan,
+          aiReport,
           warnings,
           updatedAt: new Date().toISOString()
         });
@@ -1431,6 +1467,145 @@
         `;
       }
 
+      function conciseVideoForAi(row) {
+        const diagnosis = diagnoseVideo(row);
+        return {
+          platform: row.platform,
+          accountType: row.accountType,
+          accountName: row.accountName,
+          title: row.title,
+          topic: row.topic,
+          publishedAt: row.publishedAt,
+          capturedAt: row.capturedAt,
+          views: row.views,
+          likes: row.likes,
+          comments: row.comments,
+          favorites: row.favorites,
+          shares: row.shares,
+          impressions: row.impressions,
+          clickThroughRate: row.clickThroughRate,
+          threeSecondRetention: row.threeSecondRetention,
+          completeRate: row.completeRate,
+          avgWatchSeconds: row.avgWatchSeconds,
+          videoDurationSeconds: row.videoDurationSeconds,
+          profileVisits: row.profileVisits,
+          messages: row.messages,
+          leads: row.leads,
+          platformAdvice: row.platformAdvice,
+          diagnosisScore: diagnosis.score,
+          strengths: diagnosis.strengths.slice(0, 2),
+          weaknesses: diagnosis.weaknesses.slice(0, 2),
+          next: diagnosis.next.slice(0, 2)
+        };
+      }
+
+      function selectedVideosForAi() {
+        const rows = latestSnapshots();
+        const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
+        const selected = [
+          ...diagnostics.slice().sort((a, b) => b.diagnosis.score - a.diagnosis.score).slice(0, 10).map((item) => item.row),
+          ...diagnostics.slice().sort((a, b) => a.diagnosis.score - b.diagnosis.score).slice(0, 10).map((item) => item.row),
+          ...rows.slice(0, 25)
+        ];
+        const map = new Map();
+        selected.forEach((row) => map.set(row.id || videoKey(row), row));
+        return [...map.values()].slice(0, 45);
+      }
+
+      function buildVideoOpsAiInput() {
+        const readiness = dataReadinessProfile();
+        const accountReports = auditAccountOptions()
+          .slice(0, 5)
+          .map(([key]) => accountAuditText(key).slice(0, 2600));
+        return JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。数据不足处必须明说，不要编造。",
+          dataReadiness: readiness,
+          accounts: state.accounts,
+          latestAccountAudits: latestAccountAudits(),
+          selectedVideos: selectedVideosForAi().map(conciseVideoForAi),
+          executiveSummary: executiveCards(),
+          weeklyReport: buildWeeklyReport(),
+          accountReports,
+          currentCollectionPlan: currentCollectionPlan(),
+          warnings: state.warnings || []
+        }, null, 2).slice(0, 120000);
+      }
+
+      function aiReportDisplayText(report = state.aiReport) {
+        const row = normalizeAiReport(report || {});
+        return [
+          row.title || "MiniMax 短视频专家报告",
+          row.summary ? `摘要：${row.summary}` : "",
+          row.riskLevel ? `风险等级：${row.riskLevel}` : "",
+          "",
+          row.polishedText || "",
+          row.todoItems.length ? "\n下一步动作：\n" + row.todoItems.map((item) => `- ${item}`).join("\n") : ""
+        ].filter(Boolean).join("\n");
+      }
+
+      function renderAiExpertReport() {
+        const report = normalizeAiReport(state.aiReport || {});
+        const status = byId("aiReportStatus");
+        const box = byId("aiExpertReport");
+        if (!report.polishedText && !report.summary) {
+          status.textContent = "还没有生成 AI 专家报告。先同步或采集数据，再点击生成。";
+          box.textContent = "等待生成。";
+          return;
+        }
+        const meta = [
+          report.generatedAt ? `生成时间 ${shortDate(report.generatedAt)}` : "",
+          report.provider ? `来源 ${report.provider}` : "",
+          report.model ? `模型 ${report.model}` : ""
+        ].filter(Boolean).join("｜");
+        status.textContent = meta || "AI 专家报告已生成。";
+        box.textContent = aiReportDisplayText(report);
+      }
+
+      async function generateAiExpertReport() {
+        const button = byId("generateAiReportButton");
+        const status = byId("aiReportStatus");
+        const box = byId("aiExpertReport");
+        if (!window.JRC_CLOUD?.aiAssistant) {
+          status.textContent = "云端 AI 接口未加载，暂时不能生成专家报告。";
+          return;
+        }
+        button.disabled = true;
+        status.textContent = "正在调用 MiniMax 生成短视频专家报告...";
+        box.textContent = "MiniMax 正在读取当前账号、视频、平台建议和数据完整度，请稍等。";
+        try {
+          const result = await window.JRC_CLOUD.aiAssistant({
+            mode: "videoOpsReport",
+            modeLabel: "短视频运营专家报告",
+            target: "短视频系统",
+            text: buildVideoOpsAiInput(),
+            operatorName: currentEmployee.name || "",
+            operatorUsername: currentEmployee.username || "",
+            operatorRole: currentEmployee.role || ""
+          });
+          if (!result?.ok || !result.data?.result) {
+            throw new Error(result?.data?.message || result?.data?.error || "MiniMax 没有返回专家报告。");
+          }
+          const ai = result.data.result || {};
+          state.aiReport = normalizeAiReport({
+            generatedAt: new Date().toISOString(),
+            title: ai.title || "MiniMax 短视频专家报告",
+            summary: ai.summary || "",
+            polishedText: ai.polishedText || ai.parentMessage || ai.internalNote || "",
+            riskLevel: ai.riskLevel || "",
+            todoItems: Array.isArray(ai.todoItems) ? ai.todoItems : [],
+            provider: result.data.provider || "minimax",
+            model: result.data.model || ""
+          });
+          saveState("AI 短视频专家报告已生成。");
+        } catch (error) {
+          status.textContent = `AI 专家报告生成失败：${error?.message || error || "未知错误"}`;
+          box.textContent = "本次没有生成报告。请确认 MiniMax Key、额度和服务器网络正常，稍后再试。";
+        } finally {
+          button.disabled = false;
+        }
+      }
+
       function renderExpertFramework() {
         const rows = [
           {
@@ -1867,6 +2042,7 @@
         renderCollectorStatus();
         renderCollectionPlan();
         renderDataReadiness();
+        renderAiExpertReport();
         renderExpertFramework();
         renderIndustryBenchmark();
         renderMetrics();
@@ -2065,6 +2241,16 @@
           const key = byId("auditAccountSelect").value;
           await navigator.clipboard?.writeText(accountAuditText(key));
           byId("videoOpsMessage").textContent = "已复制账号全方位体检报告。";
+        });
+        byId("generateAiReportButton").addEventListener("click", generateAiExpertReport);
+        byId("copyAiReportButton").addEventListener("click", async () => {
+          const text = aiReportDisplayText(state.aiReport);
+          if (!normalizeText(state.aiReport?.polishedText || state.aiReport?.summary)) {
+            byId("videoOpsMessage").textContent = "还没有 AI 专家报告可复制。";
+            return;
+          }
+          await navigator.clipboard?.writeText(text);
+          byId("videoOpsMessage").textContent = "已复制 AI 短视频专家报告。";
         });
         byId("videoList").addEventListener("click", async (event) => {
           const button = event.target.closest("button[data-video-action='copy']");

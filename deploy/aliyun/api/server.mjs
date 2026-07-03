@@ -1383,6 +1383,7 @@ function aiModeLabel(mode) {
     suggestion: "员工建议",
     task: "任务说明",
     help: "工作台使用问答",
+    videoOpsReport: "短视频运营专家报告",
     health: "接口检测"
   }[mode] || "AI 整理";
 }
@@ -1610,6 +1611,17 @@ function buildAiUserPrompt(body) {
       "todoItems 列出需要人工确认的字段、缺失凭证、跨系统对账动作。",
       "internalNote 写风险提醒，不要直接给出最终应发工资或最终分红结论。",
       "structuredData 建议包含 period, teacher, amountClues, hourClues, missingFields, riskPoints。"
+    ].join("\n") : "",
+    mode === "videoOpsReport" ? [
+      "你现在是中国大陆一到九年级数学教培短视频运营顾问，服务对象是校外数学培训机构。",
+      "请只基于原始内容里的账号数据、视频数据、平台建议、同行公开样本和数据完整度做诊断；数据不足的地方要明确说明，不要假装已经知道。",
+      "重点不是泛娱乐短视频，而是数学培优、奥数、补弱、小升初、中考、暑假预习复习、家长焦虑、咨询转化、私域承接和教培合规表达。",
+      "输出要给校长和运营老师看，语言直接、具体、可执行，不要空话。",
+      "必须包含：1）一句话总判断；2）当前数据能不能下结论；3）账号优势；4）主要问题；5）值得复拍的方向；6）需要停止或重做的内容；7）下周拍摄清单；8）采集器还需要补采哪些字段；9）合规风险提醒。",
+      "下周拍摄清单要尽量具体到标题方向或选题脚本角度，例如“初一暑假数学不补会掉在哪里”“几何不开窍的三个信号”。",
+      "如果有同行公开样本，请指出可以学习的结构；如果没有同行样本，请提醒先补 5-10 个大陆数学教培标杆账号。",
+      "parentMessage 留空；polishedText 写完整专家报告；todoItems 写 5-8 个下一步执行动作；summary 写 80 字以内摘要；riskLevel 写 正常/关注/高风险。",
+      "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, remakeDirections, stopDoing, weeklyShootingPlan, missingData, complianceRisks。"
     ].join("\n") : "",
     mode === "todo" ? "拆成明确待办，尽量包含负责人、截止时间线索和下一步动作。" : "",
     mode === "suggestion" ? "整理成正式管理建议，包含现象、影响、建议方案和预期收益。" : "",
@@ -1959,6 +1971,7 @@ async function handleAiAssistant(req, res, headers, authorization) {
   const text = String(body.text || "").trim();
   const fallback = localAiDraft(body);
   const isClassFeedback = String(body.mode || "") === "classFeedback";
+  const requiresMinimax = ["classFeedback", "videoOpsReport"].includes(String(body.mode || ""));
   if (body.mode === "health") {
     send(res, 200, {
       ok: true,
@@ -1979,9 +1992,9 @@ async function handleAiAssistant(req, res, headers, authorization) {
       provider: "none",
       configured: false,
       error: "minimax_key_missing",
-      message: "MiniMax Key 尚未配置，课堂反馈未生成。请先在阿里云服务环境变量中配置 JRC_MINIMAX_API_KEY。"
+      message: `${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：MiniMax Key 尚未配置。请先在阿里云服务环境变量中配置 JRC_MINIMAX_API_KEY。`
     };
-    if (!isClassFeedback) {
+    if (!requiresMinimax) {
       send(res, 200, { ok: true, provider: "local", configured: false, result: fallback, warning: payload.error, message: payload.message }, headers);
       return;
     }
@@ -2007,9 +2020,9 @@ async function handleAiAssistant(req, res, headers, authorization) {
       error: error?.code || "minimax_failed",
       statusCode: error?.statusCode || 500,
       attempts: error?.attempts || minimaxMaxAttempts,
-      message: `MiniMax 调用失败，课堂反馈未生成：${minimaxFriendlyError(error)}。请稍后再点一次 AI 整理；如果连续失败，请检查 API Key、额度、模型或服务器到 MiniMax 的网络。`
+      message: `MiniMax 调用失败，${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：${minimaxFriendlyError(error)}。请稍后再试；如果连续失败，请检查 API Key、额度、模型或服务器到 MiniMax 的网络。`
     };
-    if (!isClassFeedback) {
+    if (!requiresMinimax) {
       send(res, 200, { ok: true, provider: "local", configured: true, warning: payload.error, message: payload.message, result: fallback }, headers);
       return;
     }
