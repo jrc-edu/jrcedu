@@ -92,6 +92,11 @@
       .draft-item .draft-status { display: inline-flex; width: fit-content; margin-top: 8px; padding: 4px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-weight: 800; }
       .draft-item .draft-status.archived { background: rgba(22, 163, 74, 0.12); color: #15803d; }
       .draft-edit { min-height: 170px; margin-top: 8px; }
+      .history-panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+      .history-panel-head p { margin-top: 6px; }
+      .history-panel-head .button { flex: 0 0 auto; min-width: 82px; }
+      .history-count { display: inline-flex; margin-left: 6px; color: var(--muted); font-size: 13px; font-weight: 800; vertical-align: middle; }
+      .history-panel-body { margin-top: 10px; }
       .history-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
       .history-tools input,
       .history-tools select { flex: 1 1 180px; min-height: 38px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: #fff; color: var(--ink); }
@@ -100,7 +105,7 @@
       .history-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
       .history-actions .button { min-height: 32px; padding: 0 10px; font-size: 12px; }
       @media (max-width: 900px) { .hero, .grid { grid-template-columns: 1fr; } }
-      @media (max-width: 720px) { .topbar { flex-direction: column; align-items: flex-start; } .form-grid { grid-template-columns: 1fr; } .span-2 { grid-column: auto; } .button, .nav-link { width: 100%; min-height: 46px; } }
+      @media (max-width: 720px) { .topbar { flex-direction: column; align-items: flex-start; } .form-grid { grid-template-columns: 1fr; } .span-2 { grid-column: auto; } .button, .nav-link { width: 100%; min-height: 46px; } .history-panel-head { align-items: stretch; flex-direction: column; } .history-panel-head .button { width: 100%; } }
     </style>
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
@@ -197,26 +202,40 @@
             </div>
           </div>
           <div class="result-panel">
-            <h3>课堂反馈草稿库</h3>
-            <p style="margin-top:6px;">普通账号仅显示本人草稿，保留最近 50 条，方便回看和继续编辑。</p>
-            <div class="history-tools">
-              <input id="draftSearchInput" type="search" placeholder="搜索学生 / 课程 / 草稿内容">
-              <select id="draftStatusFilter">
-                <option value="">全部草稿</option>
-                <option value="open">未归档</option>
-                <option value="archived">已归档</option>
-              </select>
+            <div class="history-panel-head">
+              <div>
+                <h3>课堂反馈草稿库<span class="history-count" id="draftLibraryCount">0 条</span></h3>
+                <p>普通账号仅显示本人草稿，保留最近 50 条，方便回看和继续编辑。</p>
+              </div>
+              <button class="button secondary" id="toggleDraftLibraryButton" type="button" aria-controls="draftLibraryBody" aria-expanded="false">展开</button>
             </div>
-            <div class="draft-list" id="aiDraftList"></div>
+            <div class="history-panel-body" id="draftLibraryBody" hidden>
+              <div class="history-tools">
+                <input id="draftSearchInput" type="search" placeholder="搜索学生 / 课程 / 草稿内容">
+                <select id="draftStatusFilter">
+                  <option value="">全部草稿</option>
+                  <option value="open">未归档</option>
+                  <option value="archived">已归档</option>
+                </select>
+              </div>
+              <div class="draft-list" id="aiDraftList"></div>
+            </div>
           </div>
           <div class="result-panel">
-            <h3>已归档课堂反馈</h3>
-            <p style="margin-top:6px;">普通账号仅显示本人归档内容，方便查看上一次或前几次讲了什么。</p>
-            <div class="history-tools">
-              <input id="archivedFeedbackSearchInput" type="search" placeholder="搜索学生 / 课程 / 内容">
-              <button class="button secondary" id="refreshArchivedFeedbackButton" type="button">刷新归档</button>
+            <div class="history-panel-head">
+              <div>
+                <h3>已归档课堂反馈<span class="history-count" id="archivedFeedbackCount">0 条</span></h3>
+                <p>普通账号仅显示本人归档内容，方便查看上一次或前几次讲了什么。</p>
+              </div>
+              <button class="button secondary" id="toggleArchivedFeedbackButton" type="button" aria-controls="archivedFeedbackBody" aria-expanded="false">展开</button>
             </div>
-            <div class="draft-list" id="archivedFeedbackList"></div>
+            <div class="history-panel-body" id="archivedFeedbackBody" hidden>
+              <div class="history-tools">
+                <input id="archivedFeedbackSearchInput" type="search" placeholder="搜索学生 / 课程 / 内容">
+                <button class="button secondary" id="refreshArchivedFeedbackButton" type="button">刷新归档</button>
+              </div>
+              <div class="draft-list" id="archivedFeedbackList"></div>
+            </div>
           </div>
         </article>
       </section>
@@ -233,6 +252,7 @@
       const ADMISSIONS_STORE_KEY = "advice-system-stage-prototype";
       const CURRICULUM_STORE_KEY = "jrc-curriculum-products-v2";
       const FINANCE_PREIMPORT_KEY = "jrc-paike-finance-preimport-2026-06-22";
+      const HISTORY_PANEL_KEY = "jrc-ai-assistant-history-panels-v1";
       const byId = (id) => document.getElementById(id);
       const currentEmployee = window.JRC_CURRENT_EMPLOYEE || {};
       const currentName = currentEmployee.name || "员工";
@@ -250,6 +270,7 @@
       let latestResult = null;
       let latestBatchResults = [];
       let editingDraftId = "";
+      let historyPanelState = null;
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -262,6 +283,66 @@
 
       function safeParse(raw, fallback) {
         try { return JSON.parse(raw || "null") ?? fallback; } catch { return fallback; }
+      }
+
+      function historyPanelConfig(panelKey) {
+        return {
+          drafts: {
+            bodyId: "draftLibraryBody",
+            buttonId: "toggleDraftLibraryButton",
+            countId: "draftLibraryCount"
+          },
+          archived: {
+            bodyId: "archivedFeedbackBody",
+            buttonId: "toggleArchivedFeedbackButton",
+            countId: "archivedFeedbackCount"
+          }
+        }[panelKey] || null;
+      }
+
+      function getHistoryPanelState() {
+        if (!historyPanelState) {
+          historyPanelState = {
+            drafts: false,
+            archived: false,
+            ...safeParse(localStorage.getItem(HISTORY_PANEL_KEY), {})
+          };
+        }
+        return historyPanelState;
+      }
+
+      function applyHistoryPanelState(panelKey) {
+        const config = historyPanelConfig(panelKey);
+        if (!config) return;
+        const open = Boolean(getHistoryPanelState()[panelKey]);
+        const body = byId(config.bodyId);
+        const button = byId(config.buttonId);
+        if (body) body.hidden = !open;
+        if (button) {
+          button.textContent = open ? "收起" : "展开";
+          button.setAttribute("aria-expanded", open ? "true" : "false");
+        }
+      }
+
+      function setHistoryPanelOpen(panelKey, open) {
+        const state = getHistoryPanelState();
+        state[panelKey] = Boolean(open);
+        localStorage.setItem(HISTORY_PANEL_KEY, JSON.stringify(state));
+        applyHistoryPanelState(panelKey);
+        if (panelKey === "drafts" && state[panelKey]) {
+          requestAnimationFrame(() => autoGrowTextareas(byId("aiDraftList")));
+        }
+      }
+
+      function toggleHistoryPanel(panelKey) {
+        setHistoryPanelOpen(panelKey, !Boolean(getHistoryPanelState()[panelKey]));
+      }
+
+      function updateHistoryPanelCount(panelKey, count) {
+        const config = historyPanelConfig(panelKey);
+        const countNode = config ? byId(config.countId) : null;
+        if (countNode) countNode.textContent = `${Number(count) || 0} 条`;
+        applyHistoryPanelState(panelKey);
       }
 
       function parseJsonLikeText(value) {
@@ -769,7 +850,7 @@
       function renderDrafts(rows = readDrafts()) {
         const keyword = byId("draftSearchInput")?.value.trim().toLowerCase() || "";
         const statusFilter = byId("draftStatusFilter")?.value || "";
-        rows = visibleDraftRows(rows)
+        const matchedRows = visibleDraftRows(rows)
           .filter((row) => isClassFeedbackDraftRow(row))
           .filter((row) => {
             const text = draftDisplayText(row);
@@ -778,8 +859,9 @@
             if (statusFilter === "archived") return Boolean(row.archivedAt || row.archivedStudentServiceId);
             if (statusFilter === "open") return !row.archivedAt && !row.archivedStudentServiceId;
             return true;
-          })
-          .slice(0, 50);
+          });
+        updateHistoryPanelCount("drafts", matchedRows.length);
+        rows = matchedRows.slice(0, 50);
         byId("aiDraftList").innerHTML = rows.length ? rows.map((row) => `
           <div class="draft-item history-item">
             <strong>${escapeHtml(draftHistoryTitle(row))}</strong>
@@ -868,9 +950,10 @@
         const list = byId("archivedFeedbackList");
         if (!list) return;
         const keyword = byId("archivedFeedbackSearchInput")?.value.trim().toLowerCase() || "";
-        const filtered = rows
-          .filter((row) => !keyword || Object.values(row).some((value) => String(value || "").toLowerCase().includes(keyword)))
-          .slice(0, 50);
+        const matchedRows = rows
+          .filter((row) => !keyword || Object.values(row).some((value) => String(value || "").toLowerCase().includes(keyword)));
+        updateHistoryPanelCount("archived", matchedRows.length);
+        const filtered = matchedRows.slice(0, 50);
         list.innerHTML = filtered.length ? filtered.map((row) => `
           <div class="draft-item history-item">
             <strong>${escapeHtml(feedbackHistoryTitle(row, archivedFeedbackText(row)))}</strong>
@@ -2381,6 +2464,8 @@
       byId("archivedFeedbackSearchInput")?.addEventListener("input", () => renderArchivedFeedbacks());
       byId("draftSearchInput")?.addEventListener("input", () => renderDrafts());
       byId("draftStatusFilter")?.addEventListener("change", () => renderDrafts());
+      byId("toggleDraftLibraryButton")?.addEventListener("click", () => toggleHistoryPanel("drafts"));
+      byId("toggleArchivedFeedbackButton")?.addEventListener("click", () => toggleHistoryPanel("archived"));
       byId("refreshArchivedFeedbackButton")?.addEventListener("click", hydrateArchivedFeedbacks);
       byId("saveDraftButton").addEventListener("click", saveDraft);
       byId("saveBatchDraftsButton")?.addEventListener("click", saveBatchDrafts);
