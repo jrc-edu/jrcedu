@@ -125,6 +125,43 @@ function hashText(value) {
   return hash.toString(16);
 }
 
+function textHasAny(value, patterns = []) {
+  const text = String(value || "");
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function inferVideoTags(row = {}) {
+  const text = normalizeText([
+    row.title,
+    row.topic,
+    row.platformAdvice,
+    ...(row.searchKeywords || []),
+    ...(row.trafficSourceLines || [])
+  ].join(" "));
+  const rules = [
+    ["宁波本地", /宁波|鄞州|本地|同城|附近|效实|鄞中|蛟川|蓝青|宋诏桥/],
+    ["小升初", /小升初|六年级|分班考|小初衔接/],
+    ["中考", /中考|初三|九年级|压轴|重点高中/],
+    ["初一", /初一|七年级|有理数|整式/],
+    ["初二", /初二|八年级|分式|二次根式|全等|相似/],
+    ["初三", /初三|九年级|中考|二次函数|圆/],
+    ["小学奥数", /小学|奥数|举一反三|高斯|算式谜|数字谜/],
+    ["几何", /几何|三角形|四边形|圆|全等|相似|辅助线|折叠|K字/],
+    ["计算", /计算|巧算|分数|根号|有理数|绝对值|代数/],
+    ["选拔真题", /选拔|真题|强基|自招|大讲堂|竞赛/],
+    ["暑假规划", /暑假|暑期|预习|衔接|弯道/],
+    ["学习方法", /方法|习惯|粗心|不开窍|听不懂|跟不上|提分|补弱/],
+    ["家长焦虑", /家长|焦虑|掉队|分化|后悔|来不及|怎么办/],
+    ["招生转化", /咨询|报名|试听|课程|班课|刷题班|培优/]
+  ];
+  const tags = rules.filter(([, pattern]) => pattern.test(text)).map(([label]) => label);
+  if (Number(row.views || 0) >= 5000) tags.push("品牌曝光");
+  if (Number(row.followersGained || 0) > 0) tags.push("涨粉");
+  if (Number(row.leads || 0) + Number(row.messages || 0) > 0) tags.push("咨询线索");
+  if (Number(row.favorites || 0) + Number(row.shares || 0) > 0) tags.push("收藏转发");
+  return tags.filter((tag, index, arr) => arr.indexOf(tag) === index).slice(0, 10);
+}
+
 function parseNumber(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   const raw = String(value ?? "").replace(/,/g, "").trim();
@@ -624,6 +661,34 @@ async function waitForOperatorConfirmation(page, config, label, account, warning
   const confirmed = /^y|yes|好|确认|可以|继续$/i.test(answer);
   if (!confirmed) warnings.push(`${account.platform}｜${account.name}｜${label} 未经人工确认，已跳过，避免采集无效页面。截图：${screenshot}`);
   return confirmed;
+}
+
+async function preflightPage(page, config, account, label) {
+  const text = await pageText(page);
+  const url = page.url();
+  const issues = [];
+  if (hasLoginBarrier(text)) issues.push("页面出现登录、扫码、验证码或安全验证提示");
+  if (!normalizeText(text) || normalizeText(text).length < 40) issues.push("页面文字过少，可能为空白页或未加载完成");
+  if (label.includes("作品") && !textHasAny(text, [/作品|内容|视频|播放|点赞|评论|发布时间|数据|管理/])) {
+    issues.push("作品列表特征不足，暂不采集，避免把菜单页当作品页");
+  }
+  if (label.includes("账号") && !textHasAny(text, [/粉丝|作品|播放|数据|概览|创作者|主页|账号|访问|涨粉/])) {
+    issues.push("账号概览特征不足，暂不采集账号级数据");
+  }
+  if (/javascript:|about:blank/i.test(url)) issues.push("当前地址不是可采集的后台页面");
+  if (!issues.length) {
+    return { ok: true, text, url, issues: [] };
+  }
+  const screenshot = await saveEvidence(page, config, `${account.name}-${label}-preflight-blocked`);
+  return { ok: false, text, url, issues, screenshot };
+}
+
+function preflightWarning(account, label, result) {
+  return [
+    `${account.platform}｜${account.name}｜${label} 跑前体检未通过，已自动跳过，避免采集假数据。`,
+    `原因：${result.issues.join("；")}`,
+    result.screenshot ? `截图：${result.screenshot}` : ""
+  ].filter(Boolean).join(" ");
 }
 
 async function clickUsefulControls(page, labels, config, maxClicks = 8) {
@@ -1198,6 +1263,7 @@ async function extractVideoSnapshot(page, account, card, config, detailSignals =
     title,
     url: card.url || page.url(),
     topic: extractTopic(text, account.defaultTopic || ""),
+    contentTags: inferVideoTags({ title, topic: extractTopic(text, account.defaultTopic || ""), platformAdvice, ...metrics }),
     publishedAt: await readSelector(page, selectors.publishedAt) || extractPublishedAt(text),
     capturedAt: nowIso(),
     ...metrics,
@@ -1231,6 +1297,7 @@ function extractSnapshotFromCard(account, card) {
     title: card.title || extractTitleFromText(text, account.defaultTopic || ""),
     url: card.url || "",
     topic: extractTopic(text, account.defaultTopic || ""),
+    contentTags: inferVideoTags({ title: card.title || extractTitleFromText(text, account.defaultTopic || ""), topic: extractTopic(text, account.defaultTopic || ""), ...metrics }),
     publishedAt: extractPublishedAt(text),
     capturedAt: nowIso(),
     ...metrics,
@@ -1293,6 +1360,11 @@ function mergeSnapshotData(primary, fallback) {
     ].filter(Boolean);
     if (values.length) merged[key] = values.filter((value, index, arr) => arr.indexOf(value) === index).slice(0, key === "deepSources" ? 12 : 40);
   });
+  merged.contentTags = [
+    ...inferVideoTags(merged),
+    ...(Array.isArray(detail.contentTags) ? detail.contentTags : []),
+    ...(Array.isArray(base.contentTags) ? base.contentTags : [])
+  ].map(normalizeText).filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index).slice(0, 12);
   merged.dataCompleteness = metricCompleteness(merged);
   merged.source = [detail.source, base.source].filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index).join("+") || "playwright-agent";
   merged.id = `snapshot-${hashText([merged.platform, merged.accountName, merged.videoId || merged.url || merged.title, merged.capturedAt].join("|"))}`;
@@ -1404,7 +1476,7 @@ async function clickCardForSnapshot(page, account, card, config) {
   }
 }
 
-async function collectAccount(context, account, config, onProgress = async () => {}) {
+async function collectAccount(context, account, config, onProgress = async () => {}, resumeState = null, onCheckpoint = async () => {}) {
   const page = await context.newPage();
   const pageApiCapture = attachApiCapture(page, `${account.platform}-${account.name}`);
   const warnings = [];
@@ -1415,34 +1487,34 @@ async function collectAccount(context, account, config, onProgress = async () =>
     if (account.dashboardUrl) {
       await onProgress(`打开${account.platform}账号首页`, { currentAccount: account.name, currentPlatform: account.platform });
       await gotoSafe(page, account.dashboardUrl, config);
-      const text = await pageText(page);
-      if (hasLoginBarrier(text)) {
-        const screenshot = await saveEvidence(page, config, `${account.name}-login-required`);
-        warnings.push(`${account.platform}｜${account.name} 可能需要重新登录或验证，截图：${screenshot}`);
-      }
-      if (!await waitForOperatorConfirmation(page, config, "账号首页/数据概览", account, warnings)) {
-        return { accountAudits, snapshots, warnings };
-      }
-      await onProgress(`读取${account.platform}账号概览`, { currentAccount: account.name, currentPlatform: account.platform });
-      const deepSignals = await collectCreatorCenterDeepSignals(page, account, config, pageApiCapture, onProgress);
-      deepSignals.apiSources = pageApiCapture.sources();
-      const audit = await extractAccountAudit(page, account, config, deepSignals);
-      audit.confidence = auditConfidence(audit);
-      audit.source = `${audit.source || "playwright-agent"}+auto-trusted`;
-      if (isTrustedAudit(audit)) {
-        accountAudits.push(audit);
+      const preflight = await preflightPage(page, config, account, "账号首页/数据概览");
+      if (!preflight.ok) {
+        warnings.push(preflightWarning(account, "账号首页/数据概览", preflight));
       } else {
-        warnings.push(`${account.platform}｜${account.name} 账号概览可信度不足（${audit.confidence}/100），未入库。请确认页面是否显示粉丝、作品、播放、访问等真实账号数据。`);
+        if (!await waitForOperatorConfirmation(page, config, "账号首页/数据概览", account, warnings)) {
+          return { accountAudits, snapshots, warnings };
+        }
+        await onProgress(`读取${account.platform}账号概览`, { currentAccount: account.name, currentPlatform: account.platform });
+        const deepSignals = await collectCreatorCenterDeepSignals(page, account, config, pageApiCapture, onProgress);
+        deepSignals.apiSources = pageApiCapture.sources();
+        const audit = await extractAccountAudit(page, account, config, deepSignals);
+        audit.confidence = auditConfidence(audit);
+        audit.source = `${audit.source || "playwright-agent"}+auto-trusted`;
+        if (isTrustedAudit(audit)) {
+          accountAudits.push(audit);
+        } else {
+          warnings.push(`${account.platform}｜${account.name} 账号概览可信度不足（${audit.confidence}/100），未入库。请确认页面是否显示粉丝、作品、播放、访问等真实账号数据。`);
+        }
       }
     }
 
     if (account.videoListUrl) {
       await onProgress(`进入${account.platform}作品列表`, { currentAccount: account.name, currentPlatform: account.platform });
       await gotoSafe(page, account.videoListUrl, config);
-      const text = await pageText(page);
-      if (hasLoginBarrier(text)) {
-        const screenshot = await saveEvidence(page, config, `${account.name}-video-list-login-required`);
-        warnings.push(`${account.platform}｜${account.name} 视频列表可能需要登录验证，截图：${screenshot}`);
+      const preflight = await preflightPage(page, config, account, "作品列表");
+      if (!preflight.ok) {
+        warnings.push(preflightWarning(account, "作品列表", preflight));
+        return { accountAudits, snapshots, warnings };
       }
       if (!await waitForOperatorConfirmation(page, config, "作品列表", account, warnings)) {
         return { accountAudits, snapshots, warnings };
@@ -1461,6 +1533,19 @@ async function collectAccount(context, account, config, onProgress = async () =>
       }
       for (let cardIndex = 0; cardIndex < cards.length; cardIndex += 1) {
         const card = cards[cardIndex];
+        const cardKey = stableCardKey(account, card);
+        if (resumeState?.snapshotKeys?.has(cardKey)) {
+          resumeState.skipped += 1;
+          if (cardIndex % 20 === 0) {
+            await onProgress(`跳过已采作品 ${resumeState.skipped} 条`, {
+              currentAccount: account.name,
+              currentPlatform: account.platform,
+              currentVideo: card.title || card.url || "",
+              increment: false
+            });
+          }
+          continue;
+        }
         await onProgress(`采集第 ${cardIndex + 1}/${cards.length} 条作品`, {
           currentAccount: account.name,
           currentPlatform: account.platform,
@@ -1500,8 +1585,11 @@ async function collectAccount(context, account, config, onProgress = async () =>
         }
         if (snapshot && isTrustedSnapshot(snapshot)) {
           snapshots.push(snapshot);
+          snapshotResumeKeys(snapshot).forEach((key) => resumeState?.snapshotKeys?.add(key));
+          await onCheckpoint({ account, snapshot, accountAudits, snapshots, warnings });
         } else {
           warnings.push(`${account.platform}｜${account.name} 已跳过可信度不足的视频候选：${card.title || card.url}｜可信度 ${snapshot?.confidence || 0}/100`);
+          await onCheckpoint({ account, accountAudits, snapshots, warnings });
         }
       }
     }
@@ -1540,6 +1628,94 @@ function normalizeAccountsForPayload(config) {
     .filter((account) => account.platform && account.name);
 }
 
+function checkpointFile(config) {
+  return path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-checkpoint.json");
+}
+
+function collectRunKey(config, enabledAccounts = []) {
+  return hashText(JSON.stringify({
+    mode: normalizeText(config.scanMode),
+    maxVideos: Number(config.limits?.maxVideosPerAccount || 30),
+    deepOwnDetails: Boolean(config.limits?.deepOwnDetails),
+    benchmarks: Boolean(config.benchmarks?.publicCollection?.enabled),
+    accounts: enabledAccounts.map((account) => [account.platform, account.accountType || "自有账号", account.name, account.videoListUrl || account.dashboardUrl || ""].join("|"))
+  }));
+}
+
+function stableSnapshotKey(row = {}) {
+  return [
+    normalizeText(row.platform),
+    normalizeText(row.accountName || row.name || row.account),
+    normalizeText(row.videoId || row.url || row.title)
+  ].join("|");
+}
+
+function snapshotResumeKeys(row = {}) {
+  const base = {
+    platform: row.platform,
+    accountName: row.accountName || row.name || row.account
+  };
+  return [
+    { ...base, videoId: row.videoId },
+    { ...base, url: row.url },
+    { ...base, title: row.title },
+    { ...base, videoId: row.videoId || row.url || row.title }
+  ]
+    .map(stableSnapshotKey)
+    .filter((value) => value.replace(/\|/g, ""))
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+}
+
+function stableCardKey(account = {}, card = {}) {
+  return stableSnapshotKey({
+    platform: account.platform,
+    accountName: account.name,
+    videoId: card.videoId,
+    url: card.url,
+    title: card.title
+  });
+}
+
+function stableAccountKey(account = {}) {
+  return [
+    normalizeText(account.platform),
+    normalizeText(account.accountType || "自有账号"),
+    normalizeText(account.name)
+  ].join("|");
+}
+
+async function loadCollectorCheckpoint(config, runKey) {
+  const checkpoint = await readJson(checkpointFile(config), null);
+  if (!checkpoint || checkpoint.runKey !== runKey || checkpoint.finished === true) return null;
+  const ageMs = Date.now() - Date.parse(checkpoint.updatedAt || checkpoint.startedAt || "");
+  if (!Number.isFinite(ageMs) || ageMs > 18 * 3600 * 1000) return null;
+  return checkpoint;
+}
+
+async function saveCollectorCheckpoint(config, checkpoint) {
+  await writeJson(checkpointFile(config), {
+    ...checkpoint,
+    updatedAt: nowIso()
+  }).catch(() => {});
+}
+
+function createResumeState(checkpoint = null) {
+  const source = checkpoint && typeof checkpoint === "object" ? checkpoint : {};
+  const snapshotKeys = new Set();
+  (source.snapshots || []).forEach((row) => {
+    snapshotResumeKeys(row).forEach((key) => snapshotKeys.add(key));
+  });
+  return {
+    snapshotKeys,
+    completedAccountKeys: new Set(source.completedAccountKeys || []),
+    skipped: 0
+  };
+}
+
+function payloadSnapshotCount(payload = {}) {
+  return Array.isArray(payload.snapshots) ? payload.snapshots.length : 0;
+}
+
 async function collect(configPath, runtimeOptions = {}) {
   const config = applyRuntimeOptions(await loadConfig(configPath), runtimeOptions);
   await ensureDir(config.dataDir || DEFAULT_DATA_DIR);
@@ -1554,6 +1730,9 @@ async function collect(configPath, runtimeOptions = {}) {
     .filter((account) => account.dashboardUrl || account.videoListUrl);
   const benchmarkAccounts = publicBenchmarkCollectionAccounts(config);
   const enabledAccounts = mergeByKey([...authorizedAccounts, ...benchmarkAccounts], accountCollectionKey);
+  const runKey = collectRunKey(config, enabledAccounts);
+  const checkpoint = await loadCollectorCheckpoint(config, runKey);
+  const resumeState = createResumeState(checkpoint);
   const runId = `video-run-${Date.now().toString(36)}`;
   const startedAt = nowIso();
   let completedPhases = 0;
@@ -1561,9 +1740,9 @@ async function collect(configPath, runtimeOptions = {}) {
   const plan = collectionPlan(config);
   const payload = {
     accounts: normalizeAccountsForPayload(config),
-    accountAudits: [],
-    snapshots: [],
-    warnings: [],
+    accountAudits: checkpoint?.accountAudits || [],
+    snapshots: checkpoint?.snapshots || [],
+    warnings: checkpoint?.warnings || [],
     collectedAt: nowIso(),
     source: "mac-mini-playwright-agent",
     rebuildMode: Boolean(config.rebuildMode),
@@ -1586,11 +1765,29 @@ async function collect(configPath, runtimeOptions = {}) {
       auditsCount: 0,
       snapshotsCount: 0,
       warningsCount: 0,
-      message: `Mac mini 正在准备采集。本轮为${plan.mode}：自动判断可信度，不可信数据不入库，默认不采标杆公开搜索。`
+      message: checkpoint
+        ? `检测到同一轮未完成采集，正在断点续跑：已恢复 ${payloadSnapshotCount(checkpoint)} 条视频。`
+        : `Mac mini 正在准备采集。本轮为${plan.mode}：自动判断可信度，不可信数据不入库，默认不采标杆公开搜索。`
     }
   };
   let context = null;
   let lastStatusSyncAt = 0;
+
+  const saveCheckpoint = async (extra = {}) => {
+    await saveCollectorCheckpoint(config, {
+      runKey,
+      runId,
+      startedAt: checkpoint?.startedAt || startedAt,
+      finished: false,
+      plan,
+      completedAccountKeys: [...resumeState.completedAccountKeys],
+      accountAudits: payload.accountAudits,
+      snapshots: payload.snapshots,
+      warnings: payload.warnings,
+      collectorStatus: payload.collectorStatus,
+      ...extra
+    });
+  };
 
   const updateStatus = async (stepLabel, extra = {}) => {
     if (extra.increment !== false) completedPhases = Math.min(totalPhases, completedPhases + 1);
@@ -1624,10 +1821,21 @@ async function collect(configPath, runtimeOptions = {}) {
   };
 
   try {
-    await updateStatus("启动独立 Chrome", { progress: 3, force: true, message: "正在打开专门用于采集的 Chrome 档案。" });
+    await saveCheckpoint();
+    await updateStatus("启动独立 Chrome", { progress: 3, force: true, message: checkpoint ? "正在从上次中断处继续采集。" : "正在打开专门用于采集的 Chrome 档案。" });
     context = await openContext(config);
     for (let accountIndex = 0; accountIndex < enabledAccounts.length; accountIndex += 1) {
       const account = enabledAccounts[accountIndex];
+      const accountKey = stableAccountKey(account);
+      if (resumeState.completedAccountKeys.has(accountKey)) {
+        await updateStatus(`跳过已完成账号 ${account.platform}｜${account.name}`, {
+          accountsDone: accountIndex + 1,
+          currentAccount: account.name,
+          currentPlatform: account.platform,
+          message: `断点续跑：该账号上次已完成，本轮直接跳过。`
+        });
+        continue;
+      }
       console.log(`采集 ${account.platform}｜${account.name}`);
       await updateStatus(`开始采集 ${account.platform}｜${account.name}`, {
         currentAccount: account.name,
@@ -1636,16 +1844,25 @@ async function collect(configPath, runtimeOptions = {}) {
       });
       const result = await collectAccount(context, account, config, async (label, extra = {}) => {
         await updateStatus(label, extra);
+        await saveCheckpoint();
+      }, resumeState, async (partial = {}) => {
+        await saveCheckpoint({
+          accountAudits: mergeByKey([...(payload.accountAudits || []), ...(partial.accountAudits || [])], (row) => row.id || [row.platform, row.accountName || row.name, row.capturedAt].join("|")),
+          snapshots: mergeByKey([...(payload.snapshots || []), ...(partial.snapshots || [])], stableSnapshotKey),
+          warnings: [...(payload.warnings || []), ...(partial.warnings || [])].slice(-80)
+        });
       });
       payload.accountAudits.push(...result.accountAudits);
       payload.snapshots.push(...result.snapshots);
       payload.warnings.push(...result.warnings);
+      resumeState.completedAccountKeys.add(accountKey);
       await updateStatus(`完成 ${account.platform}｜${account.name}`, {
         accountsDone: accountIndex + 1,
         currentAccount: account.name,
         currentPlatform: account.platform,
         message: `该账号采集完成，累计采到账号体检 ${payload.accountAudits.length} 条、视频快照 ${payload.snapshots.length} 条。`
       });
+      await saveCheckpoint();
     }
     await updateStatus("整理采集结果", { force: true, message: "正在保存本地文件，并准备推送到网站。" });
   } catch (error) {
@@ -1659,6 +1876,7 @@ async function collect(configPath, runtimeOptions = {}) {
       warningsCount: payload.warnings.length + 1
     };
     await publishCollectorStatus(config, payload.collectorStatus);
+    await saveCheckpoint({ collectorStatus: payload.collectorStatus });
     throw error;
   } finally {
     if (context) await context.close().catch(() => {});
@@ -1686,6 +1904,19 @@ async function collect(configPath, runtimeOptions = {}) {
   await writeJson(outputFile, payload);
   await writeJson(datedFile, payload);
   await publishCollectorStatus(config, payload.collectorStatus);
+  await saveCollectorCheckpoint(config, {
+    runKey,
+    runId,
+    startedAt: checkpoint?.startedAt || startedAt,
+    finished: true,
+    finishedAt: payload.collectorStatus.finishedAt,
+    plan,
+    completedAccountKeys: [...resumeState.completedAccountKeys],
+    accountAudits: payload.accountAudits,
+    snapshots: payload.snapshots,
+    warnings: payload.warnings,
+    collectorStatus: payload.collectorStatus
+  });
   console.log(`采集完成：账号体检 ${payload.accountAudits.length} 条，视频快照 ${payload.snapshots.length} 条`);
   console.log(`本地文件：${outputFile}`);
   if (payload.warnings.length) {
@@ -1868,6 +2099,7 @@ function compactVideoForReport(row = {}) {
     saveSharePerView: rate(favorites + shares, views),
     leadPerView: rate(leads + messages, views),
     followerPerView: rate(followersGained, views),
+    contentTags: textList(row.contentTags || row.tags, 8),
     platformAdvice: normalizeText(row.platformAdvice || row.advice || ""),
     trafficSourceLines: textList(row.trafficSourceLines, 4),
     searchKeywords: textList(row.searchKeywords || row.keywords, 4),
@@ -1888,6 +2120,19 @@ function buildVideoOpsAiInputForAgent(payload = {}) {
   const byFans = ownRows.slice().filter((row) => row.followersGained).sort((a, b) => b.followersGained - a.followersGained || b.followerPerView - a.followerPerView).slice(0, 40);
   const bySaveShare = ownRows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0))).slice(0, 50);
   const withDeepData = ownRows.filter((row) => row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length).slice(0, 80);
+  const tagGroups = new Map();
+  ownRows.forEach((row) => {
+    (row.contentTags || []).forEach((tag) => {
+      const current = tagGroups.get(tag) || { tag, count: 0, views: 0, leads: 0, followers: 0, saveShare: 0, examples: [] };
+      current.count += 1;
+      current.views += row.views || 0;
+      current.leads += (row.leads || 0) + (row.messages || 0);
+      current.followers += row.followersGained || 0;
+      current.saveShare += (row.favorites || 0) + (row.shares || 0);
+      if (current.examples.length < 5) current.examples.push(row.title);
+      tagGroups.set(tag, current);
+    });
+  });
   const input = {
     generatedAt: nowIso(),
     instruction: [
@@ -1915,6 +2160,9 @@ function buildVideoOpsAiInputForAgent(payload = {}) {
     topVideosByLeads: byLeads,
     topVideosByFans: byFans,
     topVideosBySaveShare: bySaveShare,
+    topicTagSummary: [...tagGroups.values()]
+      .sort((left, right) => (right.views + right.leads * 5000 + right.followers * 3000 + right.saveShare * 120) - (left.views + left.leads * 5000 + left.followers * 3000 + left.saveShare * 120))
+      .slice(0, 30),
     videosWithOfficialDeepData: withDeepData,
     latestOwnVideosSample: ownRows.slice(0, 120),
     warnings: state.warnings || []
