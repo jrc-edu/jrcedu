@@ -132,6 +132,13 @@
       .quick-rank-item span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
       .quick-rank-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
       .compact-count { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .topic-performance-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+      .topic-performance-card { padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
+      .topic-performance-card strong { display: block; font-size: 14px; line-height: 1.4; }
+      .topic-performance-card p { margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+      .topic-performance-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.055); }
+      .topic-performance-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.055); }
+      .topic-performance-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.045); }
       .score { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-dark); font-weight: 900; flex: 0 0 auto; }
       .score.warn { background: rgba(180,83,9,0.10); color: var(--warn); }
       .score.danger { background: rgba(185,28,28,0.10); color: var(--danger); }
@@ -223,11 +230,11 @@
             <span class="tag">数学教培诊断</span>
             <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
-            <span class="tag" id="videoOpsVersionTag">页面版本 20260704i</span>
+            <span class="tag" id="videoOpsVersionTag">页面版本 20260704j</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
-            <strong>页面版本 20260704i｜等待同步</strong>
+            <strong>页面版本 20260704j｜等待同步</strong>
             <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
           </div>
         </article>
@@ -506,6 +513,7 @@
                   <option value="saved">只看已收藏</option>
                   <option value="strong">只看可复拍</option>
                   <option value="weak">只看需复盘</option>
+                  <option value="brand">只看品牌影响强</option>
                   <option value="fans">只看涨粉强</option>
                   <option value="leads">只看咨询线索强</option>
                   <option value="own">只看自有账号</option>
@@ -524,6 +532,7 @@
               </div>
             </div>
             <div class="decision-list" id="videoQualityList"></div>
+            <div class="topic-performance-grid" id="topicPerformanceGrid"></div>
             <div class="quick-rank-list" id="priorityVideoList"></div>
             <div class="compact-count" id="videoListCount"></div>
             <div class="video-list" id="videoList"></div>
@@ -567,7 +576,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704i";
+        const pageVersion = "20260704j";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -702,7 +711,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704i";
+      const PAGE_VERSION = "20260704j";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -1656,7 +1665,12 @@
         if (row.completeRate && row.completeRate >= 0.38) strengths.push("完播率较稳，节奏和时长基本能被用户看完。");
         if (row.completeRate && row.completeRate < 0.22) weaknesses.push("完播率偏低，建议重剪开头、减少铺垫、把结论前置。");
         if (averageWatchRatio(row) && averageWatchRatio(row) < 0.28) weaknesses.push("平均观看占比偏低，视频中段可能松散，建议删掉重复解释。");
-        if (row.views >= Math.max(1000, baseline.avgViews || 0) && conversionRate(row) < 0.003) weaknesses.push("有播放但咨询转化弱，需要加强评论区、结尾口播或主页承接。");
+        if (isBrandReachVideo(row) && conversionRate(row) < 0.003) {
+          strengths.push("播放量高，能扩大本地品牌影响力，适合继续拆解传播结构。");
+          weaknesses.push("这条更偏品牌曝光，直接咨询较弱；后续同类视频要补评论区、结尾口播或主页承接。");
+        } else if (row.views >= Math.max(1000, baseline.avgViews || 0) && conversionRate(row) < 0.003) {
+          weaknesses.push("有播放但咨询转化弱，需要加强评论区、结尾口播或主页承接。");
+        }
         if (row.favorites && safeRate(row.favorites, row.views) > 0.01) strengths.push("收藏率不错，偏干货型内容可做系列化。");
         if (saveShareRate(row) >= Math.max(0.01, baseline.avgSaveShare * 1.15)) strengths.push("收藏和转发信号靠前，说明这条内容有被家长保存或转给孩子看的价值。");
         if (!hasConversionSignals(row)) weaknesses.push("本条暂未采到主页访问、私信或线索字段，转化判断先按收藏/分享信号做阶段参考。");
@@ -1721,6 +1735,7 @@
       }
 
       function videoActionLabel(row, diagnosis = null) {
+        if (isBrandReachVideo(row)) return { text: "品牌影响", tone: "good" };
         if (isReviewVideo(row, diagnosis)) return { text: "重点复盘", tone: "danger" };
         if (isStrongVideo(row, diagnosis)) return { text: "建议复拍", tone: "good" };
         return { text: "继续观察", tone: "warn" };
@@ -1730,17 +1745,25 @@
         return row.saved === true || Boolean(normalizeText(row.savedAt));
       }
 
+      function isBrandReachVideo(row) {
+        const baseline = accountBaseline(row.accountName, row.platform, row.accountType);
+        const minViews = Math.max(5000, (baseline.avgViews || 0) * 1.25);
+        return (row.views || 0) >= minViews;
+      }
+
       function priorityScore(row, diagnosis = diagnoseVideo(row)) {
         const saveShare = (row.favorites || 0) + (row.shares || 0);
         const leads = leadCount(row);
         const fans = row.followersGained || 0;
         const sourceBonus = row.deepSources?.length ? 8 : 0;
+        const brandBonus = isBrandReachVideo(row) ? 35 : 0;
         const strongBonus = isStrongVideo(row, diagnosis) ? 28 : 0;
         const weakBonus = isReviewVideo(row, diagnosis) ? 18 : 0;
         const savedBonus = isSavedVideo(row) ? 12 : 0;
         return Math.round(
           diagnosis.score * 1.15 +
           Math.min(34, Math.log10((row.views || 0) + 1) * 7) +
+          brandBonus +
           Math.min(32, Math.log10(saveShare + 1) * 10) +
           Math.min(40, leads * 9 + leadRate(row) * 60000) +
           Math.min(32, fans * 6 + followerRate(row) * 45000) +
@@ -1754,6 +1777,7 @@
       function priorityReason(row, diagnosis = diagnoseVideo(row)) {
         const parts = [];
         if (isSavedVideo(row)) parts.push("已收藏");
+        if (isBrandReachVideo(row)) parts.push(`品牌影响力 ${formatNumber(row.views)} 播放`);
         if (isStrongVideo(row, diagnosis)) parts.push("可复拍");
         if (isReviewVideo(row, diagnosis)) parts.push("需复盘");
         if (hasLeadSignal(row)) parts.push(`咨询/线索 ${leadCount(row)}，每万播放 ${perWan(leadRate(row))}`);
@@ -1966,6 +1990,7 @@
           if (type === "saved" && !isSavedVideo(row)) return false;
           if (type === "strong" && !isStrongVideo(row, diagnosis)) return false;
           if (type === "weak" && !isReviewVideo(row, diagnosis)) return false;
+          if (type === "brand" && !isBrandReachVideo(row)) return false;
           if (type === "fans" && !hasFollowerSignal(row)) return false;
           if (type === "leads" && !hasLeadSignal(row)) return false;
           if (type === "own" && row.accountType !== "自有账号") return false;
@@ -2235,6 +2260,11 @@
           profileVisits: row.profileVisits,
           messages: row.messages,
           leads: row.leads,
+          followersGained: row.followersGained,
+          brandReachVideo: isBrandReachVideo(row),
+          leadCount: leadCount(row),
+          leadPerTenThousandViews: hasLeadSignal(row) ? Number(perWan(leadRate(row))) : 0,
+          fansPerTenThousandViews: hasFollowerSignal(row) ? Number(perWan(followerRate(row))) : 0,
           platformAdvice: row.platformAdvice,
           dataCompleteness: row.dataCompleteness,
           officialMetricLines: (row.officialMetricLines || []).slice(0, 6),
@@ -2267,7 +2297,7 @@
           .map(([key]) => accountAuditText(key).slice(0, 2600));
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。数据不足处必须明说，不要编造。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值。数据不足处必须明说，不要编造。",
           dataReadiness: readiness,
           accounts: state.accounts,
           benchmarkAccounts: benchmarkAccountsFromState(),
@@ -2836,7 +2866,7 @@
           {
             tone: "warn",
             title: "本轮采集边界",
-            body: `播放最高「${bestViews?.title || "-"}」${bestViews ? `，${formatNumber(bestViews.views)} 播放` : ""}；收藏转发最高「${bestSaveShare?.title || "-"}」。未入库提示：${warningText}`
+              body: `播放最高「${bestViews?.title || "-"}」${bestViews ? `，${formatNumber(bestViews.views)} 播放` : ""}，这类视频先归入本地品牌影响力，不因咨询率低就判定没价值；收藏转发最高「${bestSaveShare?.title || "-"}」。未入库提示：${warningText}`
           }
         ];
         box.innerHTML = cards.map((card) => `
@@ -2845,6 +2875,87 @@
             <p>${escapeHtml(card.body)}</p>
           </div>
         `).join("");
+      }
+
+      function topicLabelForVideo(row = {}) {
+        const text = normalizeText(`${row.topic || ""} ${row.title || ""}`);
+        const dictionary = [
+          ["选拔真题", /选拔|真题|自招|初升高|重点高中|小升初|分班考/i],
+          ["几何压轴", /几何|圆|折叠|全等|K字|三角形|四边形|矩形|数形结合/i],
+          ["计算巧算", /计算|巧算|裂项|分数|根号|有理数|绝对值/i],
+          ["小学奥数", /小学|奥数|算式谜|数字谜|六年级/i],
+          ["初中培优", /初中|初一|初二|初三|中考|八下|七年级|九年级/i],
+          ["学习规划", /规划|暑假|预习|复习|方法|习惯|粗心|家长/i]
+        ];
+        return dictionary.find(([, re]) => re.test(text))?.[0] || row.topic || "未分类题材";
+      }
+
+      function topicPerformanceRows(rows = filteredVideos()) {
+        const groups = new Map();
+        rows.filter((row) => row.accountType !== "同行账号").forEach((row) => {
+          const label = topicLabelForVideo(row);
+          const current = groups.get(label) || {
+            label,
+            count: 0,
+            views: 0,
+            followers: 0,
+            leads: 0,
+            saveShare: 0,
+            score: 0,
+            examples: []
+          };
+          const diagnosis = diagnoseVideo(row);
+          current.count += 1;
+          current.views += Number(row.views) || 0;
+          current.followers += Number(row.followersGained) || 0;
+          current.leads += leadCount(row);
+          current.saveShare += (row.favorites || 0) + (row.shares || 0);
+          current.score += diagnosis.score;
+          current.examples.push(row);
+          groups.set(label, current);
+        });
+        return [...groups.values()].map((item) => ({
+          ...item,
+          avgViews: safeRate(item.views, item.count),
+          avgScore: safeRate(item.score, item.count),
+          fanRate: safeRate(item.followers, item.views),
+          leadRate: safeRate(item.leads, item.views),
+          saveShareRate: safeRate(item.saveShare, item.views),
+          topVideo: item.examples.slice().sort((a, b) => priorityScore(b) - priorityScore(a))[0]
+        }));
+      }
+
+      function topicPerformanceCard(title, row, metricText, tone = "") {
+        if (!row) {
+          return `
+            <div class="topic-performance-card ${escapeHtml(tone)}">
+              <strong>${escapeHtml(title)}</strong>
+              <p>当前样本不足，等自有账号深采后再判断。</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="topic-performance-card ${escapeHtml(tone)}">
+            <strong>${escapeHtml(title)}｜${escapeHtml(row.label)}</strong>
+            <p>${escapeHtml(metricText)}｜样本 ${row.count} 条｜代表视频：${escapeHtml(videoShortTitle(row.topVideo || {}))}</p>
+          </div>
+        `;
+      }
+
+      function renderTopicPerformance() {
+        const box = byId("topicPerformanceGrid");
+        if (!box) return;
+        const groups = topicPerformanceRows();
+        const bestReach = groups.slice().sort((a, b) => b.views - a.views || b.avgViews - a.avgViews)[0];
+        const bestLeads = groups.slice().filter((row) => row.leads > 0).sort((a, b) => b.leads - a.leads || b.leadRate - a.leadRate)[0];
+        const bestFans = groups.slice().filter((row) => row.followers > 0).sort((a, b) => b.followers - a.followers || b.fanRate - a.fanRate)[0];
+        const bestSave = groups.slice().sort((a, b) => b.saveShare - a.saveShare || b.saveShareRate - a.saveShareRate)[0];
+        box.innerHTML = [
+          topicPerformanceCard("品牌曝光最强", bestReach, bestReach ? `累计播放 ${formatNumber(bestReach.views)}，均播 ${formatNumber(bestReach.avgViews)}` : "", "good"),
+          topicPerformanceCard("咨询线索最强", bestLeads, bestLeads ? `咨询线索 ${formatNumber(bestLeads.leads)}，每万播放 ${perWan(bestLeads.leadRate)}` : "", "warn"),
+          topicPerformanceCard("涨粉能力最强", bestFans, bestFans ? `涨粉 ${formatNumber(bestFans.followers)}，每万播放 ${perWan(bestFans.fanRate)}` : "", "good"),
+          topicPerformanceCard("收藏转发最强", bestSave, bestSave ? `收藏转发 ${formatNumber(bestSave.saveShare)}，每万播放 ${perWan(bestSave.saveShareRate)}` : "", "")
+        ].join("");
       }
 
       function videoShortTitle(row = {}) {
@@ -3100,6 +3211,8 @@
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
         const top = diagnostics.slice().sort((a, b) => b.diagnosis.score - a.diagnosis.score)[0];
         const weak = diagnostics.slice().sort((a, b) => a.diagnosis.score - b.diagnosis.score)[0];
+        const brandTop = rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0))[0];
+        const leadTop = rows.slice().sort((a, b) => leadCount(b) - leadCount(a) || leadRate(b) - leadRate(a))[0];
         const topicMap = new Map();
         rows.forEach((row) => {
           const key = row.topic || "未分类";
@@ -3124,19 +3237,22 @@
           `1. 本周已采集自有账号视频 ${rows.length} 条。`,
           accountLines.length ? accountLines.join("\n") : "- 暂未配置自有账号发布目标。",
           "",
-          `2. 本周表现最好：${top?.row?.title || "-"}，诊断分 ${top?.diagnosis?.score || 0}，播放 ${formatNumber(top?.row?.views || 0)}。`,
+          `2. 品牌影响最高：${brandTop?.title || "-"}，播放 ${formatNumber(brandTop?.views || 0)}。高播放代表本地认知和影响力，应单独保留复盘。`,
+          `   咨询线索最高：${leadTop?.title || "-"}，咨询线索 ${formatNumber(leadCount(leadTop || {}))}，每万播放 ${leadTop ? perWan(leadRate(leadTop)) : "-"}。`,
+          "",
+          `3. 本周综合表现最好：${top?.row?.title || "-"}，诊断分 ${top?.diagnosis?.score || 0}，播放 ${formatNumber(top?.row?.views || 0)}。`,
           `   主要优势：${(top?.diagnosis?.strengths || []).slice(0, 2).join("；") || "暂无"}`,
           "",
-          `3. 最需要复盘：${weak?.row?.title || "-"}，诊断分 ${weak?.diagnosis?.score || 0}，播放 ${formatNumber(weak?.row?.views || 0)}。`,
+          `4. 最需要复盘：${weak?.row?.title || "-"}，诊断分 ${weak?.diagnosis?.score || 0}，播放 ${formatNumber(weak?.row?.views || 0)}。`,
           `   主要问题：${(weak?.diagnosis?.weaknesses || []).slice(0, 2).join("；") || "暂无"}`,
           "",
-          "4. 题材方向：",
+          "5. 题材方向：",
           topics.length ? topics.map((item) => `- ${item.topic}：${item.count} 条，平均诊断分 ${Math.round(item.avgScore)}，平均播放 ${formatNumber(item.avgViews)}`).join("\n") : "- 暂无题材分类。",
           "",
-          "5. 下周建议：",
+          "6. 下周建议：",
           top?.diagnosis?.score >= 75 ? `- 继续围绕「${top.row.topic || top.row.title}」做同类选题，保留成功结构。` : "- 先补足数据量，再确定稳定题材。",
           "- 每条新视频重点观察 2 小时、24 小时、72 小时、7 天四个节点。",
-          "- 播放高但咨询低的视频，优先调整结尾口播、评论区引导和主页承接。"
+          "- 高播放视频负责扩大本地品牌影响力，要复盘传播结构；咨询线索高的视频负责招生转化，要复盘承接结构。"
         ].join("\n");
       }
 
@@ -3242,6 +3358,7 @@
         renderAccounts();
         renderAccountAudit();
         renderVideoQuality();
+        renderTopicPerformance();
         renderPriorityVideos();
         renderVideos();
         renderRankings();
@@ -3337,6 +3454,7 @@
       }
 
       function refreshVideoLists() {
+        renderTopicPerformance();
         renderPriorityVideos();
         renderVideos();
         renderRankings();
