@@ -18,7 +18,7 @@ const DEFAULT_CONFIG_PATH = path.join(DEFAULT_DATA_DIR, "config.json");
 const DEFAULT_CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const DEFAULT_BENCHMARK_ACCOUNTS_PATH = path.join(REPO_ROOT, "data", "video_benchmark_accounts.json");
 const LOGIN_HINTS = ["扫码登录", "微信扫码", "登录", "验证码", "安全验证", "请验证", "重新登录"];
-const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录)$/i;
+const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录|下载抖音精选|用户服务协议|平均播放时长|平均观看时长|人均观看时长|封面点击率|播放点击率|点击率|播放量|点赞量|评论量|收藏量|分享量|转发量|完播率|播放完成率|3秒留存|三秒留存|5秒留存|五秒留存|\d{1,2}:\d{2})$/i;
 const INVALID_VIDEO_URL_RE = /^(javascript:|mailto:|tel:|#)|developers\.weixin\.qq\.com|tencent\.com\/?$|weixin\.qq\.com\/cgi-bin\/readtemplate/i;
 const GENERIC_VIDEO_CARD_SELECTOR = [
   "article",
@@ -491,6 +491,7 @@ function extractTitleFromText(text, fallback = "") {
     .split(/\n|\r| {2,}/)
     .map(normalizeText)
     .filter((line) => line.length >= 5 && line.length <= 80)
+    .filter((line) => !INVALID_VIDEO_TITLE_RE.test(line))
     .filter((line) => !/登录|首页|消息|设置|数据|管理|创作者|发布|扫码|播放量|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存/.test(line));
   return lines[0] || fallback;
 }
@@ -679,6 +680,7 @@ function snapshotConfidence(snapshot = {}) {
   if (!hasSnapshotMetrics(snapshot)) score -= 40;
   if (title && INVALID_VIDEO_TITLE_RE.test(title)) score -= 50;
   if (url && INVALID_VIDEO_URL_RE.test(url)) score -= 40;
+  if ((snapshot.accountType || "") === "同行账号" && normalizeText(snapshot.source).includes("public-benchmark") && snapshot.benchmarkMatched !== true) score -= 70;
   return Math.max(0, Math.min(100, score));
 }
 
@@ -686,6 +688,7 @@ function isTrustedSnapshot(snapshot = {}) {
   const title = normalizeText(snapshot.title);
   if (!title || INVALID_VIDEO_TITLE_RE.test(title)) return false;
   if (!hasSnapshotMetrics(snapshot)) return false;
+  if ((snapshot.accountType || "") === "同行账号" && normalizeText(snapshot.source).includes("public-benchmark") && snapshot.benchmarkMatched !== true) return false;
   return snapshotConfidence(snapshot) >= 55;
 }
 
@@ -848,6 +851,10 @@ async function extractVideoSnapshot(page, account, card, config) {
 function extractSnapshotFromCard(account, card) {
   const text = card.rawText || card.text || card.title || "";
   const metrics = extractMetricsFromText(text);
+  const identityTokens = [account.name, account.douyinId, account.douyinAccount]
+    .map(normalizeText)
+    .filter((value) => value.length >= 3);
+  const benchmarkMatched = !account.publicCollectionUnverified || identityTokens.some((token) => normalizeText(text).includes(token) || normalizeText(card.url).includes(token));
   const snapshot = {
     platform: account.platform,
     accountType: account.accountType || "自有账号",
@@ -861,7 +868,10 @@ function extractSnapshotFromCard(account, card) {
     capturedAt: nowIso(),
     ...metrics,
     platformAdvice: "",
-    notes: account.publicCollectionUnverified ? "标杆公开视频搜索列表样本，需人工复核是否来自目标账号。" : "",
+    benchmarkMatched,
+    notes: account.publicCollectionUnverified
+      ? (benchmarkMatched ? "标杆公开视频搜索列表样本，已匹配账号名称或抖音号，仍建议人工抽查。" : "标杆公开视频搜索列表样本，未匹配账号名称或抖音号，默认不入库。")
+      : "",
     source: account.publicCollectionUnverified ? "public-benchmark-search-list" : "playwright-agent-list"
   };
   snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
@@ -1024,7 +1034,7 @@ async function collectAccount(context, account, config, onProgress = async () =>
       await onProgress(`读取${account.platform}账号概览`, { currentAccount: account.name, currentPlatform: account.platform });
       const audit = await extractAccountAudit(page, account, config);
       audit.confidence = auditConfidence(audit);
-      audit.source = `${audit.source || "playwright-agent"}+manual-confirmed`;
+      audit.source = `${audit.source || "playwright-agent"}+auto-trusted`;
       if (isTrustedAudit(audit)) {
         accountAudits.push(audit);
       } else {
@@ -1080,7 +1090,7 @@ async function collectAccount(context, account, config, onProgress = async () =>
         }
         if (snapshot) {
           snapshot.confidence = snapshotConfidence(snapshot);
-          snapshot.source = `${snapshot.source || "playwright-agent"}+manual-confirmed`;
+          snapshot.source = `${snapshot.source || "playwright-agent"}+auto-trusted`;
         }
         if (snapshot && isTrustedSnapshot(snapshot)) {
           snapshots.push(snapshot);
