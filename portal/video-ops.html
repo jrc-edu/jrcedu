@@ -29,6 +29,26 @@
       .shell { width: min(1240px, calc(100vw - 32px)); margin: 0 auto; padding: 32px 0 56px; }
       .topbar, .card, .panel { background: var(--panel); border: 1px solid rgba(255,255,255,0.72); border-radius: 22px; box-shadow: var(--shadow); }
       .topbar { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 14px 18px; margin-bottom: 18px; }
+      .page-version-floating {
+        position: fixed;
+        top: 12px;
+        right: 16px;
+        z-index: 80;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: rgba(23, 33, 50, 0.92);
+        color: #fff;
+        box-shadow: 0 12px 28px rgba(23, 33, 50, 0.18);
+        font-size: 12px;
+        font-weight: 900;
+        backdrop-filter: blur(10px);
+        pointer-events: none;
+      }
+      .page-version-floating span { color: rgba(255,255,255,0.70); font-weight: 800; }
       .brand-name { font-size: 18px; font-weight: 900; }
       .brand-subtitle { margin-top: 4px; color: var(--muted); font-size: 13px; }
       .nav-link, .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); text-decoration: none; background: #fff; color: var(--ink); font-size: 13px; cursor: pointer; }
@@ -197,6 +217,7 @@
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 720px) {
+        .page-version-floating { top: 8px; right: 8px; min-height: 28px; padding: 0 9px; font-size: 11px; }
         .topbar { align-items: flex-start; flex-direction: column; }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
         .strategy-grid, .readiness-grid { grid-template-columns: 1fr; }
@@ -208,6 +229,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
+    <div class="page-version-floating"><span>短视频版本</span>20260704k</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -230,11 +252,11 @@
             <span class="tag">数学教培诊断</span>
             <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
-            <span class="tag" id="videoOpsVersionTag">页面版本 20260704j</span>
+            <span class="tag" id="videoOpsVersionTag">页面版本 20260704k</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
-            <strong>页面版本 20260704j｜等待同步</strong>
+            <strong>页面版本 20260704k｜等待同步</strong>
             <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
           </div>
         </article>
@@ -576,7 +598,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704j";
+        const pageVersion = "20260704k";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -711,7 +733,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704j";
+      const PAGE_VERSION = "20260704k";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
