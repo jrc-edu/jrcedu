@@ -209,11 +209,11 @@
             <span class="tag">数学教培诊断</span>
             <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
-            <span class="tag" id="videoOpsVersionTag">页面版本 20260704e</span>
+            <span class="tag" id="videoOpsVersionTag">页面版本 20260704h</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
-            <strong>页面版本 20260704e｜等待同步</strong>
+            <strong>页面版本 20260704h｜等待同步</strong>
             <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
           </div>
         </article>
@@ -221,7 +221,7 @@
           <p class="eyebrow">机器人逻辑</p>
           <h2>自动跑，严格入库</h2>
           <p style="margin-top:10px;">采集器会自动打开页面、读取页面和保存进度；遇到登录页、验证码页、菜单页、权限页或字段不可信时，系统自动跳过并写入异常提示，不进入正式视频档案。</p>
-          <div class="notice warn">本轮废弃旧的自动乱点路线。旧数据可用“重建数据”导入或 `npm run video:rebuild` 清掉；只有特殊排查时才使用人工确认模式。</div>
+          <div class="notice warn">本轮废弃旧的自动乱点路线。深挖自己的账号用 `npm run video:own-deep`；旧数据可用“重建数据”导入或 `npm run video:rebuild` 清掉；只有特殊排查时才使用人工确认模式。</div>
         </aside>
       </section>
 
@@ -372,6 +372,30 @@
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
+            <p class="eyebrow">Deep Mining</p>
+            <h2>自有账号深度挖掘任务</h2>
+          </div>
+          <button class="button secondary" id="copyShootingTasksButton" type="button">复制深挖任务</button>
+        </div>
+        <p style="margin-top:8px;">今天不急着拍摄。这里先把自己的历史视频变成深挖任务：采全数据、找优势、找短板、沉淀长期可复制结构。</p>
+        <div class="decision-list" id="shootingTaskList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Account Advantage</p>
+            <h2>账号优势强化</h2>
+          </div>
+          <button class="button secondary" id="copyAdvantagePlanButton" type="button">复制优势方案</button>
+        </div>
+        <p style="margin-top:8px;">系统会从自己的历史视频里找出最值得放大的优势：哪个题型、哪个年级、哪种标题、哪种证明力更容易被家长保存和转发。</p>
+        <div class="decision-list" id="advantagePlanList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
             <p class="eyebrow">Account Audit</p>
             <h2>账号全方位体检</h2>
           </div>
@@ -514,7 +538,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704e";
+        const pageVersion = "20260704h";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -649,7 +673,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704e";
+      const PAGE_VERSION = "20260704h";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -821,6 +845,8 @@
           targetPerAccount: target,
           benchmarkAccountsPerRun: benchmarkAccounts,
           benchmarkVideosPerAccount: benchmarkVideos,
+          deepOwnDetails: source.deepOwnDetails === true || source.deepOwnDetails === "true",
+          fullScan: source.fullScan === true || source.fullScan === "true",
           sampleMethod: normalizeText(source.sampleMethod) || "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
           purpose: normalizeText(source.purpose) || (target <= 30 ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。" : target <= 100 ? "适合做账号阶段体检，判断题材、留存、互动和转化的大方向。" : "适合首次建档或月度复盘，用更大历史样本建立账号基准。"),
           conclusionBoundary: normalizeText(source.conclusionBoundary) || (target < 20 ? "样本偏少，只能做方向提示，不能下账号级重结论。" : target < 80 ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。" : "可以做较完整账号体检，但仍受平台后台可见数据限制。"),
@@ -973,6 +999,23 @@
         };
       }
 
+      function normalizeTextList(value, separator = /[、,，\n\r]+/) {
+        if (Array.isArray(value)) return value.map((item) => normalizeText(typeof item === "object" ? JSON.stringify(item) : item)).filter(Boolean);
+        return normalizeText(value).split(separator).map(normalizeText).filter(Boolean);
+      }
+
+      function normalizeCompleteness(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        return {
+          core: normalizeTextList(source.core || []),
+          reach: normalizeTextList(source.reach || []),
+          retention: normalizeTextList(source.retention || []),
+          conversion: normalizeTextList(source.conversion || []),
+          score: parseNumber(source.score),
+          summary: normalizeText(source.summary)
+        };
+      }
+
       function normalizeAccountAudit(row = {}) {
         const accountName = normalizeText(row.accountName || row.name || row.account || row["账号"] || row["账号名称"]);
         if (!accountName) return null;
@@ -997,6 +1040,14 @@
           searchKeywords: Array.isArray(row.searchKeywords || row.keywords) ? (row.searchKeywords || row.keywords).map(normalizeText).filter(Boolean) : normalizeText(row.searchKeywords || row.keywords || row["搜索词"]).split(/[、,，\s]+/).filter(Boolean),
           platformAdvice: normalizeText(row.platformAdvice || row.advice || row["平台建议"] || row["账号诊断"]),
           positioning: normalizeText(row.positioning || row.accountPositioning || row["账号定位"]),
+          officialMetricLines: normalizeTextList(row.officialMetricLines || row["官方指标线索"]),
+          apiSignalLines: normalizeTextList(row.apiSignalLines || row["接口指标线索"]),
+          deepSources: normalizeTextList(row.deepSources || row["深采来源"]),
+          creatorCenterPages: Array.isArray(row.creatorCenterPages) ? row.creatorCenterPages.map((item) => ({
+            label: normalizeText(item.label || item.name || "创作者中心数据页"),
+            url: normalizeText(item.url || item.href)
+          })).filter((item) => item.label || item.url) : [],
+          dataCompleteness: normalizeCompleteness(row.dataCompleteness || row["数据完整度"]),
           note: normalizeText(row.note || row.notes || row["备注"]),
           source: normalizeText(row.source) || "robot",
           importedAt: normalizeText(row.importedAt) || new Date().toISOString()
@@ -1059,6 +1110,10 @@
           leads: parseNumber(row.leads ?? row.inquiries ?? row["线索"] ?? row["有效咨询"]),
           followersGained: parseNumber(row.followersGained ?? row.newFollowers ?? row["涨粉"]),
           platformAdvice: normalizeText(row.platformAdvice || row.advice || row["平台建议"] || row["诊断建议"]),
+          officialMetricLines: normalizeTextList(row.officialMetricLines || row["官方指标线索"]),
+          apiSignalLines: normalizeTextList(row.apiSignalLines || row["接口指标线索"]),
+          deepSources: normalizeTextList(row.deepSources || row["深采来源"]),
+          dataCompleteness: normalizeCompleteness(row.dataCompleteness || row["数据完整度"]),
           notes: normalizeText(row.notes || row.note || row["备注"]),
           benchmarkMatched: row.benchmarkMatched === true,
           source: normalizeText(row.source) || "robot",
@@ -1770,6 +1825,9 @@
           `流量来源：${trafficText(audit.audit?.trafficSources)}`,
           `粉丝画像：${audit.audit?.audienceSummary || "待补采"}`,
           `平台账号建议：${audit.audit?.platformAdvice || "待补采"}`,
+          `创作者中心深采页：${audit.audit?.creatorCenterPages?.length || 0} 个`,
+          `账号官方指标线索：${audit.audit?.officialMetricLines?.length || audit.audit?.apiSignalLines?.length || 0} 条`,
+          `账号数据完整度：${audit.audit?.dataCompleteness?.summary || "待补采"}`,
           "",
           "做得好的地方：",
           audit.strengths.map((item) => `- ${item}`).join("\n"),
@@ -1893,7 +1951,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "指挥采集：小剂量试验用 npm run video:trial；日常重建用 npm run video:rebuild；阶段体检用 npm run video:run -- --fresh --max-videos 100。只有特殊排查才加 --manual。";
+        byId("collectionCommandHint").textContent = "指挥采集：自有账号深度挖掘用 npm run video:own-deep；小剂量试验用 npm run video:trial；日常重建用 npm run video:rebuild。只有特殊排查才加 --manual。";
       }
 
       function dataReadinessProfile() {
@@ -1906,6 +1964,9 @@
         const withRetention = latest.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds);
         const withConversion = latest.filter((row) => row.profileVisits || row.messages || row.leads);
         const withAdvice = latest.filter((row) => row.platformAdvice);
+        const withDeepSources = latest.filter((row) => Array.isArray(row.deepSources) && row.deepSources.length);
+        const withOfficialSignals = latest.filter((row) => (row.officialMetricLines?.length || row.apiSignalLines?.length));
+        const avgCompleteness = average(latest.map((row) => row.dataCompleteness?.score || 0));
         const status = state.collectorStatus || {};
         const total = latest.length;
         const ownCount = ownRows.length;
@@ -1929,6 +1990,7 @@
         const gaps = [];
         if (!audits.length) gaps.push("缺账号级数据：粉丝、主页访问、搜索词、平台账号建议。");
         if (ownCount < 20) gaps.push(`自有视频样本只有 ${ownCount} 条，建议先补到 20 条以上再定账号方向。`);
+        if (ownCount && withDeepSources.length < Math.min(10, ownCount)) gaps.push("详情页/创作者中心深采来源偏少，建议运行 npm run video:own-deep 补官方后台深层数据。");
         if (withRetention.length < Math.min(8, Math.max(ownCount, 1))) gaps.push("留存/完播数据偏少，暂时难判断开头和节奏。");
         if (withConversion.length < Math.min(5, Math.max(ownCount, 1))) gaps.push("主页访问、私信、线索数据偏少，暂时难判断播放是否能带来咨询。");
         if (!peerAccountCount) gaps.push("还没有同行标杆账号库，暂时不能组织对标学习。");
@@ -1937,7 +1999,7 @@
         if (status.status === "running") {
           commands.push("当前采集器正在运行，先等本轮结束再看结论。");
         } else if (ownCount < 20) {
-          commands.push("下一步建议：先在 Mac mini 运行 npm run video:trial，小剂量验证：自有账号深采，标杆 10 个博主每人 3 条。");
+          commands.push("下一步建议：先在 Mac mini 运行 npm run video:own-deep，深挖自有账号历史作品；要做标杆小样本时再运行 npm run video:trial。");
         } else if (ownCount < 80 || peerCount < 10) {
           commands.push("下一步建议：运行 npm run video:run -- --fresh --max-videos 100，做一次自动阶段体检。");
         } else {
@@ -1957,6 +2019,9 @@
           withRetention: withRetention.length,
           withConversion: withConversion.length,
           withAdvice: withAdvice.length,
+          withDeepSources: withDeepSources.length,
+          withOfficialSignals: withOfficialSignals.length,
+          avgCompleteness,
           gaps,
           commands
         };
@@ -1986,6 +2051,12 @@
             label: "咨询转化信号",
             value: `${profile.withConversion} 条`,
             note: profile.withConversion ? "用于判断播放到咨询" : "缺主页/私信/线索数据"
+          },
+          {
+            tone: profile.withDeepSources >= 10 ? "good" : profile.withDeepSources ? "warn" : "danger",
+            label: "创作者中心深采",
+            value: `${profile.withDeepSources} 条`,
+            note: profile.withDeepSources ? `平均完整度 ${Math.round(profile.avgCompleteness || 0)}%` : "还缺详情页/接口线索"
           },
           {
             tone: profile.peerAccountCount >= 10 ? "good" : profile.peerAccountCount ? "warn" : "danger",
@@ -2049,6 +2120,10 @@
           messages: row.messages,
           leads: row.leads,
           platformAdvice: row.platformAdvice,
+          dataCompleteness: row.dataCompleteness,
+          officialMetricLines: (row.officialMetricLines || []).slice(0, 6),
+          apiSignalLines: (row.apiSignalLines || []).slice(0, 6),
+          deepSources: (row.deepSources || []).slice(0, 4),
           diagnosisScore: diagnosis.score,
           strengths: diagnosis.strengths.slice(0, 2),
           weaknesses: diagnosis.weaknesses.slice(0, 2),
@@ -2483,6 +2558,12 @@
         list.innerHTML = rows.length ? rows.map((row) => {
           const diagnosis = diagnoseVideo(row);
           const action = videoActionLabel(row, diagnosis);
+          const completenessText = row.dataCompleteness?.summary
+            ? `｜深采 ${row.dataCompleteness.summary}`
+            : "";
+          const deepSourceText = row.deepSources?.length
+            ? `｜官方来源 ${row.deepSources.length} 个`
+            : "";
           return `
             <article class="video-card">
               <div class="video-card-head">
@@ -2494,7 +2575,7 @@
                     ${row.topic ? `<span class="badge">${escapeHtml(row.topic)}</span>` : ""}
                   </div>
                   <div class="video-title" style="margin-top:8px;">${escapeHtml(row.title || row.videoId || "未命名视频")}</div>
-                  <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜${escapeHtml(sourceLabel(row.source))}｜${escapeHtml(diagnosis.historyText)}</div>
+                  <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜${escapeHtml(sourceLabel(row.source))}｜${escapeHtml(diagnosis.historyText)}${escapeHtml(completenessText)}${escapeHtml(deepSourceText)}</div>
                 </div>
                 <div class="score ${diagnosis.tone === "danger" ? "danger" : diagnosis.tone === "warn" ? "warn" : ""}">
                   ${diagnosis.score}<small>诊断分</small>
@@ -2583,6 +2664,211 @@
             body: `播放最高「${bestViews?.title || "-"}」${bestViews ? `，${formatNumber(bestViews.views)} 播放` : ""}；收藏转发最高「${bestSaveShare?.title || "-"}」。未入库提示：${warningText}`
           }
         ];
+        box.innerHTML = cards.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function videoShortTitle(row = {}) {
+        return normalizeText(row.title || row.videoId || "未命名视频")
+          .replace(/#.+$/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 42) || "未命名视频";
+      }
+
+      function titleKeywords(row = {}) {
+        const title = normalizeText(row.title);
+        const tags = [...title.matchAll(/#([^#\s]+)/g)].map((match) => match[1]).slice(0, 4);
+        if (tags.length) return tags.join("、");
+        return videoShortTitle(row).replace(/[，。！？!?,、]/g, " ").split(/\s+/).filter(Boolean).slice(0, 4).join("、") || "当前题材";
+      }
+
+      function buildShootingTasks() {
+        const rows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
+        const warnings = warningBuckets();
+        if (!rows.length) {
+          return [{
+            tone: "warn",
+            title: "先深采自己的历史作品",
+            body: "当前还没有单条视频数据。先在 Mac mini 运行 npm run video:own-deep，优先把自己的历史作品、播放、点赞、收藏、分享和详情页数据采回来。"
+          }];
+        }
+        const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
+        const remake = diagnostics.filter((item) => isStrongVideo(item.row, item.diagnosis)).sort((a, b) => b.diagnosis.score - a.diagnosis.score || (b.row.views || 0) - (a.row.views || 0));
+        const review = diagnostics.filter((item) => isReviewVideo(item.row, item.diagnosis)).sort((a, b) => a.diagnosis.score - b.diagnosis.score || (a.row.views || 0) - (b.row.views || 0));
+        const bestSaveShare = rows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)))[0];
+        const tasks = [];
+        tasks.push({
+          tone: rows.length >= 80 ? "good" : "warn",
+          title: "先把自有账号样本扩到 100 条左右",
+          body: rows.length >= 80
+            ? `当前已有 ${rows.length} 条自有视频样本，可以开始做阶段性优势归因。`
+            : `当前只有 ${rows.length} 条自有视频样本。下一步运行 npm run video:own-deep，先把自己的历史作品尽量采到 100 条左右，再稳定判断长期优势。`
+        });
+        if (remake[0]) {
+          const row = remake[0].row;
+          tasks.push({
+            tone: "good",
+            title: "沉淀可复制结构",
+            body: `先拆「${videoShortTitle(row)}」为什么表现好：关键词“${titleKeywords(row)}”、题目难度、开头场景、收藏转发点。暂时不急着拍，先把结构记录下来。`
+          });
+        }
+        if (bestSaveShare && (!remake[0] || bestSaveShare.id !== remake[0].row.id)) {
+          tasks.push({
+            tone: "good",
+            title: "提炼高收藏转发题型",
+            body: `「${videoShortTitle(bestSaveShare)}」收藏/转发 ${formatNumber((bestSaveShare.favorites || 0) + (bestSaveShare.shares || 0))}。先把它归入“家长愿意保存”的题型库，后续再决定是否做系列。`
+          });
+        }
+        if (review[0]) {
+          const row = review[0].row;
+          tasks.push({
+            tone: "warn",
+            title: "标记弱项样本",
+            body: `把「${videoShortTitle(row)}」标记为复盘样本。先判断是标题太泛、题目不够有家长痛点，还是前 3 秒没有进入关键问题。`
+          });
+        }
+        tasks.push({
+          tone: "warn",
+          title: "补齐转化字段",
+          body: "深度挖掘阶段要重点补主页访问、私信、线索、完播、平均观看时长。没有这些字段，就只能判断内容热度，不能判断是否真的带来咨询。"
+        });
+        if (warnings["视频号未入库"]) {
+          tasks.push({
+            tone: "warn",
+            title: "补采视频号有效数据",
+            body: `视频号有 ${warnings["视频号未入库"]} 条候选未入库，原因是可信度不足。下一轮先小样本调视频号详情页识别，不要急着扩大采集量。`
+          });
+        }
+        return tasks.slice(0, 5);
+      }
+
+      function shootingTasksText() {
+        return [
+          "短视频自有账号深度挖掘任务",
+          "",
+          ...buildShootingTasks().map((task, index) => `${index + 1}. ${task.title}\n${task.body}`)
+        ].join("\n");
+      }
+
+      function renderShootingTasks() {
+        const box = byId("shootingTaskList");
+        if (!box) return;
+        const tasks = buildShootingTasks();
+        box.innerHTML = tasks.map((task) => `
+          <div class="decision-card ${escapeHtml(task.tone || "")}">
+            <strong>${escapeHtml(task.title)}</strong>
+            <p>${escapeHtml(task.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function keywordGroups(rows = []) {
+        const groups = new Map();
+        const dictionary = [
+          ["选拔真题", /选拔|真题|大讲堂|效实|鄞州|自招|初升高|小升初/i],
+          ["几何压轴", /几何|圆|折叠|全等|K字|三角形|四边形|矩形|数形结合/i],
+          ["计算巧算", /计算|巧算|裂项|分数|根号|有理数|绝对值/i],
+          ["小学奥数", /小学|奥数|算式谜|数字谜|小升初|六年级/i],
+          ["初中培优", /初中|初一|初二|初三|中考|八下|七年级|九年级/i]
+        ];
+        rows.forEach((row) => {
+          const text = [row.title, row.topic].filter(Boolean).join(" ");
+          const matched = dictionary.filter(([, re]) => re.test(text)).map(([label]) => label);
+          const labels = matched.length ? matched : [row.topic || "未分类题材"];
+          labels.forEach((label) => {
+            const current = groups.get(label) || { label, count: 0, views: 0, likes: 0, favorites: 0, shares: 0, comments: 0, score: 0, examples: [] };
+            const diagnosis = diagnoseVideo(row);
+            current.count += 1;
+            current.views += Number(row.views) || 0;
+            current.likes += Number(row.likes) || 0;
+            current.favorites += Number(row.favorites) || 0;
+            current.shares += Number(row.shares) || 0;
+            current.comments += Number(row.comments) || 0;
+            current.score += diagnosis.score;
+            current.examples.push(row);
+            groups.set(label, current);
+          });
+        });
+        return [...groups.values()]
+          .map((item) => ({
+            ...item,
+            avgViews: safeRate(item.views, item.count),
+            saveShare: item.favorites + item.shares,
+            avgScore: safeRate(item.score, item.count)
+          }))
+          .sort((left, right) => (right.views + right.saveShare * 80 + right.avgScore * 100) - (left.views + left.saveShare * 80 + left.avgScore * 100));
+      }
+
+      function buildAdvantagePlan() {
+        const rows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
+        if (!rows.length) {
+          return [{
+            tone: "warn",
+            title: "等待自己的历史数据",
+            body: "深度采集自己的账号后，这里会自动生成优势方向、可复制标题结构和下一轮选题。"
+          }];
+        }
+        const groups = keywordGroups(rows);
+        const bestGroup = groups[0];
+        const bestVideo = rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0))[0];
+        const bestSaveVideo = rows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)))[0];
+        const highValue = rows.filter((row) => isStrongVideo(row, diagnoseVideo(row)));
+        const cards = [];
+        if (bestGroup) {
+          cards.push({
+            tone: "good",
+            title: `当前最强优势：${bestGroup.label}`,
+            body: `${bestGroup.count} 条样本，累计播放 ${formatNumber(bestGroup.views)}，收藏/转发 ${formatNumber(bestGroup.saveShare)}。下一轮优先把这个方向做成连续系列，不要平均发力。`
+          });
+        }
+        if (bestVideo) {
+          cards.push({
+            tone: "good",
+            title: "最能拉播放的表达",
+            body: `「${videoShortTitle(bestVideo)}」播放 ${formatNumber(bestVideo.views)}。先记录它的场景感、题目难度和标题关键词，作为后续同类型选题的模板。`
+          });
+        }
+        if (bestSaveVideo) {
+          cards.push({
+            tone: "good",
+            title: "最能让家长保存的内容",
+            body: `「${videoShortTitle(bestSaveVideo)}」收藏/转发 ${formatNumber((bestSaveVideo.favorites || 0) + (bestSaveVideo.shares || 0))}。这类内容适合做“可收藏题型库”，强调步骤、方法和易错点。`
+          });
+        }
+        cards.push({
+          tone: rows.length >= 20 ? "good" : "warn",
+          title: rows.length >= 20 ? "可以开始建立账号优势库" : "样本还少，先做优势初判",
+          body: rows.length >= 20
+            ? `当前已有 ${rows.length} 条样本，可以把高播放、高收藏、高转发方向沉淀成账号优势库。`
+            : `当前只有 ${rows.length} 条样本，已能看出初步优势，但还需要深采历史作品，至少到 50-100 条后再定长期定位。`
+        });
+        if (highValue.length) {
+          cards.push({
+            tone: "good",
+            title: "后续可放大方向",
+            body: `先把 ${highValue.slice(0, 3).map((item) => `「${videoShortTitle(item)}」`).join("、")} 归入优势样本库。后续标题继续突出宁波、本地名校、选拔真题、压轴题和方法可复制。`
+          });
+        }
+        return cards.slice(0, 5);
+      }
+
+      function advantagePlanText() {
+        return [
+          "短视频账号优势强化方案",
+          "",
+          ...buildAdvantagePlan().map((item, index) => `${index + 1}. ${item.title}\n${item.body}`)
+        ].join("\n");
+      }
+
+      function renderAdvantagePlan() {
+        const box = byId("advantagePlanList");
+        if (!box) return;
+        const cards = buildAdvantagePlan();
         box.innerHTML = cards.map((card) => `
           <div class="decision-card ${escapeHtml(card.tone || "")}">
             <strong>${escapeHtml(card.title)}</strong>
@@ -2776,6 +3062,8 @@
         renderIndustryBenchmark();
         renderMetrics();
         renderExecutiveSummary();
+        renderShootingTasks();
+        renderAdvantagePlan();
         renderAccounts();
         renderAccountAudit();
         renderVideoQuality();
@@ -3053,6 +3341,14 @@
         byId("copyWeeklyReportButton").addEventListener("click", async () => {
           await navigator.clipboard?.writeText(buildWeeklyReport());
           byId("videoOpsMessage").textContent = "已复制本周短视频运营复盘。";
+        });
+        byId("copyShootingTasksButton").addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(shootingTasksText());
+          byId("videoOpsMessage").textContent = "已复制自有账号深度挖掘任务。";
+        });
+        byId("copyAdvantagePlanButton").addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(advantagePlanText());
+          byId("videoOpsMessage").textContent = "已复制账号优势强化方案。";
         });
       }
 

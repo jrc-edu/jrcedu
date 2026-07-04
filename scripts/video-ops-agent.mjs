@@ -37,22 +37,72 @@ const GENERIC_VIDEO_CARD_SELECTOR = [
   "[class*='Item']"
 ].join(",");
 const METRIC_LABELS = {
-  views: ["播放量", "播放次数", "播放", "观看量", "观看", "浏览量", "浏览", "阅读量", "阅读"],
+  views: ["播放量", "播放次数", "播放", "观看量", "观看次数", "观看", "浏览量", "浏览", "阅读量", "阅读"],
   likes: ["点赞量", "点赞数", "点赞", "喜欢"],
   comments: ["评论量", "评论数", "评论"],
   favorites: ["收藏量", "收藏数", "收藏"],
   shares: ["转发量", "分享量", "转发", "分享"],
-  impressions: ["曝光量", "展现量", "推荐曝光", "曝光", "展现"],
-  clickThroughRate: ["点击率", "封面点击率", "播放点击率"],
-  completeRate: ["完播率", "播放完成率", "完成率"],
+  impressions: ["曝光量", "展现量", "推荐曝光", "曝光次数", "曝光", "展现"],
+  clickThroughRate: ["点击率", "封面点击率", "播放点击率", "封面进入率", "播放进入率"],
+  completeRate: ["完播率", "播放完成率", "完成率", "完整播放率"],
   threeSecondRetention: ["3秒留存", "三秒留存", "3 秒留存"],
   fiveSecondRetention: ["5秒留存", "五秒留存", "5 秒留存"],
-  avgWatchSeconds: ["平均播放时长", "平均观看时长", "人均观看时长", "平均观看"],
+  avgWatchSeconds: ["平均播放时长", "平均观看时长", "人均观看时长", "平均观看", "平均播放"],
   videoDurationSeconds: ["视频时长", "作品时长", "时长"],
-  profileVisits: ["主页访问", "主页访客", "主页浏览", "主页点击"],
-  messages: ["私信", "咨询", "消息"],
-  leads: ["线索", "有效咨询", "留资", "表单"]
+  profileVisits: ["主页访问人数", "主页访问量", "主页访问", "主页访客", "主页浏览", "主页点击"],
+  messages: ["私信咨询", "私信人数", "私信用户", "私信", "咨询", "消息"],
+  leads: ["有效线索", "线索量", "线索", "有效咨询", "留资数", "留资", "表单提交", "表单", "客资"]
 };
+const DEEP_ACCOUNT_LINK_LABELS = [
+  "数据中心",
+  "数据概览",
+  "账号诊断",
+  "作品数据",
+  "内容数据",
+  "粉丝画像",
+  "观众画像",
+  "粉丝数据",
+  "流量分析",
+  "搜索分析",
+  "互动数据",
+  "经营数据",
+  "转化数据",
+  "线索管理"
+];
+const DEEP_VIDEO_CONTROL_LABELS = [
+  "数据",
+  "作品数据",
+  "视频数据",
+  "数据分析",
+  "流量分析",
+  "观众分析",
+  "粉丝画像",
+  "互动数据",
+  "转化数据",
+  "诊断",
+  "建议",
+  "详情"
+];
+const UNSAFE_CONTROL_RE = /发布|删除|编辑|修改|保存|确定|确认|取消|关闭|投放|推广|充值|授权|退出|登录|扫码|上传|下载|复制链接|分享/i;
+const METRIC_KEY_PATTERNS = {
+  views: [/play[_-]?count/i, /view[_-]?count/i, /watch[_-]?count/i, /read[_-]?count/i, /播放|观看|浏览|阅读/],
+  likes: [/like[_-]?count/i, /digg[_-]?count/i, /点赞|喜欢/],
+  comments: [/comment[_-]?count/i, /评论/],
+  favorites: [/collect[_-]?count/i, /favorite[_-]?count/i, /收藏/],
+  shares: [/share[_-]?count/i, /forward[_-]?count/i, /转发|分享/],
+  impressions: [/show[_-]?count/i, /impression/i, /exposure/i, /曝光|展现/],
+  clickThroughRate: [/click.*rate/i, /\bctr\b/i, /点击率|封面进入率|播放进入率/],
+  completeRate: [/complete.*rate/i, /finish.*rate/i, /完播率|完成率/],
+  threeSecondRetention: [/3.*retention/i, /retention.*3/i, /3秒留存|三秒留存/],
+  fiveSecondRetention: [/5.*retention/i, /retention.*5/i, /5秒留存|五秒留存/],
+  avgWatchSeconds: [/avg.*watch/i, /average.*watch/i, /平均.*观看|平均.*播放/],
+  videoDurationSeconds: [/duration/i, /视频时长|作品时长|时长/],
+  profileVisits: [/profile.*visit/i, /home.*visit/i, /主页访问|主页浏览|主页访客/],
+  messages: [/message/i, /private.*message/i, /私信|咨询|消息/],
+  leads: [/lead/i, /clue/i, /form/i, /线索|留资|表单|客资/],
+  followersGained: [/new.*fan/i, /new.*follower/i, /follower.*gain/i, /涨粉|新增粉丝/]
+};
+const SENSITIVE_KEY_RE = /token|cookie|session|secret|password|authorization|credential|ticket|csrf|sign/i;
 
 function nowIso() {
   return new Date().toISOString();
@@ -414,6 +464,129 @@ async function pageText(page) {
   return normalizeText(await page.locator("body").innerText({ timeout: 8000 }).catch(() => ""));
 }
 
+function splitSignalLines(text, limit = 24) {
+  const metricWordRe = /播放|观看|浏览|阅读|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存|点击率|平均|时长|主页|私信|咨询|线索|留资|表单|涨粉|粉丝|搜索|流量|诊断|建议|优化|转化/i;
+  return String(text || "")
+    .split(/\n|\r|(?<=[。！？!?；;])/)
+    .map(normalizeText)
+    .filter((line) => line.length >= 3 && line.length <= 180)
+    .filter((line) => metricWordRe.test(line))
+    .filter((line, index, arr) => arr.indexOf(line) === index)
+    .slice(0, limit);
+}
+
+function flattenMetricSignals(value, prefix = "", rows = []) {
+  if (rows.length >= 80 || value == null) return rows;
+  if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
+    const key = normalizeText(prefix);
+    const raw = normalizeText(value);
+    if (key && raw && !SENSITIVE_KEY_RE.test(key)) {
+      const useful = Object.values(METRIC_KEY_PATTERNS).flat().some((pattern) => pattern.test(key)) ||
+        /播放|观看|浏览|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存|点击率|主页|私信|咨询|线索|留资|粉丝|搜索|流量|诊断|建议|优化|转化/i.test(`${key} ${raw}`);
+      if (useful) rows.push(`${key}：${raw}`.slice(0, 180));
+    }
+    return rows;
+  }
+  if (Array.isArray(value)) {
+    value.slice(0, 30).forEach((item, index) => flattenMetricSignals(item, `${prefix}[${index}]`, rows));
+    return rows;
+  }
+  if (typeof value === "object") {
+    Object.entries(value).slice(0, 80).forEach(([key, item]) => {
+      if (SENSITIVE_KEY_RE.test(key)) return;
+      flattenMetricSignals(item, prefix ? `${prefix}.${key}` : key, rows);
+    });
+  }
+  return rows;
+}
+
+function metricValueFromSignals(signals, key) {
+  const patterns = METRIC_KEY_PATTERNS[key] || [];
+  const rows = Array.isArray(signals) ? signals : [];
+  let best = 0;
+  rows.forEach((line) => {
+    const [name = "", value = ""] = String(line).split(/[:：=]/);
+    if (!patterns.some((pattern) => pattern.test(name))) return;
+    const parsed = key === "avgWatchSeconds" || key === "videoDurationSeconds"
+      ? parseDurationValue(value) || parseNumber(value)
+      : parseNumber(value);
+    if (Number(parsed) > Number(best)) best = parsed;
+  });
+  return best;
+}
+
+function extractMetricsFromSignals(signals) {
+  return Object.fromEntries(Object.keys(METRIC_KEY_PATTERNS).map((key) => [key, metricValueFromSignals(signals, key)]));
+}
+
+function mergeMetricObjects(primary = {}, fallback = {}) {
+  const merged = { ...primary };
+  Object.keys(METRIC_KEY_PATTERNS).forEach((key) => {
+    if (!Number(merged[key]) && Number(fallback[key])) merged[key] = fallback[key];
+  });
+  return merged;
+}
+
+function metricCompleteness(row = {}) {
+  const groups = {
+    core: ["views", "likes", "comments", "favorites", "shares"],
+    reach: ["impressions", "clickThroughRate"],
+    retention: ["completeRate", "threeSecondRetention", "fiveSecondRetention", "avgWatchSeconds", "videoDurationSeconds"],
+    conversion: ["profileVisits", "messages", "leads", "followersGained"]
+  };
+  const result = {};
+  Object.entries(groups).forEach(([group, keys]) => {
+    result[group] = keys.filter((key) => Number(row[key]) > 0);
+  });
+  const totalFields = Object.values(groups).flat().length;
+  const presentFields = Object.values(result).reduce((sum, keys) => sum + keys.length, 0);
+  result.score = Math.round((presentFields / totalFields) * 100);
+  result.summary = [
+    `核心互动 ${result.core.length}/5`,
+    `曝光点击 ${result.reach.length}/2`,
+    `留存节奏 ${result.retention.length}/5`,
+    `转化咨询 ${result.conversion.length}/4`
+  ].join("，");
+  return result;
+}
+
+function attachApiCapture(page, label = "") {
+  const records = [];
+  const handler = async (response) => {
+    if (records.length >= 80) return;
+    const url = response.url();
+    if (!/creator|douyin|aweme|channels|weixin|data|stat|analysis|metric|video|item|post|feed|dashboard/i.test(url)) return;
+    const contentType = response.headers()["content-type"] || "";
+    if (!/json|javascript|text/i.test(contentType)) return;
+    try {
+      const json = contentType.includes("json") ? await response.json() : JSON.parse(await response.text());
+      const signalLines = flattenMetricSignals(json).slice(0, 30);
+      if (!signalLines.length) return;
+      records.push({
+        label,
+        url: url.split("?")[0].slice(0, 180),
+        capturedAt: nowIso(),
+        signalLines
+      });
+    } catch {
+      // Some endpoints return script/text or blocked bodies. Ignore quietly.
+    }
+  };
+  page.on("response", handler);
+  return {
+    records,
+    signalLines() {
+      return records.flatMap((record) => record.signalLines).filter((line, index, arr) => arr.indexOf(line) === index).slice(0, 80);
+    },
+    sources() {
+      return records.map((record) => record.url).filter((url, index, arr) => arr.indexOf(url) === index).slice(0, 12);
+    },
+    detach() {
+      page.off("response", handler);
+    }
+  };
+}
+
 function hasLoginBarrier(text) {
   const clean = normalizeText(text);
   return LOGIN_HINTS.some((hint) => clean.includes(hint));
@@ -447,6 +620,155 @@ async function waitForOperatorConfirmation(page, config, label, account, warning
   return confirmed;
 }
 
+async function clickUsefulControls(page, labels, config, maxClicks = 8) {
+  let clicked = 0;
+  for (const label of labels) {
+    if (clicked >= maxClicks) break;
+    const locator = page.locator("button, a, [role='tab'], [role='button']").filter({ hasText: label });
+    const count = Math.min(await locator.count().catch(() => 0), 4);
+    for (let index = 0; index < count && clicked < maxClicks; index += 1) {
+      const item = locator.nth(index);
+      const text = normalizeText(await item.innerText({ timeout: 1200 }).catch(() => ""));
+      if (!text || UNSAFE_CONTROL_RE.test(text) || text.length > 80) continue;
+      try {
+        await item.scrollIntoViewIfNeeded({ timeout: 2000 });
+        const beforeUrl = page.url();
+        const popupPromise = page.waitForEvent("popup", { timeout: 2000 }).catch(() => null);
+        await item.click({ timeout: 3000 });
+        const popup = await popupPromise;
+        if (popup) {
+          await popup.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {});
+          await popup.close().catch(() => {});
+        } else if (page.url() !== beforeUrl) {
+          await page.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {});
+        }
+        await randomDelay(config);
+        clicked += 1;
+      } catch {
+        // Data-center controls vary by platform. Failed clicks are simply skipped.
+      }
+    }
+  }
+  return clicked;
+}
+
+async function collectDeepLinks(page) {
+  return await page.locator("a[href]").evaluateAll((nodes, labels) => {
+    const safe = /数据|概览|诊断|作品|内容|粉丝|观众|流量|搜索|互动|经营|转化|线索/;
+    const unsafe = /发布|删除|编辑|保存|确定|取消|关闭|投放|推广|充值|授权|退出|登录|扫码|上传|下载|帮助|协议/;
+    return nodes.map((node) => {
+      const text = (node.innerText || node.textContent || "").replace(/\s+/g, " ").trim();
+      const href = node.href || "";
+      return { text, href };
+    })
+      .filter((row) => row.href && safe.test(row.text || row.href) && !unsafe.test(row.text || row.href))
+      .filter((row) => labels.some((label) => (row.text || "").includes(label)) || safe.test(row.href))
+      .slice(0, 20);
+  }, DEEP_ACCOUNT_LINK_LABELS).catch(() => []);
+}
+
+function samePlatformUrl(baseUrl, href) {
+  try {
+    const base = new URL(baseUrl);
+    const target = new URL(href);
+    if (!/^https?:$/.test(target.protocol)) return false;
+    if (target.hostname === base.hostname) return true;
+    return /douyin\.com|weixin\.qq\.com|channels\.weixin\.qq\.com/i.test(target.hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function collectCreatorCenterDeepSignals(page, account, config, apiCapture, onProgress = async () => {}) {
+  if (!config.limits?.deepOwnDetails || (account.accountType || "自有账号") === "同行账号") {
+    return { text: "", pages: [], signalLines: [] };
+  }
+  const pages = [];
+  const addCurrentPage = async (label) => {
+    await clickUsefulControls(page, DEEP_VIDEO_CONTROL_LABELS, config, 5);
+    const text = await pageText(page);
+    if (text) {
+      pages.push({
+        label,
+        url: page.url().split("?")[0],
+        signalLines: splitSignalLines(text, 18)
+      });
+    }
+    return text;
+  };
+
+  await onProgress(`深挖${account.platform}创作者中心数据页`, {
+    currentAccount: account.name,
+    currentPlatform: account.platform,
+    increment: false
+  });
+  const texts = [await addCurrentPage("账号首页/数据概览")];
+  const originUrl = page.url();
+  const links = await collectDeepLinks(page);
+  const seen = new Set([originUrl.split("#")[0]]);
+  for (const link of links) {
+    if (texts.length >= 7) break;
+    if (!samePlatformUrl(originUrl, link.href)) continue;
+    const urlKey = link.href.split("#")[0];
+    if (seen.has(urlKey)) continue;
+    seen.add(urlKey);
+    try {
+      await onProgress(`打开${account.platform}深层数据：${link.text || "数据页"}`, {
+        currentAccount: account.name,
+        currentPlatform: account.platform,
+        increment: false
+      });
+      await gotoSafe(page, link.href, config);
+      if (hasLoginBarrier(await pageText(page))) continue;
+      texts.push(await addCurrentPage(link.text || "创作者中心数据页"));
+    } catch {
+      // Some platform links are SPA anchors or permission-only pages.
+    }
+  }
+  const signalLines = [
+    ...pages.flatMap((item) => item.signalLines),
+    ...(apiCapture?.signalLines?.() || [])
+  ].filter((line, index, arr) => arr.indexOf(line) === index).slice(0, 80);
+  return {
+    text: texts.filter(Boolean).join("\n"),
+    pages,
+    signalLines
+  };
+}
+
+async function scrollToLoadVideoList(page, config, maxVideos, onProgress = async () => {}) {
+  const target = Math.max(1, Number(maxVideos || config.limits?.maxVideosPerAccount || 30));
+  const maxScrolls = Math.max(5, Math.min(45, Math.ceil(target / 6)));
+  let lastHeight = 0;
+  let stale = 0;
+  for (let index = 0; index < maxScrolls; index += 1) {
+    const marker = await page.evaluate(() => ({
+      height: document.body?.scrollHeight || 0,
+      anchors: document.querySelectorAll("a[href]").length,
+      textLength: (document.body?.innerText || "").length
+    })).catch(() => ({ height: 0, anchors: 0, textLength: 0 }));
+    if (index % 5 === 0) {
+      await onProgress(`向下加载作品列表 ${index + 1}/${maxScrolls}`, { increment: false });
+    }
+    const more = page.locator("button, a, [role='button']").filter({ hasText: /加载更多|查看更多|更多|下一页/ }).first();
+    if (await more.count().catch(() => 0)) {
+      const text = normalizeText(await more.innerText({ timeout: 1000 }).catch(() => ""));
+      if (text && !UNSAFE_CONTROL_RE.test(text)) {
+        await more.click({ timeout: 2500 }).catch(() => {});
+      }
+    }
+    await page.mouse.wheel(0, 1800).catch(() => {});
+    await page.evaluate(() => window.scrollBy(0, Math.max(600, window.innerHeight * 0.9))).catch(() => {});
+    await randomDelay(config);
+    if (marker.height <= lastHeight + 12) stale += 1;
+    else stale = 0;
+    lastHeight = Math.max(lastHeight, marker.height);
+    if (stale >= 6 && target <= 80) break;
+  }
+  await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
+  await randomDelay(config);
+}
+
 async function readSelector(page, selector) {
   if (!selector) return "";
   try {
@@ -473,6 +795,14 @@ function valueAfterLabels(text, labels) {
   const backwardMatch = text.match(backward);
   if (backwardMatch) return parseNumber(backwardMatch[1]);
   return 0;
+}
+
+function valueNearLabels(text, labels) {
+  const escaped = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const forward = new RegExp(`(?:${escaped})\\s*[:：]?\\s*([+-]?\\d[\\d,.]*(?:\\.\\d+)?\\s*(?:万|亿|%|秒|分钟|分)?|\\d{1,2}:\\d{2})`, "i");
+  const forwardMatch = String(text || "").match(forward);
+  if (forwardMatch) return forwardMatch[1] || "";
+  return "";
 }
 
 function extractLines(text, patterns, limit = 8) {
@@ -513,10 +843,21 @@ function extractPublishedAt(text) {
   return "";
 }
 
-function extractDurationSeconds(text) {
-  const raw = String(text || "");
+function parseDurationValue(value) {
+  const raw = String(value || "");
   const clock = raw.match(/(?:^|\D)(\d{1,2}):(\d{2})(?=\D|$)/);
   if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  const minuteSecond = raw.match(/(\d+(?:\.\d+)?)\s*分(?:钟)?\s*(\d+(?:\.\d+)?)?\s*秒?/);
+  if (minuteSecond) return Number(minuteSecond[1]) * 60 + Number(minuteSecond[2] || 0);
+  const second = raw.match(/(\d+(?:\.\d+)?)\s*秒/);
+  if (second) return Number(second[1]);
+  return 0;
+}
+
+function extractDurationSeconds(text) {
+  const raw = String(text || "");
+  const duration = parseDurationValue(raw);
+  if (duration) return duration;
   return valueAfterLabels(raw, METRIC_LABELS.videoDurationSeconds);
 }
 
@@ -708,9 +1049,10 @@ function isTrustedAudit(audit = {}) {
   return auditConfidence(audit) >= 35;
 }
 
-async function extractAccountAudit(page, account, config) {
+async function extractAccountAudit(page, account, config, deepSignals = {}) {
   const selectors = account.selectors?.accountAudit || {};
-  const text = await pageText(page);
+  const text = [await pageText(page), deepSignals.text || "", (deepSignals.signalLines || []).join("\n")].filter(Boolean).join("\n");
+  const signalMetrics = extractMetricsFromSignals(deepSignals.signalLines || []);
   const trafficSources = {
     recommend: valueAfterLabels(text, ["推荐流量", "推荐", "推荐页"]),
     search: valueAfterLabels(text, ["搜索流量", "搜索"]),
@@ -727,29 +1069,35 @@ async function extractAccountAudit(page, account, config) {
     capturedAt: nowIso(),
     followers: selectors.followers ? await readSelectorNumber(page, selectors.followers) : valueAfterLabels(text, ["粉丝数", "粉丝", "关注者"]),
     totalVideos: selectors.totalVideos ? await readSelectorNumber(page, selectors.totalVideos) : valueAfterLabels(text, ["作品数", "视频数", "内容数"]),
-    totalViews: selectors.totalViews ? await readSelectorNumber(page, selectors.totalViews) : valueAfterLabels(text, ["总播放", "累计播放", "播放总量"]),
+    totalViews: selectors.totalViews ? await readSelectorNumber(page, selectors.totalViews) : valueAfterLabels(text, ["总播放", "累计播放", "播放总量"]) || signalMetrics.views,
     recentViews: selectors.recentViews ? await readSelectorNumber(page, selectors.recentViews) : valueAfterLabels(text, ["近7天播放", "近期播放", "本周播放", "播放量"]),
-    profileVisits: selectors.profileVisits ? await readSelectorNumber(page, selectors.profileVisits) : valueAfterLabels(text, ["主页访问", "主页访客", "主页浏览"]),
-    messages: selectors.messages ? await readSelectorNumber(page, selectors.messages) : valueAfterLabels(text, ["私信", "咨询", "消息"]),
-    leads: selectors.leads ? await readSelectorNumber(page, selectors.leads) : valueAfterLabels(text, ["线索", "有效咨询", "留资"]),
-    followerGrowth: selectors.followerGrowth ? await readSelectorNumber(page, selectors.followerGrowth) : valueAfterLabels(text, ["涨粉", "新增粉丝", "净增粉丝"]),
+    profileVisits: selectors.profileVisits ? await readSelectorNumber(page, selectors.profileVisits) : valueAfterLabels(text, METRIC_LABELS.profileVisits) || signalMetrics.profileVisits,
+    messages: selectors.messages ? await readSelectorNumber(page, selectors.messages) : valueAfterLabels(text, METRIC_LABELS.messages) || signalMetrics.messages,
+    leads: selectors.leads ? await readSelectorNumber(page, selectors.leads) : valueAfterLabels(text, METRIC_LABELS.leads) || signalMetrics.leads,
+    followerGrowth: selectors.followerGrowth ? await readSelectorNumber(page, selectors.followerGrowth) : valueAfterLabels(text, ["涨粉", "新增粉丝", "净增粉丝"]) || signalMetrics.followersGained,
     trafficSources,
     searchKeywords: extractLines(text, [/搜索词|关键词|初一|初二|初三|数学|科学|暑假|提分/], 10),
     audienceSummary: extractLines(text, [/粉丝画像|年龄|城市|地区|家长|学生|性别|人群/], 5).join("；"),
     contentTags: [account.defaultTopic, extractTopic(text)].filter(Boolean),
     platformAdvice: advice,
     positioning: account.positioning || account.defaultTopic || "",
+    officialMetricLines: splitSignalLines(text, 30),
+    creatorCenterPages: (deepSignals.pages || []).map((item) => ({ label: item.label, url: item.url })),
+    apiSignalLines: (deepSignals.signalLines || []).slice(0, 40),
+    deepSources: [...(deepSignals.pages || []).map((item) => item.url), ...(deepSignals.apiSources || [])].filter(Boolean).filter((url, index, arr) => arr.indexOf(url) === index).slice(0, 20),
     source: "playwright-agent"
   };
+  audit.dataCompleteness = metricCompleteness(audit);
   audit.id = `audit-${hashText([audit.platform, audit.accountName, audit.capturedAt].join("|"))}`;
   return audit;
 }
 
-async function collectVideoCards(page, account, config) {
+async function collectVideoCards(page, account, config, onProgress = async () => {}) {
   const maxVideos = Number(account.maxVideosPerRun || config.limits?.maxVideosPerAccount || 30);
   const listSelectors = account.selectors?.videoList || {};
+  await scrollToLoadVideoList(page, config, maxVideos, onProgress);
   if (listSelectors.card) {
-    const cards = await page.locator(listSelectors.card).evaluateAll((nodes, selectors) => nodes.slice(0, 80).map((node) => {
+    const cards = await page.locator(listSelectors.card).evaluateAll((nodes, selectors) => nodes.slice(0, 260).map((node) => {
       const pick = (selector) => selector ? node.querySelector(selector)?.textContent?.trim() || "" : "";
       const linkNode = selectors.url ? node.querySelector(selectors.url) : node.querySelector("a[href]");
       return {
@@ -772,7 +1120,7 @@ async function collectVideoCards(page, account, config) {
   }))).catch(() => []);
   const genericCards = [];
   const locator = page.locator(GENERIC_VIDEO_CARD_SELECTOR);
-  const count = Math.min(await locator.count().catch(() => 0), 220);
+  const count = Math.min(await locator.count().catch(() => 0), 520);
   for (let index = 0; index < count; index += 1) {
     const item = await locator.nth(index).evaluate((node) => {
       const rect = node.getBoundingClientRect();
@@ -805,14 +1153,34 @@ async function collectVideoCards(page, account, config) {
   return dedupeCards([...anchors, ...genericCards], maxVideos);
 }
 
-async function extractVideoSnapshot(page, account, card, config) {
-  const text = await pageText(page);
+async function extractVideoSnapshot(page, account, card, config, detailSignals = {}) {
+  const text = [await pageText(page), (detailSignals.signalLines || []).join("\n")].filter(Boolean).join("\n");
   const selectors = account.selectors?.videoDetail || {};
   const title = await readSelector(page, selectors.title) || card.title || extractTitleFromText(text, account.defaultTopic || "");
   const platformAdvice = [
     await readSelector(page, selectors.platformAdvice),
     extractLines(text, [/建议|诊断|优化|流失|留存|完播|点击|推荐|搜索|转化/], 5).join("；")
   ].filter(Boolean).join("；");
+  const textMetrics = {
+    views: selectors.views ? await readSelectorNumber(page, selectors.views) : valueAfterLabels(text, METRIC_LABELS.views),
+    likes: selectors.likes ? await readSelectorNumber(page, selectors.likes) : valueAfterLabels(text, METRIC_LABELS.likes),
+    comments: selectors.comments ? await readSelectorNumber(page, selectors.comments) : valueAfterLabels(text, METRIC_LABELS.comments),
+    favorites: selectors.favorites ? await readSelectorNumber(page, selectors.favorites) : valueAfterLabels(text, METRIC_LABELS.favorites),
+    shares: selectors.shares ? await readSelectorNumber(page, selectors.shares) : valueAfterLabels(text, METRIC_LABELS.shares),
+    impressions: selectors.impressions ? await readSelectorNumber(page, selectors.impressions) : valueAfterLabels(text, METRIC_LABELS.impressions),
+    clickThroughRate: selectors.clickThroughRate ? await readSelectorNumber(page, selectors.clickThroughRate) : valueAfterLabels(text, METRIC_LABELS.clickThroughRate),
+    completeRate: selectors.completeRate ? await readSelectorNumber(page, selectors.completeRate) : valueAfterLabels(text, METRIC_LABELS.completeRate),
+    threeSecondRetention: selectors.threeSecondRetention ? await readSelectorNumber(page, selectors.threeSecondRetention) : valueAfterLabels(text, METRIC_LABELS.threeSecondRetention),
+    fiveSecondRetention: selectors.fiveSecondRetention ? await readSelectorNumber(page, selectors.fiveSecondRetention) : valueAfterLabels(text, METRIC_LABELS.fiveSecondRetention),
+    avgWatchSeconds: selectors.avgWatchSeconds ? await readSelectorNumber(page, selectors.avgWatchSeconds) : valueAfterLabels(text, METRIC_LABELS.avgWatchSeconds) || parseDurationValue(valueNearLabels(text, METRIC_LABELS.avgWatchSeconds)),
+    videoDurationSeconds: selectors.videoDurationSeconds ? await readSelectorNumber(page, selectors.videoDurationSeconds) : extractDurationSeconds(text),
+    profileVisits: selectors.profileVisits ? await readSelectorNumber(page, selectors.profileVisits) : valueAfterLabels(text, METRIC_LABELS.profileVisits),
+    messages: selectors.messages ? await readSelectorNumber(page, selectors.messages) : valueAfterLabels(text, METRIC_LABELS.messages),
+    leads: selectors.leads ? await readSelectorNumber(page, selectors.leads) : valueAfterLabels(text, METRIC_LABELS.leads),
+    followersGained: selectors.followersGained ? await readSelectorNumber(page, selectors.followersGained) : valueAfterLabels(text, ["涨粉", "新增粉丝"])
+  };
+  const signalMetrics = extractMetricsFromSignals(detailSignals.signalLines || []);
+  const metrics = mergeMetricObjects(textMetrics, signalMetrics);
   const snapshot = {
     platform: account.platform,
     accountType: account.accountType || "自有账号",
@@ -824,26 +1192,15 @@ async function extractVideoSnapshot(page, account, card, config) {
     topic: extractTopic(text, account.defaultTopic || ""),
     publishedAt: await readSelector(page, selectors.publishedAt) || extractPublishedAt(text),
     capturedAt: nowIso(),
-    views: selectors.views ? await readSelectorNumber(page, selectors.views) : valueAfterLabels(text, METRIC_LABELS.views),
-    likes: selectors.likes ? await readSelectorNumber(page, selectors.likes) : valueAfterLabels(text, METRIC_LABELS.likes),
-    comments: selectors.comments ? await readSelectorNumber(page, selectors.comments) : valueAfterLabels(text, METRIC_LABELS.comments),
-    favorites: selectors.favorites ? await readSelectorNumber(page, selectors.favorites) : valueAfterLabels(text, METRIC_LABELS.favorites),
-    shares: selectors.shares ? await readSelectorNumber(page, selectors.shares) : valueAfterLabels(text, METRIC_LABELS.shares),
-    impressions: selectors.impressions ? await readSelectorNumber(page, selectors.impressions) : valueAfterLabels(text, METRIC_LABELS.impressions),
-    clickThroughRate: selectors.clickThroughRate ? await readSelectorNumber(page, selectors.clickThroughRate) : valueAfterLabels(text, METRIC_LABELS.clickThroughRate),
-    completeRate: selectors.completeRate ? await readSelectorNumber(page, selectors.completeRate) : valueAfterLabels(text, METRIC_LABELS.completeRate),
-    threeSecondRetention: selectors.threeSecondRetention ? await readSelectorNumber(page, selectors.threeSecondRetention) : valueAfterLabels(text, METRIC_LABELS.threeSecondRetention),
-    fiveSecondRetention: selectors.fiveSecondRetention ? await readSelectorNumber(page, selectors.fiveSecondRetention) : valueAfterLabels(text, METRIC_LABELS.fiveSecondRetention),
-    avgWatchSeconds: selectors.avgWatchSeconds ? await readSelectorNumber(page, selectors.avgWatchSeconds) : valueAfterLabels(text, METRIC_LABELS.avgWatchSeconds),
-    videoDurationSeconds: selectors.videoDurationSeconds ? await readSelectorNumber(page, selectors.videoDurationSeconds) : extractDurationSeconds(text),
-    profileVisits: selectors.profileVisits ? await readSelectorNumber(page, selectors.profileVisits) : valueAfterLabels(text, METRIC_LABELS.profileVisits),
-    messages: selectors.messages ? await readSelectorNumber(page, selectors.messages) : valueAfterLabels(text, METRIC_LABELS.messages),
-    leads: selectors.leads ? await readSelectorNumber(page, selectors.leads) : valueAfterLabels(text, METRIC_LABELS.leads),
-    followersGained: selectors.followersGained ? await readSelectorNumber(page, selectors.followersGained) : valueAfterLabels(text, ["涨粉", "新增粉丝"]),
+    ...metrics,
     platformAdvice,
+    officialMetricLines: splitSignalLines(text, 30),
+    apiSignalLines: (detailSignals.signalLines || []).slice(0, 40),
+    deepSources: [page.url().split("?")[0], ...(detailSignals.apiSources || [])].filter(Boolean).filter((url, index, arr) => arr.indexOf(url) === index).slice(0, 12),
     notes: account.publicCollectionUnverified ? "标杆公开视频搜索样本，需人工复核是否来自目标账号。" : "",
     source: account.publicCollectionUnverified ? "public-benchmark-search" : "playwright-agent"
   };
+  snapshot.dataCompleteness = metricCompleteness(snapshot);
   snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
   return snapshot;
 }
@@ -868,12 +1225,16 @@ function extractSnapshotFromCard(account, card) {
     capturedAt: nowIso(),
     ...metrics,
     platformAdvice: "",
+    officialMetricLines: splitSignalLines(text, 18),
+    apiSignalLines: [],
+    deepSources: [],
     benchmarkMatched,
     notes: account.publicCollectionUnverified
       ? (benchmarkMatched ? "标杆公开视频搜索列表样本，已匹配账号名称或抖音号，仍建议人工抽查。" : "标杆公开视频搜索列表样本，未匹配账号名称或抖音号，默认不入库。")
       : "",
     source: account.publicCollectionUnverified ? "public-benchmark-search-list" : "playwright-agent-list"
   };
+  snapshot.dataCompleteness = metricCompleteness(snapshot);
   snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
   return snapshot;
 }
@@ -913,6 +1274,14 @@ function mergeSnapshotData(primary, fallback) {
   ].forEach((key) => {
     if (!Number(merged[key]) && Number(base[key])) merged[key] = base[key];
   });
+  ["officialMetricLines", "apiSignalLines", "deepSources"].forEach((key) => {
+    const values = [
+      ...(Array.isArray(detail[key]) ? detail[key] : []),
+      ...(Array.isArray(base[key]) ? base[key] : [])
+    ].filter(Boolean);
+    if (values.length) merged[key] = values.filter((value, index, arr) => arr.indexOf(value) === index).slice(0, key === "deepSources" ? 12 : 40);
+  });
+  merged.dataCompleteness = metricCompleteness(merged);
   merged.source = [detail.source, base.source].filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index).join("+") || "playwright-agent";
   merged.id = `snapshot-${hashText([merged.platform, merged.accountName, merged.videoId || merged.url || merged.title, merged.capturedAt].join("|"))}`;
   return merged;
@@ -988,18 +1357,28 @@ async function clickCardForSnapshot(page, account, card, config) {
   const locator = page.locator(card.cardSelector).nth(card.cardIndex);
   const beforeUrl = page.url();
   let popup = null;
+  let currentPageCapture = null;
+  let popupCapture = null;
   try {
     await locator.scrollIntoViewIfNeeded({ timeout: 4000 });
     await randomDelay(config);
+    currentPageCapture = attachApiCapture(page, `${account.name}-video-detail-click`);
     const popupPromise = page.waitForEvent("popup", { timeout: 5000 }).catch(() => null);
     await locator.click({ timeout: 6500 });
     popup = await popupPromise;
     const targetPage = popup || page;
+    popupCapture = popup ? attachApiCapture(targetPage, `${account.name}-video-detail-popup`) : null;
     await targetPage.waitForLoadState("domcontentloaded", { timeout: 12000 }).catch(() => {});
     await targetPage.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
+    await clickUsefulControls(targetPage, DEEP_VIDEO_CONTROL_LABELS, config, 8);
     await randomDelay(config);
-    return await extractVideoSnapshot(targetPage, account, card, config);
+    return await extractVideoSnapshot(targetPage, account, card, config, {
+      signalLines: [...currentPageCapture.signalLines(), ...(popupCapture?.signalLines() || [])],
+      apiSources: [...currentPageCapture.sources(), ...(popupCapture?.sources() || [])]
+    });
   } finally {
+    currentPageCapture?.detach?.();
+    popupCapture?.detach?.();
     if (popup) {
       await popup.close().catch(() => {});
     } else {
@@ -1015,6 +1394,7 @@ async function clickCardForSnapshot(page, account, card, config) {
 
 async function collectAccount(context, account, config, onProgress = async () => {}) {
   const page = await context.newPage();
+  const pageApiCapture = attachApiCapture(page, `${account.platform}-${account.name}`);
   const warnings = [];
   const accountAudits = [];
   const snapshots = [];
@@ -1032,7 +1412,9 @@ async function collectAccount(context, account, config, onProgress = async () =>
         return { accountAudits, snapshots, warnings };
       }
       await onProgress(`读取${account.platform}账号概览`, { currentAccount: account.name, currentPlatform: account.platform });
-      const audit = await extractAccountAudit(page, account, config);
+      const deepSignals = await collectCreatorCenterDeepSignals(page, account, config, pageApiCapture, onProgress);
+      deepSignals.apiSources = pageApiCapture.sources();
+      const audit = await extractAccountAudit(page, account, config, deepSignals);
       audit.confidence = auditConfidence(audit);
       audit.source = `${audit.source || "playwright-agent"}+auto-trusted`;
       if (isTrustedAudit(audit)) {
@@ -1054,7 +1436,13 @@ async function collectAccount(context, account, config, onProgress = async () =>
         return { accountAudits, snapshots, warnings };
       }
       await onProgress(`识别${account.platform}作品卡片`, { currentAccount: account.name, currentPlatform: account.platform });
-      const cards = await collectVideoCards(page, account, config);
+      const cards = await collectVideoCards(page, account, config, async (label, extra = {}) => {
+        await onProgress(label, {
+          currentAccount: account.name,
+          currentPlatform: account.platform,
+          ...extra
+        });
+      });
       if (!cards.length) {
         const screenshot = await saveEvidence(page, config, `${account.name}-video-list-no-cards`);
         warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要补充 selectors，或后台列表当前没有展示视频数据。截图：${screenshot}`);
@@ -1071,13 +1459,19 @@ async function collectAccount(context, account, config, onProgress = async () =>
         const shouldOpenDetails = config.limits?.autoOpenDetails || (config.limits?.deepOwnDetails && (account.accountType || "自有账号") !== "同行账号");
         if (shouldOpenDetails && isNavigableHttpUrl(card.url)) {
           const detailPage = await context.newPage();
+          const detailCapture = attachApiCapture(detailPage, `${account.name}-video-detail-url`);
           try {
             await gotoSafe(detailPage, card.url, config);
-            const detailSnapshot = await extractVideoSnapshot(detailPage, account, card, config);
+            await clickUsefulControls(detailPage, DEEP_VIDEO_CONTROL_LABELS, config, 8);
+            const detailSnapshot = await extractVideoSnapshot(detailPage, account, card, config, {
+              signalLines: detailCapture.signalLines(),
+              apiSources: detailCapture.sources()
+            });
             snapshot = mergeSnapshotData(detailSnapshot, listSnapshot);
           } catch (error) {
             warnings.push(`${account.platform}｜${account.name} 视频详情采集失败，已保留列表数据：${card.title || card.url}｜${error.message}`);
           } finally {
+            detailCapture.detach();
             await detailPage.close().catch(() => {});
           }
         } else if (shouldOpenDetails && card.cardSelector && Number.isInteger(card.cardIndex)) {
@@ -1100,6 +1494,7 @@ async function collectAccount(context, account, config, onProgress = async () =>
       }
     }
   } finally {
+    pageApiCapture.detach();
     await page.close().catch(() => {});
   }
 
@@ -1471,6 +1866,7 @@ function usage() {
   无用数据由程序自动判断并跳过；只有需要人工盯页面时才加 --manual。
   小剂量试验建议 npm run video:trial：自有账号最多 30 条并深度采集，标杆前 10 个博主每人 3 条。
   日常重建建议 npm run video:rebuild：只采自有账号，不采标杆。
+  自有账号深度挖掘建议 npm run video:own-deep：只采自己的账号，最多 200 条，打开详情页，建立历史优势库。
   如以后确实要扩大标杆公开样本，再显式调整 --benchmark-accounts 和 --benchmark-videos。
 `);
 }
