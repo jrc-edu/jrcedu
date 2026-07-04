@@ -1765,6 +1765,8 @@ function mergePayloads(existing, incoming) {
     snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isTrustedSnapshot), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
     collectorStatus: newState.collectorStatus || oldState.collectorStatus || null,
     collectionPlan: newState.collectionPlan || oldState.collectionPlan || null,
+    analysisStatus: newState.analysisStatus || oldState.analysisStatus || null,
+    aiReport: newState.aiReport || oldState.aiReport || null,
     warnings: [...(oldState.warnings || []), ...(newState.warnings || [])].slice(-40),
     rebuildMode: Boolean(newState.rebuildMode),
     updatedAt: nowIso(),
@@ -1818,7 +1820,188 @@ async function pushPayload(configPath, filePath = "", runtimeOptions = {}) {
   };
   const statusFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-import-status.json");
   await writeJson(statusFile, importStatus).catch(() => {});
-  return { resultText, expected, actual };
+  return { resultText, expected, actual, merged, remote };
+}
+
+function textList(value, limit = 6) {
+  if (!value) return [];
+  const rows = Array.isArray(value) ? value : String(value).split(/[、,，\n\r]+/);
+  return rows.map((item) => normalizeText(typeof item === "object" ? JSON.stringify(item) : item)).filter(Boolean).slice(0, limit);
+}
+
+function rate(numerator, denominator) {
+  const bottom = Number(denominator) || 0;
+  return bottom > 0 ? (Number(numerator) || 0) / bottom : 0;
+}
+
+function compactVideoForReport(row = {}) {
+  const views = Number(row.views || row.playCount || 0) || 0;
+  const favorites = Number(row.favorites || row.collects || row.collectCount || 0) || 0;
+  const shares = Number(row.shares || row.shareCount || 0) || 0;
+  const leads = Number(row.leads || row.inquiries || 0) || 0;
+  const messages = Number(row.messages || row.privateMessages || 0) || 0;
+  const followersGained = Number(row.followersGained || row.newFollowers || 0) || 0;
+  return {
+    platform: row.platform || "",
+    accountType: row.accountType || "",
+    accountName: row.accountName || row.account || "",
+    title: row.title || row.videoTitle || "",
+    topic: row.topic || row.category || "",
+    publishedAt: row.publishedAt || row.publishTime || "",
+    capturedAt: row.capturedAt || row.captureTime || "",
+    views,
+    likes: Number(row.likes || row.likeCount || 0) || 0,
+    comments: Number(row.comments || row.commentCount || 0) || 0,
+    favorites,
+    shares,
+    impressions: Number(row.impressions || row.exposures || row.showCount || 0) || 0,
+    clickThroughRate: Number(row.clickThroughRate || row.ctr || 0) || 0,
+    threeSecondRetention: Number(row.threeSecondRetention || row.retention3s || 0) || 0,
+    fiveSecondRetention: Number(row.fiveSecondRetention || row.retention5s || 0) || 0,
+    completeRate: Number(row.completeRate || row.completionRate || 0) || 0,
+    avgWatchSeconds: Number(row.avgWatchSeconds || row.averageWatchSeconds || 0) || 0,
+    videoDurationSeconds: Number(row.videoDurationSeconds || row.durationSeconds || row.duration || 0) || 0,
+    profileVisits: Number(row.profileVisits || row.homepageVisits || 0) || 0,
+    messages,
+    leads,
+    followersGained,
+    saveSharePerView: rate(favorites + shares, views),
+    leadPerView: rate(leads + messages, views),
+    followerPerView: rate(followersGained, views),
+    platformAdvice: normalizeText(row.platformAdvice || row.advice || ""),
+    trafficSourceLines: textList(row.trafficSourceLines, 4),
+    searchKeywords: textList(row.searchKeywords || row.keywords, 4),
+    dataCompleteness: row.dataCompleteness || null,
+    officialMetricLines: textList(row.officialMetricLines, 4),
+    apiSignalLines: textList(row.apiSignalLines, 4),
+    deepSources: textList(row.deepSources, 3),
+    source: row.source || ""
+  };
+}
+
+function buildVideoOpsAiInputForAgent(payload = {}) {
+  const state = payload && typeof payload === "object" ? payload : {};
+  const snapshots = Array.isArray(state.snapshots) ? state.snapshots.map(compactVideoForReport) : [];
+  const ownRows = snapshots.filter((row) => row.accountType !== "同行账号");
+  const byViews = ownRows.slice().sort((a, b) => b.views - a.views).slice(0, 60);
+  const byLeads = ownRows.slice().filter((row) => row.leads || row.messages).sort((a, b) => (b.leads + b.messages) - (a.leads + a.messages) || b.leadPerView - a.leadPerView).slice(0, 40);
+  const byFans = ownRows.slice().filter((row) => row.followersGained).sort((a, b) => b.followersGained - a.followersGained || b.followerPerView - a.followerPerView).slice(0, 40);
+  const bySaveShare = ownRows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0))).slice(0, 50);
+  const withDeepData = ownRows.filter((row) => row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length).slice(0, 80);
+  const input = {
+    generatedAt: nowIso(),
+    instruction: [
+      "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。",
+      "高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差。",
+      "咨询线索高的视频代表招生转化价值；涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长愿意保存或转给孩子看的干货价值。",
+      "重点服务宁波本地数学培优、奥数、补弱、小升初、中考、暑假预习复习、家长焦虑、私域承接和合规表达。",
+      "没有采到的数据必须明说，不要编造。输出必须有下一轮拍摄清单和复拍方向。"
+    ].join("\n"),
+    collectionPlan: state.collectionPlan || {},
+    collectorStatus: state.collectorStatus || {},
+    dataSummary: {
+      accounts: Array.isArray(state.accounts) ? state.accounts.length : 0,
+      accountAudits: Array.isArray(state.accountAudits) ? state.accountAudits.length : 0,
+      ownVideos: ownRows.length,
+      allVideos: snapshots.length,
+      videosWithRetention: ownRows.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds).length,
+      videosWithConversion: ownRows.filter((row) => row.profileVisits || row.messages || row.leads || row.followersGained).length,
+      videosWithTraffic: ownRows.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length).length,
+      videosWithOfficialDeepData: withDeepData.length
+    },
+    accounts: state.accounts || [],
+    latestAccountAudits: state.accountAudits || [],
+    topVideosByViews: byViews,
+    topVideosByLeads: byLeads,
+    topVideosByFans: byFans,
+    topVideosBySaveShare: bySaveShare,
+    videosWithOfficialDeepData: withDeepData,
+    latestOwnVideosSample: ownRows.slice(0, 120),
+    warnings: state.warnings || []
+  };
+  return JSON.stringify(input, null, 2).slice(0, 120000);
+}
+
+async function requestAiAssistant(config, token, body) {
+  const response = await fetch(`${apiBase(config)}/ai-assistant`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(body)
+  });
+  const resultText = await response.text();
+  let result = null;
+  try {
+    result = resultText ? JSON.parse(resultText) : null;
+  } catch {
+    result = { raw: resultText };
+  }
+  if (!response.ok || !result?.ok) {
+    throw new Error(result?.message || result?.error || `AI 报告生成失败 ${response.status}: ${resultText}`);
+  }
+  return result;
+}
+
+function normalizeAiReportFromResult(result = {}) {
+  const ai = result?.result || result?.data?.result || {};
+  return {
+    generatedAt: nowIso(),
+    title: ai.title || "MiniMax 短视频专家报告",
+    summary: ai.summary || "",
+    polishedText: ai.polishedText || ai.parentMessage || ai.internalNote || "",
+    riskLevel: ai.riskLevel || "",
+    todoItems: Array.isArray(ai.todoItems) ? ai.todoItems : [],
+    structuredData: ai.structuredData || {},
+    provider: result.provider || result?.data?.provider || "minimax",
+    model: result.model || result?.data?.model || ""
+  };
+}
+
+async function generateAndPushAiReport(config, basePayload = {}) {
+  const token = apiToken(config);
+  const snapshots = Array.isArray(basePayload.snapshots) ? basePayload.snapshots : [];
+  const accountAudits = Array.isArray(basePayload.accountAudits) ? basePayload.accountAudits : [];
+  if (!config.apiBaseUrl || !token) {
+    return { skipped: true, reason: `未设置 ${config.apiTokenEnv || "JRC_API_TOKEN"}，无法自动生成并回写 AI 报告。` };
+  }
+  if (snapshots.length < 20 && accountAudits.length < 1) {
+    return { skipped: true, reason: "视频样本不足，暂不自动生成 AI 专家报告。" };
+  }
+  console.log("正在自动生成 MiniMax 短视频专家报告...");
+  const result = await requestAiAssistant(config, token, {
+    mode: "videoOpsReport",
+    modeLabel: "短视频运营专家报告",
+    target: "短视频系统",
+    text: buildVideoOpsAiInputForAgent(basePayload),
+    operatorName: config.operator?.name || "Mac mini 短视频机器人",
+    operatorUsername: config.operator?.username || "video_ops_agent",
+    operatorRole: "system-agent"
+  });
+  const aiReport = normalizeAiReportFromResult(result);
+  const existing = await readRemoteState(config, token);
+  const analysisStatus = {
+    status: "success",
+    generatedAt: aiReport.generatedAt,
+    provider: aiReport.provider,
+    model: aiReport.model,
+    message: "采集数据已自动导入网站，MiniMax 专家报告已自动生成。"
+  };
+  const nextStatus = {
+    ...(existing?.collectorStatus || basePayload.collectorStatus || {}),
+    status: existing?.collectorStatus?.status || basePayload.collectorStatus?.status || "success",
+    updatedAt: nowIso(),
+    stepLabel: "自动导入和 AI 分析已完成",
+    message: analysisStatus.message,
+    progress: 100
+  };
+  const merged = mergePayloads(existing, { aiReport, analysisStatus, collectorStatus: nextStatus });
+  await writeRemoteState(config, token, merged);
+  const statusFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-ai-report-status.json");
+  await writeJson(statusFile, analysisStatus).catch(() => {});
+  console.log("AI 专家报告已写入网站短视频系统。");
+  return { skipped: false, aiReport, analysisStatus };
 }
 
 async function login(configPath) {
@@ -1870,7 +2053,7 @@ function usage() {
   collect  自动打开后台采自有账号数据，并用可信度规则过滤无效页面；默认不采标杆公开搜索
   push     自动导入 latest-video-ops-payload.json 到网站短视频系统，并读回校验
   import   push 的中文语义别名；已采集完时可以单独运行自动导入
-  run      collect + 自动导入；建议本轮重建使用 --fresh，清掉旧脏数据，只保留新流程可信数据
+  run      collect + 自动导入 + 自动生成短视频专家报告；建议本轮重建使用 --fresh，清掉旧脏数据，只保留新流程可信数据
 
 采集策略：
   自有账号不是随机采集，而是按创作者中心作品列表优先采最近作品。
@@ -1897,12 +2080,31 @@ async function main() {
   if (command === "push" || command === "import") return await pushPayload(configPath, args.file ? path.resolve(String(args.file)) : "", args);
   if (command === "run") {
     const collected = await collect(configPath, args);
+    let pushed = null;
     try {
-      await pushPayload(configPath, "", args);
+      pushed = await pushPayload(configPath, "", args);
     } catch (error) {
-      console.warn(`自动推送未完成：${error.message}`);
+      console.warn(`自动导入未完成：${error.message}`);
       console.warn(`采集已经完成，数据没有丢。本地文件：${collected?.outputFile || path.join(DEFAULT_DATA_DIR, "latest-video-ops-payload.json")}`);
-      console.warn("处理办法：这是一次性授权问题。Mac mini 配好 JRC_API_TOKEN 后，运行 npm run video:push 会自动补传；之后 npm run video:run / video:own-deep 都会跑完自动写入网站。");
+      console.warn("处理办法：如果是 JRC_API_TOKEN 问题，Mac mini 配好后运行 npm run video:push 会自动补传；之后 npm run video:run / video:own-deep 都会跑完自动写入网站并自动生成报告。");
+      return;
+    }
+    try {
+      const reportResult = await generateAndPushAiReport(collected.config, pushed.remote || pushed.merged || collected.payload);
+      if (reportResult.skipped) {
+        console.warn(`AI 专家报告未自动生成：${reportResult.reason}`);
+      }
+    } catch (error) {
+      console.warn(`AI 专家报告自动生成未完成：${error.message}`);
+      await publishCollectorStatus(collected.config, {
+        ...(pushed.remote?.collectorStatus || pushed.merged?.collectorStatus || collected.payload.collectorStatus || {}),
+        status: "warning",
+        progress: 100,
+        stepLabel: "数据已导入，AI 自动分析失败",
+        message: `数据已经自动导入网站，但 AI 专家报告生成失败：${error.message}`,
+        updatedAt: nowIso()
+      }).catch(() => {});
+      console.warn("数据已导入网站。明天打开页面后，也可以在短视频系统里重新生成专家报告。");
     }
     return;
   }

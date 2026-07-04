@@ -1322,7 +1322,7 @@
         ["反馈整改", "看待复核、仍有问题和本轮待处理", "./trial-feedback.html", "suggestions.access"],
         ["财务月结", "按老师工资单核对月结", "./finance.html", "finance.access"],
         ["学生服务", "点名、课消、反馈归档", "./student-service.html", "studentService.access"],
-        ["短视频系统", "自有账号深挖、视频诊断和选题建议", "./video-ops.html?v=20260704n", "videoOps.access"]
+        ["短视频系统", "自有账号深挖、视频诊断和选题建议", "./video-ops.html?v=20260704p", "videoOps.access"]
       ];
     }
     if (role.includes("财务")) {
@@ -1337,7 +1337,7 @@
       return [
         ["学生服务", "点名、缺勤、家长沟通", "./student-service.html", "studentService.access"],
         ["招生跟进", "线索、试听、报名交接", "/jrcedu/advice-system/index.html", "admissions.access"],
-        ["短视频系统", "查看自有账号数据和拍摄建议", "./video-ops.html?v=20260704n", "videoOps.access"],
+        ["短视频系统", "查看自有账号数据和拍摄建议", "./video-ops.html?v=20260704p", "videoOps.access"],
         ["课堂反馈AI", "整理老师课堂反馈草稿", "./ai-assistant.html", "ai.access"],
         ["我的反馈", "查看问题处理进展", "./trial-feedback.html", "suggestions.access"]
       ];

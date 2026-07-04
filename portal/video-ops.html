@@ -255,7 +255,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260704o</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260704p</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -354,6 +354,25 @@
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
+            <p class="eyebrow">Auto Analysis</p>
+            <h2>自动入库与自动分析结果</h2>
+          </div>
+          <span class="badge" id="analysisClosureBadge">等待采集</span>
+        </div>
+        <p id="analysisClosureSummary" style="margin-top:8px;">今晚采集完成后，Mac mini 会自动把数据写入短视频系统，并自动生成 MiniMax 专家报告。明早打开这里应当能直接看结论和行动清单。</p>
+        <div class="focus-grid" id="analysisClosureGrid"></div>
+        <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
+        <div class="decision-list" id="aiActionCards"></div>
+        <div class="report" id="aiExpertReport">等待生成。</div>
+        <div class="actions" style="margin-top:12px;">
+          <button class="button secondary" id="generateAiReportButton" type="button">重新生成专家报告</button>
+          <button class="button secondary" id="copyAiReportButton" type="button">复制报告</button>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
             <p class="eyebrow">今日总览</p>
             <h2>运营数据看板</h2>
           </div>
@@ -425,24 +444,7 @@
 
       <section class="auxiliary-stack">
         <details class="panel">
-          <summary>辅助内容：AI 专家报告、采集策略、标杆账号库（同行自动挖掘暂缓）</summary>
-          <section style="margin-top:14px;">
-            <div class="toolbar" style="justify-content:space-between;">
-              <div>
-                <p class="eyebrow">AI Expert Report</p>
-                <h2>MiniMax 短视频专家报告</h2>
-              </div>
-              <div class="actions">
-                <button class="button" id="generateAiReportButton" type="button">生成 AI 专家报告</button>
-                <button class="button secondary" id="copyAiReportButton" type="button">复制报告</button>
-              </div>
-            </div>
-            <p style="margin-top:8px;">等今晚深挖跑完以后，再把完整账号、作品、平台建议和数据完整度交给 MiniMax 输出运营建议。</p>
-            <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
-            <div class="decision-list" id="aiActionCards"></div>
-            <div class="report" id="aiExpertReport">等待生成。</div>
-          </section>
-
+          <summary>辅助内容：采集策略、标杆账号库（同行自动挖掘暂缓）</summary>
           <section style="margin-top:18px;">
             <div class="toolbar" style="justify-content:space-between;">
               <div>
@@ -644,7 +646,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704o";
+        const pageVersion = "20260704p";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -778,7 +780,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704o";
+      const PAGE_VERSION = "20260704p";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -943,6 +945,17 @@
         };
       }
 
+      function normalizeAnalysisStatus(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        return {
+          status: normalizeText(source.status || "idle"),
+          generatedAt: normalizeText(source.generatedAt || source.updatedAt),
+          provider: normalizeText(source.provider),
+          model: normalizeText(source.model),
+          message: normalizeText(source.message)
+        };
+      }
+
       function normalizeCollectionPlan(value = {}) {
         const source = value && typeof value === "object" ? value : {};
         const target = parseNumber(source.targetPerAccount) || 30;
@@ -1036,6 +1049,7 @@
           snapshots: normalizeSnapshots(source.snapshots || source.videos || []),
           collectorStatus: normalizeCollectorStatus(source.collectorStatus || {}),
           collectionPlan: normalizeCollectionPlan(source.collectionPlan || {}),
+          analysisStatus: normalizeAnalysisStatus(source.analysisStatus || {}),
           aiReport: normalizeAiReport(source.aiReport || {}),
           warnings: Array.isArray(source.warnings) ? source.warnings.map(normalizeText).filter(Boolean).slice(-40) : [],
           updatedAt: source.updatedAt || ""
@@ -1263,6 +1277,7 @@
         const snapshotMap = new Map();
         let collectorStatus = normalizeCollectorStatus({});
         let collectionPlan = normalizeCollectionPlan({});
+        let analysisStatus = normalizeAnalysisStatus({});
         let aiReport = normalizeAiReport({});
         let warnings = [];
         states.map(normalizeState).forEach((item) => {
@@ -1274,6 +1289,9 @@
             collectorStatus = item.collectorStatus;
           }
           if (item.collectionPlan?.mode) collectionPlan = item.collectionPlan;
+          if (item.analysisStatus?.generatedAt && (!analysisStatus.generatedAt || String(item.analysisStatus.generatedAt).localeCompare(String(analysisStatus.generatedAt)) >= 0)) {
+            analysisStatus = item.analysisStatus;
+          }
           if (item.aiReport?.generatedAt && (!aiReport.generatedAt || String(item.aiReport.generatedAt).localeCompare(String(aiReport.generatedAt)) >= 0)) {
             aiReport = item.aiReport;
           }
@@ -1284,6 +1302,7 @@
           snapshots: [...snapshotMap.values()],
           collectorStatus,
           collectionPlan,
+          analysisStatus,
           aiReport,
           warnings,
           updatedAt: new Date().toISOString()
@@ -2672,6 +2691,65 @@
         box.textContent = aiReportDisplayText(report);
       }
 
+      function renderAnalysisClosure() {
+        const badge = byId("analysisClosureBadge");
+        const summary = byId("analysisClosureSummary");
+        const grid = byId("analysisClosureGrid");
+        if (!badge || !summary || !grid) return;
+        const collector = state.collectorStatus || {};
+        const analysis = state.analysisStatus || {};
+        const report = normalizeAiReport(state.aiReport || {});
+        const latest = latestSnapshots();
+        const audits = latestAccountAudits();
+        const hasReport = Boolean(report.polishedText || report.summary);
+        const imported = latest.length > 0 || audits.length > 0;
+        const running = collector.status === "running";
+        const failed = collector.status === "failed" || analysis.status === "failed";
+        const ready = imported && hasReport && !running;
+        badge.textContent = running ? "正在采集" : ready ? "明早可直接看" : imported ? "数据已入库" : failed ? "需要检查" : "等待采集";
+        badge.className = `badge ${ready ? "good" : failed ? "danger" : imported || running ? "warn" : ""}`;
+        summary.textContent = ready
+          ? "数据已经自动导入，MiniMax 专家报告也已经回写到短视频系统。你明天打开页面可以直接看账号判断、复拍方向和下周拍摄清单。"
+          : running
+            ? "Mac mini 正在采集。采集完成后会自动推送云端，并继续自动生成专家报告。"
+            : imported
+              ? "数据已经进入短视频系统；如果专家报告还没出来，系统会在页面打开时继续尝试自动生成，也可以点重新生成。"
+              : "还没有读到本轮采集结果。今晚运行整夜深挖命令后，这里会自动更新。";
+        const cards = [
+          {
+            tone: running ? "warn" : imported ? "good" : "danger",
+            label: "数据自动入库",
+            value: imported ? `${latest.length} 条` : "等待",
+            note: imported ? `账号体检 ${audits.length} 条，页面无需手工导入` : "采集完成后自动写入云端"
+          },
+          {
+            tone: hasReport ? "good" : imported ? "warn" : "danger",
+            label: "AI 专家报告",
+            value: hasReport ? "已生成" : "等待",
+            note: hasReport ? `${report.provider || analysis.provider || "MiniMax"}${report.generatedAt ? `｜${shortDate(report.generatedAt)}` : ""}` : "数据到位后自动生成"
+          },
+          {
+            tone: collector.status === "success" || collector.status === "warning" ? "good" : running ? "warn" : failed ? "danger" : "",
+            label: "采集器状态",
+            value: collectorStatusName(collector.status),
+            note: collector.message || collector.stepLabel || "等待 Mac mini 状态"
+          },
+          {
+            tone: ready ? "good" : imported ? "warn" : "",
+            label: "明早使用",
+            value: ready ? "可直接看" : imported ? "先看数据" : "待采集",
+            note: ready ? "看行动卡片、账号体检、视频排行" : "完整结论依赖 AI 报告"
+          }
+        ];
+        grid.innerHTML = cards.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone)}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+      }
+
       function aiReportDataSignature() {
         const latest = latestSnapshots();
         const audits = latestAccountAudits();
@@ -2692,6 +2770,10 @@
         if (!window.JRC_CLOUD?.aiAssistant) return false;
         const status = state.collectorStatus || {};
         if (status.status === "running" || status.status === "failed") return false;
+        const report = normalizeAiReport(state.aiReport || {});
+        const reportTime = Date.parse(report.generatedAt || "");
+        const dataTime = Date.parse(status.finishedAt || status.updatedAt || state.updatedAt || "");
+        if ((report.polishedText || report.summary) && Number.isFinite(reportTime) && (!Number.isFinite(dataTime) || reportTime + 60000 >= dataTime)) return false;
         const latest = latestSnapshots();
         const audits = latestAccountAudits();
         if (latest.length < 20 && audits.length < 1) return false;
@@ -2748,11 +2830,24 @@
             provider: result.data.provider || "minimax",
             model: result.data.model || ""
           });
+          state.analysisStatus = normalizeAnalysisStatus({
+            status: "success",
+            generatedAt: state.aiReport.generatedAt,
+            provider: state.aiReport.provider,
+            model: state.aiReport.model,
+            message: auto ? "采集结果已自动分析完成。" : "AI 专家报告已重新生成。"
+          });
           if (auto && options.signature) localStorage.setItem(AUTO_AI_REPORT_KEY, options.signature);
           saveState(auto ? "采集完成，AI 短视频专家报告已自动生成。" : "AI 短视频专家报告已生成。");
           return true;
         } catch (error) {
           if (auto && options.signature) localStorage.setItem(AUTO_AI_REPORT_KEY, options.signature);
+          state.analysisStatus = normalizeAnalysisStatus({
+            status: "failed",
+            generatedAt: new Date().toISOString(),
+            message: `${auto ? "自动生成" : "AI 专家报告生成"}失败：${error?.message || error || "未知错误"}`
+          });
+          saveState(auto ? "数据已更新，但 AI 专家报告自动生成失败。" : "AI 专家报告生成失败。");
           status.textContent = `${auto ? "自动生成" : "AI 专家报告生成"}失败：${error?.message || error || "未知错误"}`;
           box.textContent = "本次没有生成报告。请确认 MiniMax Key、额度和服务器网络正常，稍后再试。";
           return false;
@@ -3798,6 +3893,7 @@
         renderDataReadiness();
         renderOvernightMiningPlan();
         renderAutomationSchedule();
+        renderAnalysisClosure();
         renderAiExpertReport();
         renderExpertFramework();
         renderBenchmarkLibrary();
