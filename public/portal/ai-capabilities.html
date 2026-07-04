@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>匠人程工作台｜AI智能能力中心</title>
+    <style>
+      :root {
+        --bg: #f6f3ee;
+        --panel: rgba(255, 252, 247, 0.96);
+        --ink: #1f2933;
+        --muted: #66717c;
+        --line: rgba(31, 41, 51, 0.1);
+        --brand: #0d9488;
+        --brand-soft: rgba(13, 148, 136, 0.1);
+        --accent: #bc582e;
+        --warn: #92400e;
+        --shadow: 0 18px 50px rgba(31, 41, 51, 0.12);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(13, 148, 136, 0.12), transparent 28%),
+          radial-gradient(circle at top right, rgba(188, 88, 46, 0.10), transparent 24%),
+          linear-gradient(180deg, #faf7f2 0%, #f0e7db 100%);
+      }
+      .shell {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 28px 0 48px;
+      }
+      .hero,
+      .panel,
+      .capability-card {
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.68);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+      .hero {
+        display: grid;
+        gap: 14px;
+        padding: 28px;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .eyebrow {
+        margin: 0 0 8px;
+        color: var(--brand);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h1, h2, h3, p { margin: 0; }
+      h1 {
+        font-size: clamp(30px, 4vw, 42px);
+        line-height: 1.08;
+      }
+      .hero-text {
+        max-width: 880px;
+        color: var(--muted);
+        line-height: 1.75;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 16px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--brand) 0%, #0f766e 100%);
+        color: #fff;
+        font-weight: 800;
+        text-decoration: none;
+      }
+      .button.secondary {
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid var(--line);
+        color: var(--ink);
+      }
+      .summary-grid,
+      .priority-grid,
+      .capability-grid {
+        display: grid;
+        gap: 14px;
+        margin-top: 18px;
+      }
+      .summary-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .summary-item,
+      .priority-item {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.78);
+        padding: 15px;
+      }
+      .summary-item span,
+      .priority-item span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .summary-item strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 24px;
+      }
+      .priority-item strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 17px;
+      }
+      .priority-item p {
+        margin-top: 8px;
+        color: var(--muted);
+        line-height: 1.6;
+        font-size: 13px;
+      }
+      .panel {
+        margin-top: 18px;
+        padding: 22px;
+      }
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: flex-start;
+      }
+      .panel-head h2 {
+        font-size: 24px;
+      }
+      .panel-head p {
+        margin-top: 8px;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: var(--brand-soft);
+        color: var(--brand);
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      .badge.warn {
+        background: rgba(180, 83, 9, 0.12);
+        color: var(--warn);
+      }
+      .badge.lock {
+        background: rgba(188, 88, 46, 0.12);
+        color: #9a3412;
+      }
+      .priority-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .capability-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .capability-card {
+        display: grid;
+        gap: 12px;
+        padding: 18px;
+        box-shadow: none;
+        border-color: var(--line);
+      }
+      .capability-card h3 {
+        font-size: 19px;
+      }
+      .capability-card p {
+        color: var(--muted);
+        line-height: 1.65;
+        font-size: 13px;
+      }
+      .capability-card ul {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--ink);
+        line-height: 1.75;
+        font-size: 13px;
+      }
+      .card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .rule-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .rule {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.78);
+      }
+      .rule strong {
+        display: block;
+      }
+      .rule p {
+        margin-top: 6px;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+      @media (max-width: 920px) {
+        .summary-grid,
+        .priority-grid,
+        .capability-grid {
+          grid-template-columns: 1fr;
+        }
+        .topbar,
+        .panel-head {
+          display: grid;
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">AI Center</p>
+            <h1>AI智能能力中心</h1>
+          </div>
+          <div class="actions">
+            <a class="button secondary" href="./index.html">返回工作台</a>
+            <a class="button" href="./ai-assistant.html">课堂反馈AI</a>
+          </div>
+        </div>
+        <p class="hero-text">这个页面用于统一管理匠人程工作台的 AI 建设方向：哪些功能已经接入 DeepSeek，哪些功能优先建设，哪些关键业务只能让 AI 给建议、不能直接自动执行。</p>
+        <div class="summary-grid">
+          <div class="summary-item"><span>已接入</span><strong>3 类</strong></div>
+          <div class="summary-item"><span>优先建设</span><strong>4 类</strong></div>
+          <div class="summary-item"><span>辅助建议</span><strong>3 类</strong></div>
+          <div class="summary-item"><span>高风险禁止直改</span><strong>3 类</strong></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Priority</p>
+            <h2>先做最有价值的 AI</h2>
+            <p>不做花架子。先让 AI 进入老师每天真的会用、真的能省时间、真的能减少漏项的流程。</p>
+          </div>
+          <span class="badge">第一阶段</span>
+        </div>
+        <div class="priority-grid">
+          <article class="priority-item">
+            <span>01</span>
+            <strong>课堂反馈继续提质</strong>
+            <p>DeepSeek 主写课堂反馈，网页端只负责保存、归档和串名检查；重点优化自然度、准确度和多学生不串名。</p>
+          </article>
+          <article class="priority-item">
+            <span>02</span>
+            <strong>短视频账号深度复盘</strong>
+            <p>结合自有账号历史视频、播放、涨粉、咨询、收藏转发和平台建议，生成可执行的复拍清单和选题方向。</p>
+          </article>
+          <article class="priority-item">
+            <span>03</span>
+            <strong>招生与学生服务预警</strong>
+            <p>根据跟进记录、出门测、缺勤、课堂反馈和家长沟通，提醒下一步动作，生成可编辑的话术草稿。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Capabilities</p>
+            <h2>各系统 AI 能力清单</h2>
+            <p>每个系统只接最适合的 AI 能力。涉及钱、课表、权限和离职这些关键动作，AI 只解释和建议，最终必须人工确认。</p>
+          </div>
+          <span class="badge warn">按系统落地</span>
+        </div>
+        <div class="capability-grid">
+          <article class="capability-card">
+            <div class="card-head"><h3>课堂反馈AI助手</h3><span class="badge">已上线</span></div>
+            <p>老师输入课堂情况，DeepSeek 生成家长可读反馈。</p>
+            <ul>
+              <li>单学生、多学生课堂反馈生成</li>
+              <li>失败不生成假草稿</li>
+              <li>归档到学生服务历史反馈</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>短视频系统</h3><span class="badge">已上线</span></div>
+            <p>采集数据后自动生成短视频专家报告。</p>
+            <ul>
+              <li>判断高播放、高涨粉、高咨询、高收藏转发视频</li>
+              <li>沉淀复拍方向和下周行动清单</li>
+              <li>优先分析自有账号，同行数据作为后续参考</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>招生管理系统</h3><span class="badge warn">优先建设</span></div>
+            <p>帮助老师判断家长阶段和下一步跟进动作。</p>
+            <ul>
+              <li>咨询记录总结和下一句话建议</li>
+              <li>试听后报名推进建议</li>
+              <li>风险家长提示和谨慎续报建议</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>学生与家长服务系统</h3><span class="badge warn">优先建设</span></div>
+            <p>围绕学生学习变化和家长沟通做预警。</p>
+            <ul>
+              <li>出门测趋势解读和下滑提醒</li>
+              <li>缺勤、作业、课堂反馈合并成家长沟通草稿</li>
+              <li>续费风险和学习状态阶段性总结</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>教研与课程产品系统</h3><span class="badge warn">优先建设</span></div>
+            <p>让资料库更容易被新老师找到和理解。</p>
+            <ul>
+              <li>上传资料自动生成简介和关键词</li>
+              <li>辅助判断年级、季节、资料类型</li>
+              <li>新老师快速读懂某份大纲或讲义用途</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>使用方法AI提问助手</h3><span class="badge">已上线</span></div>
+            <p>老师不会用系统时，先问右下角绿色按钮。</p>
+            <ul>
+              <li>按当前系统回答怎么操作</li>
+              <li>本地方法库优先，必要时调用 DeepSeek</li>
+              <li>后续升级为按步骤带老师操作</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>排课系统</h3><span class="badge lock">只做建议</span></div>
+            <p>AI 可以解释冲突和给调课建议，但不能自动乱排课。</p>
+            <ul>
+              <li>解释为什么排不进去</li>
+              <li>提示老师、教室、学生时间冲突</li>
+              <li>给排课负责人候选方案，人工确认后再改</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>财务系统</h3><span class="badge lock">只做复核</span></div>
+            <p>AI 可以总结异常和解释口径，但不能自动改账或确认发薪。</p>
+            <ul>
+              <li>对账差异总结</li>
+              <li>收入支出月度摘要</li>
+              <li>待财务人工确认后才能入账或结算</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>校区运营与人事系统</h3><span class="badge lock">只做提醒</span></div>
+            <p>AI 可以整理流程、生成说明和提醒交接项，但不能自动删人、改权限或办理离职。</p>
+            <ul>
+              <li>入职、转正、离职流程说明</li>
+              <li>权限交接清单提醒</li>
+              <li>管理员确认后才改变账号和权限</li>
+            </ul>
+          </article>
+          <article class="capability-card">
+            <div class="card-head"><h3>学管知识库系统</h3><span class="badge warn">后续强化</span></div>
+            <p>在已有问答和课程基础上，让老师更快找到相近答案。</p>
+            <ul>
+              <li>更强的相似问题检索</li>
+              <li>根据场景推荐标准话术</li>
+              <li>新人学习和测试结果复盘</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Rules</p>
+            <h2>AI 使用边界</h2>
+            <p>这几条是后续所有 AI 功能都要守住的底线。</p>
+          </div>
+          <span class="badge lock">安全口径</span>
+        </div>
+        <div class="rule-list">
+          <div class="rule"><strong>AI 可以主写低风险文本</strong><p>课堂反馈、短视频分析、招生跟进话术、家长沟通草稿可以由 AI 主写，但老师确认后再保存或发送。</p></div>
+          <div class="rule"><strong>AI 不能自动改关键数据</strong><p>财务入账、工资确认、排课调整、人事权限、离职删除、退费处理必须人工确认，AI 只做解释和建议。</p></div>
+          <div class="rule"><strong>AI 失败不能造假结果</strong><p>课堂反馈和专家报告调用失败时，页面必须明确提示失败原因，不能用本地模板冒充模型输出。</p></div>
+          <div class="rule"><strong>AI 结果要能追溯</strong><p>重要分析、草稿、建议和自动报告应保留生成时间、来源系统和操作者，方便后续复盘。</p></div>
+        </div>
+      </section>
+    </main>
+    <script src="/jrcedu/portal/cloud-api.js?v=20260623b"></script>
+    <script src="/jrcedu/portal/auth.js?v=20260703b"></script>
+    <script src="/jrcedu/portal/mobile-unified.js?v=20260704ai"></script>
+  </body>
+</html>

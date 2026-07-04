@@ -207,10 +207,10 @@
     const employee = currentEmployee();
     const role = employee?.role || "";
     if (isAdminLike()) {
-      return ["ai", "paike", "admissions", "finance", "teachingQuality", "studentService", "hr", "suggestions", "knowledge", "curriculum", "campus"];
+      return ["ai", "aiCapabilities", "paike", "admissions", "finance", "teachingQuality", "studentService", "hr", "suggestions", "knowledge", "curriculum", "campus"];
     }
     if (role === "学管") {
-      return ["ai", "admissions", "studentService", "teachingQuality", "paike", "knowledge", "campus", "suggestions", "curriculum", "finance", "hr"];
+      return ["ai", "admissions", "studentService", "aiCapabilities", "teachingQuality", "paike", "knowledge", "campus", "suggestions", "curriculum", "finance", "hr"];
     }
     if (role === "财务") {
       return ["ai", "finance", "paike", "suggestions", "admissions", "teachingQuality", "studentService", "hr", "knowledge", "curriculum", "campus"];
@@ -218,7 +218,7 @@
     if (role === "授课老师") {
       return ["ai", "paike", "campus", "teachingQuality", "studentService", "curriculum", "suggestions", "knowledge", "admissions", "finance", "hr"];
     }
-    return ["ai", "paike", "knowledge", "suggestions", "finance", "admissions", "teachingQuality", "studentService", "curriculum", "hr", "campus"];
+    return ["ai", "aiCapabilities", "paike", "knowledge", "suggestions", "finance", "admissions", "teachingQuality", "studentService", "curriculum", "hr", "campus"];
   }
 
   function reorderSystemCards() {
@@ -1322,7 +1322,8 @@
         ["反馈整改", "看待复核、仍有问题和本轮待处理", "./trial-feedback.html", "suggestions.access"],
         ["财务月结", "按老师工资单核对月结", "./finance.html", "finance.access"],
         ["学生服务", "点名、课消、反馈归档", "./student-service.html", "studentService.access"],
-        ["短视频系统", "自有账号深挖、视频诊断和选题建议", "./video-ops.html?v=20260704q", "videoOps.access"]
+        ["短视频系统", "自有账号深挖、视频诊断和选题建议", "./video-ops.html?v=20260704q", "videoOps.access"],
+        ["AI能力中心", "查看各系统AI建设边界和优先级", "./ai-capabilities.html", ""]
       ];
     }
     if (role.includes("财务")) {
@@ -1337,6 +1338,7 @@
       return [
         ["学生服务", "点名、缺勤、家长沟通", "./student-service.html", "studentService.access"],
         ["招生跟进", "线索、试听、报名交接", "/jrcedu/advice-system/index.html", "admissions.access"],
+        ["AI能力中心", "查看学生服务和招生AI能做什么", "./ai-capabilities.html", ""],
         ["短视频系统", "查看自有账号数据和拍摄建议", "./video-ops.html?v=20260704q", "videoOps.access"],
         ["课堂反馈AI", "整理老师课堂反馈草稿", "./ai-assistant.html", "ai.access"],
         ["我的反馈", "查看问题处理进展", "./trial-feedback.html", "suggestions.access"]
