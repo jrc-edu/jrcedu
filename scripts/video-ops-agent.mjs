@@ -532,11 +532,12 @@ function metricCompleteness(row = {}) {
     core: ["views", "likes", "comments", "favorites", "shares"],
     reach: ["impressions", "clickThroughRate"],
     retention: ["completeRate", "threeSecondRetention", "fiveSecondRetention", "avgWatchSeconds", "videoDurationSeconds"],
-    conversion: ["profileVisits", "messages", "leads", "followersGained"]
+    conversion: ["profileVisits", "messages", "leads", "followersGained"],
+    traffic: ["trafficSourceLines", "searchKeywords"]
   };
   const result = {};
   Object.entries(groups).forEach(([group, keys]) => {
-    result[group] = keys.filter((key) => Number(row[key]) > 0);
+    result[group] = keys.filter((key) => Array.isArray(row[key]) ? row[key].length > 0 : Number(row[key]) > 0);
   });
   const totalFields = Object.values(groups).flat().length;
   const presentFields = Object.values(result).reduce((sum, keys) => sum + keys.length, 0);
@@ -545,7 +546,8 @@ function metricCompleteness(row = {}) {
     `核心互动 ${result.core.length}/5`,
     `曝光点击 ${result.reach.length}/2`,
     `留存节奏 ${result.retention.length}/5`,
-    `转化咨询 ${result.conversion.length}/4`
+    `转化咨询 ${result.conversion.length}/4`,
+    `流量来源 ${result.traffic.length}/2`
   ].join("，");
   return result;
 }
@@ -738,7 +740,8 @@ async function collectCreatorCenterDeepSignals(page, account, config, apiCapture
 
 async function scrollToLoadVideoList(page, config, maxVideos, onProgress = async () => {}) {
   const target = Math.max(1, Number(maxVideos || config.limits?.maxVideosPerAccount || 30));
-  const maxScrolls = Math.max(5, Math.min(45, Math.ceil(target / 6)));
+  const maxScrollCap = target >= 300 ? 110 : target >= 150 ? 80 : 45;
+  const maxScrolls = Math.max(5, Math.min(maxScrollCap, Math.ceil(target / 5)));
   let lastHeight = 0;
   let stale = 0;
   for (let index = 0; index < maxScrolls; index += 1) {
@@ -1097,7 +1100,8 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
   const listSelectors = account.selectors?.videoList || {};
   await scrollToLoadVideoList(page, config, maxVideos, onProgress);
   if (listSelectors.card) {
-    const cards = await page.locator(listSelectors.card).evaluateAll((nodes, selectors) => nodes.slice(0, 260).map((node) => {
+    const cards = await page.locator(listSelectors.card).evaluateAll((nodes, payload) => nodes.slice(0, payload.limit).map((node) => {
+      const selectors = payload.selectors || {};
       const pick = (selector) => selector ? node.querySelector(selector)?.textContent?.trim() || "" : "";
       const linkNode = selectors.url ? node.querySelector(selectors.url) : node.querySelector("a[href]");
       return {
@@ -1107,7 +1111,7 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
         rawText: node.innerText || node.textContent || "",
         priority: 10
       };
-    }), listSelectors).catch(() => []);
+    }), { selectors: listSelectors, limit: Math.max(260, Math.min(720, maxVideos * 2)) }).catch(() => []);
     return dedupeCards(cards, maxVideos);
   }
 
@@ -1120,7 +1124,7 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
   }))).catch(() => []);
   const genericCards = [];
   const locator = page.locator(GENERIC_VIDEO_CARD_SELECTOR);
-  const count = Math.min(await locator.count().catch(() => 0), 520);
+  const count = Math.min(await locator.count().catch(() => 0), Math.max(520, Math.min(900, maxVideos * 3)));
   for (let index = 0; index < count; index += 1) {
     const item = await locator.nth(index).evaluate((node) => {
       const rect = node.getBoundingClientRect();
@@ -1194,6 +1198,8 @@ async function extractVideoSnapshot(page, account, card, config, detailSignals =
     capturedAt: nowIso(),
     ...metrics,
     platformAdvice,
+    trafficSourceLines: extractLines(text, [/流量来源|推荐|搜索|同城|关注|主页|粉丝|附近|朋友|来源|入口/], 8),
+    searchKeywords: extractLines(text, [/搜索词|关键词|搜索|初一|初二|初三|数学|科学|暑假|提分|几何|计算|奥数|培优|小升初|中考/], 8),
     officialMetricLines: splitSignalLines(text, 30),
     apiSignalLines: (detailSignals.signalLines || []).slice(0, 40),
     deepSources: [page.url().split("?")[0], ...(detailSignals.apiSources || [])].filter(Boolean).filter((url, index, arr) => arr.indexOf(url) === index).slice(0, 12),
@@ -1225,6 +1231,8 @@ function extractSnapshotFromCard(account, card) {
     capturedAt: nowIso(),
     ...metrics,
     platformAdvice: "",
+    trafficSourceLines: extractLines(text, [/流量来源|推荐|搜索|同城|关注|主页|粉丝|附近|朋友|来源|入口/], 6),
+    searchKeywords: extractLines(text, [/搜索词|关键词|搜索|初一|初二|初三|数学|科学|暑假|提分|几何|计算|奥数|培优|小升初|中考/], 6),
     officialMetricLines: splitSignalLines(text, 18),
     apiSignalLines: [],
     deepSources: [],
@@ -1274,7 +1282,7 @@ function mergeSnapshotData(primary, fallback) {
   ].forEach((key) => {
     if (!Number(merged[key]) && Number(base[key])) merged[key] = base[key];
   });
-  ["officialMetricLines", "apiSignalLines", "deepSources"].forEach((key) => {
+  ["officialMetricLines", "apiSignalLines", "deepSources", "trafficSourceLines", "searchKeywords"].forEach((key) => {
     const values = [
       ...(Array.isArray(detail[key]) ? detail[key] : []),
       ...(Array.isArray(base[key]) ? base[key] : [])
@@ -1864,10 +1872,11 @@ function usage() {
   自有账号不是随机采集，而是按创作者中心作品列表优先采最近作品。
   默认不再自动点详情页，不再自动采标杆公开视频，避免把菜单页、验证码页、搜索噪音当成作品数据。
   无用数据由程序自动判断并跳过；只有需要人工盯页面时才加 --manual。
-  小剂量试验建议 npm run video:trial：自有账号最多 30 条并深度采集，标杆前 10 个博主每人 3 条。
+  小剂量试验建议 npm run video:trial：只采自有账号最多 30 条并深度采集，不采同行。
   日常重建建议 npm run video:rebuild：只采自有账号，不采标杆。
-  自有账号深度挖掘建议 npm run video:own-deep：只采自己的账号，最多 200 条，打开详情页，建立历史优势库。
-  如以后确实要扩大标杆公开样本，再显式调整 --benchmark-accounts 和 --benchmark-videos。
+  自有账号深度挖掘建议 npm run video:own-deep：只采自己的账号，最多 500 条，打开详情页，建立历史优势库。
+  整夜深挖也可以运行 npm run video:overnight，和 video:own-deep 使用同一套全量策略。
+  同行自动挖掘暂缓：遇到手机号验证码、滑块/图形验证等风控时不要硬跑。标杆账号先用于人工学习，等自有账号研究透再恢复。
 `);
 }
 
@@ -1887,8 +1896,7 @@ async function main() {
     } catch (error) {
       console.warn(`自动推送未完成：${error.message}`);
       console.warn(`采集已经完成，数据没有丢。本地文件：${collected?.outputFile || path.join(DEFAULT_DATA_DIR, "latest-video-ops-payload.json")}`);
-      console.warn("临时处理：进入短视频系统 -> 技术设置与数据导入 -> 选择本地采集结果文件，导入这个 JSON。");
-      console.warn("长期处理：在 Mac mini 配好 JRC_API_TOKEN 后，再运行 npm run video:push 或 npm run video:run。");
+      console.warn("处理办法：这是一次性授权问题。Mac mini 配好 JRC_API_TOKEN 后，运行 npm run video:push 会自动补传；之后 npm run video:run / video:own-deep 都会跑完自动写入网站。");
     }
     return;
   }

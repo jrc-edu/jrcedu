@@ -31,7 +31,7 @@
       .topbar { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 14px 18px; margin-bottom: 18px; }
       .page-version-floating {
         position: fixed;
-        top: 12px;
+        top: 58px;
         right: 16px;
         z-index: 80;
         display: inline-flex;
@@ -103,6 +103,19 @@
       .decision-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.06); }
       .decision-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.06); }
       .decision-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.05); }
+      .command-panel { margin-top: 18px; border-color: rgba(13,148,136,0.20); background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(235,250,246,0.90)); }
+      .command-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; margin-top: 12px; }
+      .command-text { min-height: 44px; padding: 12px 14px; border-radius: 14px; background: #172132; color: #e5f5f2; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; overflow: auto; }
+      .focus-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+      .focus-card { padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
+      .focus-card span { display: block; color: var(--muted); font-size: 12px; }
+      .focus-card strong { display: block; margin-top: 6px; font-size: 18px; line-height: 1.25; }
+      .focus-card p { margin-top: 6px; font-size: 12px; line-height: 1.55; }
+      .focus-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.055); }
+      .focus-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.055); }
+      .focus-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.045); }
+      .auxiliary-stack { margin-top: 18px; }
+      .auxiliary-stack details.panel { margin-top: 12px; }
       .strategy-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
       .strategy-item { padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.76); }
       .strategy-item span { display: block; color: var(--muted); font-size: 12px; }
@@ -223,15 +236,17 @@
         .benchmark-library-list { grid-template-columns: 1fr; }
         .strategy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .focus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .signal-ranking-grid, .topic-performance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 720px) {
-        .page-version-floating { top: 8px; right: 8px; min-height: 28px; padding: 0 9px; font-size: 11px; }
+        .page-version-floating { top: 64px; right: 8px; min-height: 28px; padding: 0 9px; font-size: 11px; }
         .topbar { align-items: flex-start; flex-direction: column; }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
-        .strategy-grid, .readiness-grid, .signal-ranking-grid, .topic-performance-grid { grid-template-columns: 1fr; }
+        .strategy-grid, .readiness-grid, .focus-grid, .signal-ranking-grid, .topic-performance-grid { grid-template-columns: 1fr; }
+        .command-row { grid-template-columns: 1fr; }
         .span-3 { grid-column: auto; }
         .button, .nav-link { width: 100%; min-height: 46px; }
         .video-card-head { flex-direction: column; }
@@ -240,7 +255,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260704l</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260704n</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -256,27 +271,40 @@
         <article class="card">
           <p class="eyebrow">Video Ops Monitor</p>
           <h1>短视频系统</h1>
-          <p class="hero-text">Mac mini 自动打开自有账号创作者中心，系统按可信度规则过滤无效页面和噪音数据，再按中国大陆一到九年级数学教培逻辑沉淀视频档案、同行差距和下一步拍摄建议。</p>
+          <p class="hero-text">今晚重点不是再看零散视频，而是让 Mac mini 把自有账号历史作品尽量深挖成完整档案：播放负责本地影响力，涨粉负责账号增长，咨询线索负责招生转化，收藏转发负责干货价值。</p>
           <div class="tag-row" style="margin-top:14px;">
             <span class="tag">自有账号巡检</span>
             <span class="tag">平台建议归档</span>
             <span class="tag">数学教培诊断</span>
-            <span class="tag">大陆同行公开对比</span>
-            <span class="tag">周报复盘</span>
-            <span class="tag" id="videoOpsVersionTag">页面版本 20260704l</span>
+            <span class="tag">自有账号深挖</span>
+            <span class="tag">300+ 历史视频</span>
+            <span class="tag">题材归因</span>
+            <span class="tag">下一轮选题</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
-            <strong>页面版本 20260704l｜等待同步</strong>
-            <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
+            <strong>等待最新采集结果</strong>
+            <span>Mac mini 跑完会自动写入网站，本页面会自动读取并显示最新视频档案和下一步建议。</span>
           </div>
         </article>
         <aside class="card">
-          <p class="eyebrow">机器人逻辑</p>
-          <h2>自动跑，严格入库</h2>
-          <p style="margin-top:10px;">采集器会自动打开页面、读取页面和保存进度；遇到登录页、验证码页、菜单页、权限页或字段不可信时，系统自动跳过并写入异常提示，不进入正式视频档案。</p>
-          <div class="notice warn">本轮废弃旧的自动乱点路线。深挖自己的账号用 `npm run video:own-deep`；旧数据可用“重建数据”导入或 `npm run video:rebuild` 清掉；只有特殊排查时才使用人工确认模式。</div>
+          <p class="eyebrow">今晚目标</p>
+          <h2>睡前启动，整夜挖数据</h2>
+          <p style="margin-top:10px;">默认不需要你一条条确认。系统会按创作者中心作品列表顺序加载历史作品，能打开详情就补详情数据，打不开就保留可信列表数据；登录页、验证码页、菜单页和无效字段会自动跳过。</p>
+          <div class="notice warn">睡前确认 Chrome 已登录抖音/视频号后台，不要关 Mac mini，不要关采集 Chrome。跑完后本页面会自动更新结果，不需要手动同步。</div>
         </aside>
+      </section>
+
+      <section class="card command-panel" id="overnightPanel">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Auto Deep Mining</p>
+            <h2>自有账号自动深挖安排</h2>
+          </div>
+        </div>
+        <p style="margin-top:8px;">采集器按自有账号优先：最多每个自有账号 500 条，自动打开详情页，自动过滤无效数据，跑完自动写入网站。同行自动挖掘先暂停，避免验证码和滑块风控浪费时间。</p>
+        <div class="focus-grid" id="overnightMiningGrid"></div>
+        <div class="decision-list" id="overnightMiningActions"></div>
       </section>
 
       <section class="card progress-panel" id="collectorProgressCard">
@@ -313,108 +341,13 @@
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
-            <p class="eyebrow">Benchmark Accounts</p>
-            <h2>百万粉丝数学标杆账号库</h2>
-          </div>
-          <span class="badge">抖音账号库｜视频号待匹配</span>
-        </div>
-        <p style="margin-top:8px;">这里显示的是已经整理好的同行账号名单；“视频数据档案”里的 0 指的是还没有采集这些账号的公开视频作品，不代表账号库没有接入。</p>
-        <div class="benchmark-library" id="benchmarkLibraryTopPanel">
-          <div class="benchmark-library-head">
-            <div>
-              <h3>百万粉丝数学标杆账号库</h3>
-              <p style="margin-top:6px;">已收录 47 个抖音数学大号，视频号先全部标记为待匹配；这里是账号名单，公开视频作品数据需要下一步单独采集。</p>
-            </div>
-            <span class="badge">账号库已接入</span>
-          </div>
-          <div class="benchmark-library-list">
-            <div class="benchmark-account"><strong>厉老师数学思维-初中数学已上架</strong><span>抖音号 Top_math｜粉丝 885.4万｜视频号：待匹配</span></div>
-            <div class="benchmark-account"><strong>张文晖-满分数学张老师</strong><span>抖音号 77889012h｜粉丝 823.4万｜视频号：待匹配</span></div>
-            <div class="benchmark-account"><strong>柳老师数学思维</strong><span>抖音号 Match_Liu｜粉丝 557.3万｜视频号：待匹配</span></div>
-            <div class="benchmark-account"><strong>言老师数学思维</strong><span>抖音号 yanxizao446688｜粉丝 481.3万｜视频号：待匹配</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">AI Expert Report</p>
-            <h2>MiniMax 短视频专家报告</h2>
-          </div>
-          <div class="actions">
-            <button class="button" id="generateAiReportButton" type="button">生成 AI 专家报告</button>
-            <button class="button secondary" id="copyAiReportButton" type="button">复制报告</button>
-          </div>
-        </div>
-        <p style="margin-top:8px;">系统把当前采集到的账号、作品、平台建议、数据完整度和同行样本交给 MiniMax，由它按中国大陆一到九年级数学教培短视频逻辑输出运营建议。</p>
-        <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
-        <div class="decision-list" id="aiActionCards"></div>
-        <div class="report" id="aiExpertReport">等待生成。</div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">Collection Strategy</p>
-            <h2>本轮采集策略</h2>
-          </div>
-          <span class="badge" id="collectionPlanBadge">默认日常巡检</span>
-        </div>
-        <p id="collectionPlanSummary" style="margin-top:8px;">默认按平台后台作品列表顺序采最近作品，不随机抽样。</p>
-        <div class="strategy-grid" id="collectionStrategyGrid"></div>
-        <div class="notice" id="collectionCommandHint"></div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">Expert Framework</p>
-            <h2>中国大陆数学教培评价框架</h2>
-          </div>
-          <span class="badge">抖音/视频号/小红书 + 家长决策 + 合规边界</span>
-        </div>
-        <p style="margin-top:8px;">系统的建议不按海外泛短视频逻辑下结论，而是围绕中国大陆一到九年级数学培优、奥数、补弱、升学焦虑和家长咨询决策来判断，并标注样本是否足够。</p>
-        <div class="decision-list" id="expertFrameworkList"></div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">Industry Benchmark</p>
-            <h2>中国大陆数学教培标杆对比</h2>
-          </div>
-          <span class="badge">培优/奥数/补弱｜升学节点｜本地家长</span>
-        </div>
-        <p style="margin-top:8px;">这里专门按中国大陆一到九年级数学校外培训来判断，不简单套用娱乐号或海外平台逻辑。同行公开账号只采公开数据，用来做标题、选题、开头、教学证明力、本地家长信任和咨询承接的对比。</p>
-        <div class="benchmark-library" id="benchmarkLibraryPanel">
-          <div class="benchmark-library-head">
-            <div>
-              <h3>百万粉丝数学标杆账号库</h3>
-              <p style="margin-top:6px;">已收录 47 个抖音数学大号。当前账号库已接入；作品样本为 0 表示还没有采集公开视频，不表示账号库为空。</p>
-            </div>
-            <span class="badge">47 个账号</span>
-          </div>
-        </div>
-        <div class="benchmark-grid" id="industryBenchmarkGrid"></div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
             <p class="eyebrow">今日总览</p>
             <h2>运营数据看板</h2>
           </div>
-          <div class="actions">
-            <button class="button" id="quickImportJsonButton" type="button">导入本地采集文件</button>
-            <input id="quickImportJsonFileInput" type="file" accept=".json,application/json" style="display:none;">
-            <label class="inline-check"><input id="replaceVideoDataOnImport" type="checkbox" checked>重建数据</label>
-            <button class="button secondary" id="copyWeeklyReportButton" type="button">复制本周复盘</button>
-            <button class="button secondary" id="refreshCloudButton" type="button" onclick="window.__jrcVideoManualSync ? window.__jrcVideoManualSync() : alert('短视频页面脚本没有启动，请强制刷新页面或重新部署。')">同步云端</button>
-          </div>
+          <button class="button secondary" id="refreshCloudButton" type="button" hidden onclick="window.__jrcVideoManualSync ? window.__jrcVideoManualSync() : alert('短视频页面脚本没有启动，请强制刷新页面或重新部署。')">刷新最新数据</button>
         </div>
         <div class="metrics">
-          <div class="metric"><span>监控账号</span><strong id="metricAccounts">0</strong><p>自有账号 + 同行公开账号</p></div>
+          <div class="metric"><span>监控账号</span><strong id="metricAccounts">0</strong><p>当前重点：自有账号</p></div>
           <div class="metric"><span>视频档案</span><strong id="metricVideos">0</strong><p>按视频去重后的最新档案</p></div>
           <div class="metric"><span>可复拍视频</span><strong id="metricStrong">0</strong><p>播放、收藏或分享表现靠前</p></div>
           <div class="metric"><span>需复盘视频</span><strong id="metricWeak">0</strong><p>低于均值或平台提示明显</p></div>
@@ -450,6 +383,18 @@
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
+            <p class="eyebrow">Next Topics</p>
+            <h2>下一轮选题建议</h2>
+          </div>
+          <button class="button secondary" id="copyNextTopicPlanButton" type="button">复制选题建议</button>
+        </div>
+        <p style="margin-top:8px;">系统把高播放、高涨粉、高咨询、高收藏转发拆开归因，不平均发力，直接给下一轮应该重点拍哪些方向。</p>
+        <div class="decision-list" id="nextTopicPlanList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
             <p class="eyebrow">Account Audit</p>
             <h2>账号全方位体检</h2>
           </div>
@@ -458,23 +403,139 @@
             <button class="button secondary" id="copyAccountAuditButton" type="button">复制账号体检</button>
           </div>
         </div>
-        <p style="margin-top:8px;">适合你这种已有一万多粉丝的个人账号：系统会把账号级官方数据、所有视频表现、平台建议和同行公开样本放在一起看，判断哪里强、哪里弱、下一步该怎么发。</p>
+        <p style="margin-top:8px;">适合你这种已有一万多粉丝、368 条历史视频的个人账号：系统会先把自己的账号级官方数据和所有视频表现吃透，再判断哪里强、哪里弱、下一步该怎么发。</p>
         <div class="account-audit-layout">
           <div class="metrics" id="accountAuditMetrics"></div>
           <div class="report" id="accountAuditReport">等待选择账号。</div>
         </div>
       </section>
 
+      <section class="auxiliary-stack">
+        <details class="panel">
+          <summary>辅助内容：AI 专家报告、采集策略、标杆账号库（同行自动挖掘暂缓）</summary>
+          <section style="margin-top:14px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">AI Expert Report</p>
+                <h2>MiniMax 短视频专家报告</h2>
+              </div>
+              <div class="actions">
+                <button class="button" id="generateAiReportButton" type="button">生成 AI 专家报告</button>
+                <button class="button secondary" id="copyAiReportButton" type="button">复制报告</button>
+              </div>
+            </div>
+            <p style="margin-top:8px;">等今晚深挖跑完以后，再把完整账号、作品、平台建议和数据完整度交给 MiniMax 输出运营建议。</p>
+            <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
+            <div class="decision-list" id="aiActionCards"></div>
+            <div class="report" id="aiExpertReport">等待生成。</div>
+          </section>
+
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Collection Strategy</p>
+                <h2>本轮采集策略</h2>
+              </div>
+              <span class="badge" id="collectionPlanBadge">默认日常巡检</span>
+            </div>
+            <p id="collectionPlanSummary" style="margin-top:8px;">默认按平台后台作品列表顺序采最近作品，不随机抽样。</p>
+            <div class="strategy-grid" id="collectionStrategyGrid"></div>
+            <div class="notice" id="collectionCommandHint"></div>
+          </section>
+
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Benchmark Accounts</p>
+                <h2>百万粉丝数学标杆账号库</h2>
+              </div>
+              <span class="badge">抖音账号库｜视频号待匹配</span>
+            </div>
+            <p style="margin-top:8px;">今晚先深挖自有账号；同行平台容易触发手机号验证码、滑块/图形验证，自动挖掘先暂停。标杆库只留作后续人工学习和方向参考。</p>
+            <div class="benchmark-library" id="benchmarkLibraryTopPanel"></div>
+          </section>
+
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Expert Framework</p>
+                <h2>中国大陆数学教培评价框架</h2>
+              </div>
+              <span class="badge">抖音/视频号/小红书 + 家长决策 + 合规边界</span>
+            </div>
+            <p style="margin-top:8px;">系统的建议围绕中国大陆一到九年级数学培优、奥数、补弱、升学焦虑和家长咨询决策来判断。</p>
+            <div class="decision-list" id="expertFrameworkList"></div>
+          </section>
+
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Industry Benchmark</p>
+                <h2>中国大陆数学教培标杆对比</h2>
+              </div>
+              <span class="badge">培优/奥数/补弱｜升学节点｜本地家长</span>
+            </div>
+            <p style="margin-top:8px;">同行自动挖掘暂缓。这里保留为后续人工学习入口，不参与今晚自有账号判断。</p>
+            <div class="benchmark-library" id="benchmarkLibraryPanel"></div>
+            <div class="benchmark-grid" id="industryBenchmarkGrid"></div>
+          </section>
+        </details>
+      </section>
+
       <section class="grid">
         <div>
-          <details class="panel">
-            <summary>账号巡检配置（不常用）</summary>
+          <article class="panel">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Videos</p>
+                <h2>视频数据档案与诊断</h2>
+              </div>
+              <div class="toolbar">
+                <select id="platformFilter">
+                  <option value="">全部平台</option>
+                  <option value="抖音">抖音</option>
+                  <option value="视频号">视频号</option>
+                  <option value="小红书">小红书</option>
+                </select>
+                <select id="accountFilter"><option value="">全部账号</option></select>
+                <select id="videoTypeFilter">
+                  <option value="">全部视频</option>
+                  <option value="saved">只看已收藏</option>
+                  <option value="strong">只看可复拍</option>
+                  <option value="weak">只看需复盘</option>
+                  <option value="brand">只看品牌影响强</option>
+                  <option value="fans">只看涨粉强</option>
+                  <option value="leads">只看咨询线索强</option>
+                  <option value="own">只看自有账号</option>
+                </select>
+                <select id="videoSortFilter">
+                  <option value="priority">按处理优先级</option>
+                  <option value="fans">按涨粉能力</option>
+                  <option value="leads">按咨询线索</option>
+                  <option value="views">按播放量</option>
+                  <option value="saveShare">按收藏转发</option>
+                  <option value="score">按诊断分</option>
+                  <option value="weak">按低分复盘</option>
+                  <option value="latest">按最新采集</option>
+                </select>
+              </div>
+            </div>
+            <div class="signal-ranking-grid" id="signalRankingGrid"></div>
+            <div class="decision-list" id="videoQualityList"></div>
+            <div class="topic-performance-grid" id="topicPerformanceGrid"></div>
+            <div class="quick-rank-list" id="priorityVideoList"></div>
+            <div class="compact-count" id="videoListCount"></div>
+            <div class="video-list" id="videoList"></div>
+          </article>
+
+          <details class="panel" hidden>
+            <summary>账号清单维护（管理员偶尔使用）</summary>
             <div class="toolbar" style="justify-content:space-between;">
               <div>
                 <p class="eyebrow">Accounts</p>
-                <h2>账号巡检配置</h2>
+                <h2>自有账号清单</h2>
               </div>
-              <span class="badge">给机器人看的账号清单</span>
+              <span class="badge">采集器按这里的账号运行</span>
             </div>
             <form id="accountForm" class="form-grid">
               <label class="field">
@@ -489,7 +550,6 @@
                 账号类型
                 <select name="accountType">
                   <option value="自有账号">自有账号</option>
-                  <option value="同行账号">同行账号</option>
                 </select>
               </label>
               <label class="field">
@@ -526,72 +586,9 @@
               </table>
             </div>
           </details>
-
-          <article class="panel">
-            <div class="toolbar" style="justify-content:space-between;">
-              <div>
-                <p class="eyebrow">Videos</p>
-                <h2>视频数据档案与诊断</h2>
-              </div>
-              <div class="toolbar">
-                <select id="platformFilter">
-                  <option value="">全部平台</option>
-                  <option value="抖音">抖音</option>
-                  <option value="视频号">视频号</option>
-                  <option value="小红书">小红书</option>
-                </select>
-                <select id="accountFilter"><option value="">全部账号</option></select>
-                <select id="videoTypeFilter">
-                  <option value="">全部视频</option>
-                  <option value="saved">只看已收藏</option>
-                  <option value="strong">只看可复拍</option>
-                  <option value="weak">只看需复盘</option>
-                  <option value="brand">只看品牌影响强</option>
-                  <option value="fans">只看涨粉强</option>
-                  <option value="leads">只看咨询线索强</option>
-                  <option value="own">只看自有账号</option>
-                  <option value="competitor">只看同行公开</option>
-                </select>
-                <select id="videoSortFilter">
-                  <option value="priority">按处理优先级</option>
-                  <option value="fans">按涨粉能力</option>
-                  <option value="leads">按咨询线索</option>
-                  <option value="views">按播放量</option>
-                  <option value="saveShare">按收藏转发</option>
-                  <option value="score">按诊断分</option>
-                  <option value="weak">按低分复盘</option>
-                  <option value="latest">按最新采集</option>
-                </select>
-              </div>
-            </div>
-            <div class="signal-ranking-grid" id="signalRankingGrid"></div>
-            <div class="decision-list" id="videoQualityList"></div>
-            <div class="topic-performance-grid" id="topicPerformanceGrid"></div>
-            <div class="quick-rank-list" id="priorityVideoList"></div>
-            <div class="compact-count" id="videoListCount"></div>
-            <div class="video-list" id="videoList"></div>
-          </article>
         </div>
 
         <aside>
-          <details class="panel">
-            <summary>技术设置与数据导入（平时不用看）</summary>
-            <p class="eyebrow">Robot Inbox</p>
-            <h2>机器人数据收件箱</h2>
-            <p style="margin-top:8px;">这里不是让老师日常手填，而是给 Mac mini 采集器推送数据。自动推送未配置时，可以直接选择采集器导出的 JSON 文件导入。</p>
-            <label class="field" style="margin-top:12px;">
-              <span>选择本地采集结果文件</span>
-              <input id="importJsonFileInput" type="file" accept=".json,application/json">
-            </label>
-            <textarea id="importJsonInput" placeholder="粘贴 Mac mini 采集器输出的 JSON。支持 accounts、accountAudits、snapshots、videos 字段。"></textarea>
-            <div class="actions" style="margin-top:10px;">
-              <button class="button" id="importJsonButton" type="button">导入采集数据</button>
-              <button class="button secondary" id="sampleJsonButton" type="button">生成示例格式</button>
-              <button class="button secondary" id="clearImportButton" type="button">清空</button>
-            </div>
-            <div class="code-block" id="agentContractBox"></div>
-          </details>
-
           <article class="panel">
             <p class="eyebrow">Ranking</p>
             <h2>本周重点排行</h2>
@@ -603,6 +600,24 @@
             <h2>自动周报</h2>
             <div class="report" id="weeklyReport">等待数据。</div>
           </article>
+
+          <details class="panel" hidden>
+            <summary>系统维护（管理员排查时用）</summary>
+            <p class="eyebrow">Robot Inbox</p>
+            <h2>采集器备用收件箱</h2>
+            <p style="margin-top:8px;">正常情况不用打开这里。Mac mini 采集器跑完会自动写入网站；只有自动写入失败时，管理员才需要临时导入本地文件排查。</p>
+            <label class="field" style="margin-top:12px;">
+              <span>选择本地采集结果文件</span>
+              <input id="importJsonFileInput" type="file" accept=".json,application/json">
+            </label>
+            <textarea id="importJsonInput" placeholder="管理员排查时使用。"></textarea>
+            <div class="actions" style="margin-top:10px;">
+              <button class="button" id="importJsonButton" type="button">临时导入</button>
+              <button class="button secondary" id="sampleJsonButton" type="button">示例格式</button>
+              <button class="button secondary" id="clearImportButton" type="button">清空</button>
+            </div>
+            <div class="code-block" id="agentContractBox"></div>
+          </details>
         </aside>
       </section>
     </main>
@@ -610,7 +625,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704l";
+        const pageVersion = "20260704n";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -687,9 +702,9 @@
           const button = node("refreshCloudButton");
           if (button) {
             button.disabled = true;
-            button.textContent = "正在同步...";
+            button.textContent = "正在刷新...";
           }
-          showBootstrapDiagnostic("warn", "正在同步云端短视频数据", ["启动级同步函数已接管按钮，正在读取云端。"]);
+          showBootstrapDiagnostic("warn", "正在自动读取最新数据", ["系统正在读取采集器写入的网站数据。"]);
           try {
             if (window.__jrcVideoHydrateCloudReal) {
               await window.__jrcVideoHydrateCloudReal({ manual: true });
@@ -700,16 +715,15 @@
               : await readCloudDirectly();
             if (!result?.ok) {
               const status = result?.status || result?.error || result?.reason || "未知状态";
-              showBootstrapDiagnostic("failed", "云端同步失败", [
-                `接口状态：${status}`,
+              showBootstrapDiagnostic("failed", "自动读取失败", [
                 result?.message || (status === 401 ? "登录凭证失效，请退出工作台后重新登录。" : "请把这块截图发给我继续查。")
               ]);
               return;
             }
             if (!result.data?.found || !result.data?.payload) {
-              showBootstrapDiagnostic("warn", "云端没有找到短视频数据", [
-                `接口状态：HTTP ${result.status || 200}`,
-                "接口已经连通，但云端没有返回短视频 payload。"
+              showBootstrapDiagnostic("warn", "等待采集结果", [
+                "目前还没有读到新的短视频采集结果。",
+                "Mac mini 跑完后会自动写入网站，本页面会自动更新。"
               ]);
               return;
             }
@@ -718,16 +732,16 @@
             localStorage.setItem(storeKey, JSON.stringify(payload));
             if (node("metricAccounts")) node("metricAccounts").textContent = counts.accounts;
             if (node("metricVideos")) node("metricVideos").textContent = counts.snapshots;
-            showBootstrapDiagnostic(counts.snapshots ? "success" : "warn", "云端已读取到短视频数据", [
-              `云端原始：账号 ${counts.accounts} 个，账号体检 ${counts.accountAudits} 条，视频快照 ${counts.snapshots} 条。`,
-              "数据已写入本机缓存；如果下方列表还没展开，请刷新一次短视频页面。"
+            showBootstrapDiagnostic(counts.snapshots ? "success" : "warn", "最新数据已读取", [
+              `当前读到 ${counts.snapshots} 条视频档案、${counts.accountAudits} 条账号体检。`,
+              "页面会继续自动整理并显示排行和建议。"
             ]);
           } catch (error) {
-            showBootstrapDiagnostic("failed", "云端同步异常", [error?.message || String(error || "未知错误")]);
+            showBootstrapDiagnostic("failed", "自动读取异常", [error?.message || String(error || "未知错误")]);
           } finally {
             if (button) {
               button.disabled = false;
-              button.textContent = "同步云端";
+              button.textContent = "刷新最新数据";
             }
           }
         };
@@ -745,7 +759,8 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704l";
+      const PAGE_VERSION = "20260704n";
+      const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -757,6 +772,7 @@
       let benchmarkLibrary = [];
       let benchmarkLibraryLoaded = false;
       let cloudSyncSeq = 0;
+      let lastCloudHydrateAt = 0;
 
       window.addEventListener("error", (event) => {
         const panel = document.getElementById("cloudSyncDiagnostic");
@@ -1083,6 +1099,7 @@
           reach: normalizeTextList(source.reach || []),
           retention: normalizeTextList(source.retention || []),
           conversion: normalizeTextList(source.conversion || []),
+          traffic: normalizeTextList(source.traffic || []),
           score: parseNumber(source.score),
           summary: normalizeText(source.summary)
         };
@@ -1181,6 +1198,8 @@
           messages: parseNumber(row.messages ?? row.privateMessages ?? row["私信"] ?? row["咨询"]),
           leads: parseNumber(row.leads ?? row.inquiries ?? row["线索"] ?? row["有效咨询"]),
           followersGained: parseNumber(row.followersGained ?? row.newFollowers ?? row["涨粉"]),
+          trafficSourceLines: normalizeTextList(row.trafficSourceLines || row["流量来源线索"]),
+          searchKeywords: normalizeTextList(row.searchKeywords || row.keywords || row["搜索词"]),
           platformAdvice: normalizeText(row.platformAdvice || row.advice || row["平台建议"] || row["诊断建议"]),
           officialMetricLines: normalizeTextList(row.officialMetricLines || row["官方指标线索"]),
           apiSignalLines: normalizeTextList(row.apiSignalLines || row["接口指标线索"]),
@@ -1347,34 +1366,35 @@
         const panel = byId("cloudSyncDiagnostic");
         if (!panel) return;
         const level = detail.level || "warn";
-        const raw = detail.rawCounts;
+        const raw = detail.debug ? detail.rawCounts : null;
         const normalized = detail.normalizedCounts;
         panel.hidden = false;
         panel.className = `sync-diagnostic ${escapeHtml(level)}`;
         panel.innerHTML = [
-          `<strong>${escapeHtml(detail.title || "云端同步诊断")}</strong>`,
+          `<strong>${escapeHtml(detail.title || "数据更新状态")}</strong>`,
           detail.message ? `<span>${escapeHtml(detail.message)}</span>` : "",
+          normalized ? `<span>当前页面已显示 ${normalized.latest || 0} 条视频档案。</span>` : "",
+          detail.updatedAt ? `<span>最近更新时间：${escapeHtml(shortDate(detail.updatedAt))}</span>` : "",
+          detail.advice ? `<span>${escapeHtml(detail.advice)}</span>` : "",
           raw ? `<span>云端原始：账号 ${raw.accounts || 0} 个，账号体检 ${raw.accountAudits || 0} 条，视频快照 ${raw.snapshots || 0} 条，异常 ${raw.warnings || 0} 条。</span>` : "",
-          normalized ? `<span>页面入库：账号 ${normalized.accounts || 0} 个，账号体检 ${normalized.accountAudits || 0} 条，有效视频 ${normalized.snapshots || 0} 条，当前显示视频档案 ${normalized.latest || 0} 条。</span>` : "",
-          detail.status ? `<span>接口状态：${escapeHtml(detail.status)}</span>` : "",
-          detail.updatedAt ? `<span>云端更新时间：${escapeHtml(shortDate(detail.updatedAt))}</span>` : "",
-          detail.advice ? `<span>处理建议：${escapeHtml(detail.advice)}</span>` : ""
+          detail.debug && detail.status ? `<span>接口状态：${escapeHtml(detail.status)}</span>` : ""
         ].filter(Boolean).join("");
       }
 
       async function hydrateCloud(options = {}) {
         const syncId = ++cloudSyncSeq;
+        lastCloudHydrateAt = Date.now();
         const button = byId("refreshCloudButton");
+        const silent = Boolean(options.silent);
         if (button) {
           button.disabled = true;
-          button.textContent = options.manual ? "正在同步..." : "自动同步中...";
+          button.textContent = options.manual ? "正在刷新..." : "自动更新中...";
         }
-        byId("videoOpsMessage").textContent = options.manual ? "正在同步云端短视频数据，请稍等..." : "正在自动读取云端短视频数据...";
+        if (!silent) byId("videoOpsMessage").textContent = options.manual ? "正在刷新最新短视频数据，请稍等..." : "正在自动读取最新短视频数据...";
         showCloudSyncDiagnostic({
           level: "warn",
-          title: "正在同步云端",
-          message: "已向云端发起读取请求，如果接口、登录或数据过滤有问题，这里会直接显示原因。",
-          rawCounts: {},
+          title: "正在自动更新数据",
+          message: "系统正在读取 Mac mini 采集器写入的网站数据，跑完后会自动显示结果。",
           normalizedCounts: {
             accounts: state.accounts.length,
             accountAudits: state.accountAudits.length,
@@ -1387,29 +1407,29 @@
           const result = await window.JRC_CLOUD?.readModuleData?.(STORE_KEY);
           if (syncId !== cloudSyncSeq) return;
           if (!result) {
-            byId("videoOpsMessage").textContent = "云端接口未加载，当前只显示本机缓存。";
+            if (!silent) byId("videoOpsMessage").textContent = "自动更新暂不可用，当前先显示本机缓存。";
             showCloudSyncDiagnostic({
               level: "failed",
-              title: "云端接口未加载",
-              message: "页面没有读到 cloud-api.js 或 JRC_CLOUD.readModuleData。",
+              title: "自动更新暂不可用",
+              message: "页面暂时没有读到云端数据接口，当前先显示本机缓存。",
               status: "cloud-api-missing",
-              advice: "请刷新页面；如果仍然这样，说明静态文件或缓存没有更新。"
+              advice: "刷新页面后仍出现，再截图给我排查。"
             });
             return;
           }
           if (!result.ok) {
             const detail = result.status === 401
-              ? "云端登录凭证已失效，请退出系统后重新登录，再点“同步云端”。"
-              : `云端同步失败：${result.status || result.error || result.reason || "未知错误"}`;
-            byId("videoOpsMessage").textContent = detail;
+              ? "登录状态过期，请退出工作台重新登录。"
+              : "自动更新失败，当前先显示已有数据。";
+            if (!silent) byId("videoOpsMessage").textContent = detail;
             showCloudSyncDiagnostic({
               level: "failed",
-              title: "云端同步失败",
+              title: "自动更新失败",
               message: detail,
               status: result.status || result.error || result.reason || "unknown",
               advice: result.status === 401 || result.status === 403
-                ? "先退出工作台重新登录，再进入短视频系统点击同步云端。"
-                : "如果连续出现，请把这条诊断截图发给我。"
+                ? "重新登录后页面会自动读取最新数据。"
+                : "如果连续出现，请把这条状态截图发给我。"
             });
             return;
           }
@@ -1426,43 +1446,44 @@
               snapshots: state.snapshots.length,
               latest: latestSnapshots().length
             };
-            const message = `已同步云端短视频运营数据：云端原始 ${rawCounts.snapshots} 条视频快照，页面显示 ${normalizedCounts.latest} 条视频档案。`;
+            const updatedAt = result.data.updatedAt || rawCounts.updatedAt;
+            const message = `已自动更新：当前显示 ${normalizedCounts.latest} 条视频档案。`;
             byId("videoOpsMessage").textContent = message;
             showCloudSyncDiagnostic({
               level: normalizedCounts.latest ? "success" : "warn",
-              title: normalizedCounts.latest ? "云端同步成功" : "云端有数据，但页面未显示视频",
+              title: normalizedCounts.latest ? "最新数据已自动更新" : "已读取数据，但暂未形成视频档案",
               message,
               rawCounts,
               normalizedCounts,
               status: `HTTP ${result.status || 200}｜found=true`,
-              updatedAt: result.data.updatedAt || rawCounts.updatedAt,
+              updatedAt,
               advice: normalizedCounts.latest
-                ? "数据已经进入页面，可以继续生成专家报告或查看视频诊断。"
-                : "云端有原始数据但被页面过滤了，请把这条诊断截图发给我，我会按字段继续修过滤规则。"
+                ? "不需要手动同步，后续采集器写入后页面会继续自动刷新。"
+                : "采集器可能还在整理数据，页面会继续自动刷新。"
             });
           } else {
-            byId("videoOpsMessage").textContent = "云端暂未找到短视频系统数据；请确认 Mac mini 已重新采集并推送。";
+            if (!silent) byId("videoOpsMessage").textContent = "暂未发现新的短视频采集结果。";
             showCloudSyncDiagnostic({
               level: "warn",
-              title: "云端没有找到短视频数据",
-              message: "接口已连通，但这个 storeKey 下没有 payload。",
+              title: "等待采集器写入数据",
+              message: "目前还没有读到新的采集结果。",
               status: `HTTP ${result.status || 200}｜found=false`,
-              advice: "请在 Mac mini 运行导入；如果导入状态显示成功，说明写入的 storeKey 可能和网页读取的不一致。"
+              advice: "Mac mini 跑完后会自动写入网站，本页面会自动更新。"
             });
           }
         } catch (error) {
-          byId("videoOpsMessage").textContent = `云端同步异常：${error?.message || error || "未知错误"}`;
+          if (!silent) byId("videoOpsMessage").textContent = `自动更新异常：${error?.message || error || "未知错误"}`;
           showCloudSyncDiagnostic({
             level: "failed",
-            title: "云端同步异常",
+            title: "自动更新异常",
             message: error?.message || String(error || "未知错误"),
             status: "exception",
-            advice: "请把这条诊断截图发给我；常见原因是接口地址不通、网络异常或浏览器登录状态失效。"
+            advice: "当前先保留已有数据；如果连续出现，请截图给我排查。"
           });
         } finally {
           if (syncId === cloudSyncSeq && button) {
             button.disabled = false;
-            button.textContent = "同步云端";
+            button.textContent = "刷新最新数据";
           }
         }
       }
@@ -2126,7 +2147,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "指挥采集：自有账号深度挖掘用 npm run video:own-deep；小剂量试验用 npm run video:trial；日常重建用 npm run video:rebuild。只有特殊排查才加 --manual。";
+        byId("collectionCommandHint").textContent = "指挥采集：今晚整夜深挖用 npm run video:own-deep 或 npm run video:overnight；小剂量试跑用 npm run video:trial。同行自动挖掘暂缓，只有特殊排查才加 --manual。";
       }
 
       function dataReadinessProfile() {
@@ -2138,6 +2159,7 @@
         const withCoreMetrics = latest.filter((row) => row.views || row.likes || row.comments || row.favorites || row.shares || row.impressions);
         const withRetention = latest.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds);
         const withConversion = latest.filter((row) => row.profileVisits || row.messages || row.leads);
+        const withTrafficSource = latest.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length);
         const withAdvice = latest.filter((row) => row.platformAdvice);
         const withDeepSources = latest.filter((row) => Array.isArray(row.deepSources) && row.deepSources.length);
         const withOfficialSignals = latest.filter((row) => (row.officialMetricLines?.length || row.apiSignalLines?.length));
@@ -2151,6 +2173,7 @@
         if (ownCount || total) level = Math.max(level, 2);
         if (ownCount >= 8 && withCoreMetrics.length >= 8) level = Math.max(level, 3);
         if (ownCount >= 20 && withRetention.length >= 8) level = Math.max(level, 4);
+        if (ownCount >= 120 && withCoreMetrics.length >= 80 && (withTrafficSource.length >= 10 || withConversion.length >= 10)) level = Math.max(level, 5);
         if (ownCount >= 50 && withConversion.length >= 10 && peerCount >= 10) level = Math.max(level, 5);
         if (status.status === "running") level = Math.max(level, 1);
         const labels = [
@@ -2165,20 +2188,20 @@
         const gaps = [];
         if (!audits.length) gaps.push("缺账号级数据：粉丝、主页访问、搜索词、平台账号建议。");
         if (ownCount < 20) gaps.push(`自有视频样本只有 ${ownCount} 条，建议先补到 20 条以上再定账号方向。`);
-        if (ownCount && withDeepSources.length < Math.min(10, ownCount)) gaps.push("详情页/创作者中心深采来源偏少，建议运行 npm run video:own-deep 补官方后台深层数据。");
+        if (ownCount && withDeepSources.length < Math.min(10, ownCount)) gaps.push("详情页/创作者中心深采来源偏少，建议让 Mac mini 采集器继续补官方后台深层数据。");
         if (withRetention.length < Math.min(8, Math.max(ownCount, 1))) gaps.push("留存/完播数据偏少，暂时难判断开头和节奏。");
         if (withConversion.length < Math.min(5, Math.max(ownCount, 1))) gaps.push("主页访问、私信、线索数据偏少，暂时难判断播放是否能带来咨询。");
-        if (!peerAccountCount) gaps.push("还没有同行标杆账号库，暂时不能组织对标学习。");
-        if (peerAccountCount && peerCount < 10) gaps.push(`已接入 ${peerAccountCount} 个同行标杆账号，但公开视频样本只有 ${peerCount} 条，暂时不能做扎实播放对比。`);
+        if (ownCount >= 20 && withTrafficSource.length < 8) gaps.push("流量来源/搜索词偏少，暂时难判断视频是靠推荐、搜索、本地同城还是粉丝流量起来的。");
+        if (peerCount) gaps.push(`同行公开视频样本 ${peerCount} 条仅作参考；当前策略先暂停同行自动挖掘，避免验证码/滑块风控。`);
         const commands = [];
         if (status.status === "running") {
           commands.push("当前采集器正在运行，先等本轮结束再看结论。");
         } else if (ownCount < 20) {
-          commands.push("下一步建议：先在 Mac mini 运行 npm run video:own-deep，深挖自有账号历史作品；要做标杆小样本时再运行 npm run video:trial。");
-        } else if (ownCount < 80 || peerCount < 10) {
-          commands.push("下一步建议：运行 npm run video:run -- --fresh --max-videos 100，做一次自动阶段体检。");
+          commands.push("下一步建议：先让 Mac mini 跑自有账号整夜深挖，补齐历史作品数据。同行自动挖掘先不跑。");
+        } else if (ownCount < 300) {
+          commands.push("下一步建议：继续让 Mac mini 补到 300 条以上，再做账号长期方向判断。");
         } else {
-          commands.push("下一步建议：保持每日采集，重点看复拍题材、转化承接和同行差距。");
+          commands.push("下一步建议：自有账号样本已经足够，重点看复拍题材、转化承接、本地曝光和下一轮选题。");
         }
         return {
           level,
@@ -2193,6 +2216,7 @@
           withCoreMetrics: withCoreMetrics.length,
           withRetention: withRetention.length,
           withConversion: withConversion.length,
+          withTrafficSource: withTrafficSource.length,
           withAdvice: withAdvice.length,
           withDeepSources: withDeepSources.length,
           withOfficialSignals: withOfficialSignals.length,
@@ -2228,25 +2252,31 @@
             note: profile.withConversion ? "用于判断播放到咨询" : "缺主页/私信/线索数据"
           },
           {
+            tone: profile.withTrafficSource >= 8 ? "good" : profile.withTrafficSource ? "warn" : "danger",
+            label: "流量来源/搜索词",
+            value: `${profile.withTrafficSource} 条`,
+            note: profile.withTrafficSource ? "用于判断推荐、搜索和本地曝光" : "缺少来源归因"
+          },
+          {
             tone: profile.withDeepSources >= 10 ? "good" : profile.withDeepSources ? "warn" : "danger",
             label: "创作者中心深采",
             value: `${profile.withDeepSources} 条`,
             note: profile.withDeepSources ? `平均完整度 ${Math.round(profile.avgCompleteness || 0)}%` : "还缺详情页/接口线索"
           },
-          {
+          profile.peerAccountCount ? {
             tone: profile.peerAccountCount >= 10 ? "good" : profile.peerAccountCount ? "warn" : "danger",
             label: "标杆账号库",
             value: `${profile.peerAccountCount} 个`,
             note: profile.peerAccountCount >= 10 ? "账号库已成型" : "建议先导入标杆账号"
-          },
-          {
+          } : null,
+          profile.peerCount ? {
             tone: profile.peerCount >= 10 ? "good" : profile.peerCount ? "warn" : "danger",
             label: "同行作品样本",
             value: `${profile.peerCount} 条`,
             note: profile.peerCount >= 10 ? "可以做播放对比" : "还需补公开作品数据"
-          }
+          } : null
         ];
-        byId("dataReadinessGrid").innerHTML = cards.map((card) => `
+        byId("dataReadinessGrid").innerHTML = cards.filter(Boolean).map((card) => `
           <div class="readiness-card ${escapeHtml(card.tone)}">
             <span>${escapeHtml(card.label)}</span>
             <strong>${escapeHtml(card.value)}</strong>
@@ -2268,6 +2298,147 @@
             <p>可以进入账号体检、作品复盘和同行标杆对比。</p>
           </div>
         `;
+      }
+
+      function ownVideoRows() {
+        return latestSnapshots().filter((row) => row.accountType !== "同行账号");
+      }
+
+      function hasLocalTrafficSignal(row = {}) {
+        const text = normalizeText([
+          row.title,
+          row.topic,
+          ...(row.trafficSourceLines || []),
+          ...(row.searchKeywords || [])
+        ].join(" "));
+        return /宁波|鄞州|本地|同城|附近|家长|小升初|中考|重点高中|效实|鄞中|蛟川|蓝青|宋诏桥/.test(text);
+      }
+
+      function renderOvernightMiningPlan() {
+        const grid = byId("overnightMiningGrid");
+        const actions = byId("overnightMiningActions");
+        const commandBox = byId("overnightCommandBox");
+        if (commandBox) commandBox.textContent = OVERNIGHT_COMMAND;
+        if (!grid || !actions) return;
+        const rows = ownVideoRows();
+        const status = state.collectorStatus || {};
+        const plan = currentCollectionPlan();
+        const target = Math.max(500, Number(plan.targetPerAccount || 0));
+        const withCore = rows.filter((row) => row.views || row.likes || row.comments || row.favorites || row.shares).length;
+        const withRetention = rows.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds).length;
+        const withConversion = rows.filter((row) => row.profileVisits || row.messages || row.leads || row.followersGained).length;
+        const withTraffic = rows.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length).length;
+        const localSignals = rows.filter(hasLocalTrafficSignal).length;
+        const progress = Math.min(100, Math.round((rows.length / target) * 100));
+        const running = status.status === "running";
+        const cards = [
+          { tone: rows.length >= 300 ? "good" : rows.length >= 80 ? "warn" : "danger", label: "自有视频建档", value: `${rows.length}/${target}`, note: rows.length >= 300 ? "接近全量复盘" : `当前完成约 ${progress}%` },
+          { tone: withRetention >= 30 ? "good" : withRetention ? "warn" : "danger", label: "留存/完播", value: `${withRetention} 条`, note: "判断开头、节奏和讲解长度" },
+          { tone: withConversion >= 20 ? "good" : withConversion ? "warn" : "danger", label: "涨粉/咨询", value: `${withConversion} 条`, note: "判断账号增长和招生转化" },
+          { tone: withTraffic >= 15 ? "good" : withTraffic ? "warn" : "danger", label: "流量来源/本地", value: `${withTraffic} 条`, note: localSignals ? `本地信号 ${localSignals} 条` : "后续重点补搜索/同城来源" }
+        ];
+        grid.innerHTML = cards.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone)}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        const nextActions = [];
+        if (running) {
+          nextActions.push({ tone: "good", title: "采集器正在运行", body: `${status.stepLabel || "正在采集"}。先不要关闭 Mac mini 和采集 Chrome，等进度结束后再看账号结论。` });
+        } else if (rows.length < 300) {
+          nextActions.push({ tone: "good", title: "等待整夜深挖补齐数据", body: "采集器启动后会重建本轮可信数据，最多每个自有账号采 500 条，并自动写入网站；页面会自动更新。" });
+        } else {
+          nextActions.push({ tone: "good", title: "已具备深度复盘基础", body: "样本已经足够看账号方向。下一步重点看：题材归因、涨粉/C粉、咨询线索、收藏转发和本地曝光。" });
+        }
+        if (withTraffic < 15) nextActions.push({ tone: "warn", title: "今晚重点补流量来源", body: "如果创作者中心能看到来源/搜索词/同城数据，系统会单独入库。它决定我们是靠推荐爆、搜索来、粉丝看，还是本地影响扩散。" });
+        if (withConversion < 20) nextActions.push({ tone: "warn", title: "今晚重点补转化字段", body: "主页访问、私信、线索、涨粉字段越完整，系统越能判断哪类视频真正带来招生机会。" });
+        actions.innerHTML = nextActions.slice(0, 4).map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone)}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function metricLeaderRows() {
+        const rows = ownVideoRows();
+        return {
+          brand: rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0))[0],
+          fans: rows.slice().filter(hasFollowerSignal).sort((a, b) => (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a))[0],
+          leads: rows.slice().filter(hasLeadSignal).sort((a, b) => leadCount(b) - leadCount(a) || leadRate(b) - leadRate(a))[0],
+          saveShare: rows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)))[0]
+        };
+      }
+
+      function buildNextTopicPlan() {
+        const groups = topicPerformanceRows(ownVideoRows());
+        const leaders = metricLeaderRows();
+        if (!groups.length) {
+          return [{ tone: "warn", title: "先跑整夜深挖", body: "还没有足够自有视频样本。今晚先采 300+ 历史视频，明天再定下一轮拍摄方向。" }];
+        }
+        const bestReach = groups.slice().sort((a, b) => b.views - a.views || b.avgViews - a.avgViews)[0];
+        const bestLeads = groups.slice().filter((row) => row.leads > 0).sort((a, b) => b.leads - a.leads || b.leadRate - a.leadRate)[0];
+        const bestFans = groups.slice().filter((row) => row.followers > 0).sort((a, b) => b.followers - a.followers || b.fanRate - a.fanRate)[0];
+        const bestSave = groups.slice().sort((a, b) => b.saveShare - a.saveShare || b.saveShareRate - a.saveShareRate)[0];
+        const cards = [];
+        if (bestReach) {
+          cards.push({
+            tone: "good",
+            title: `品牌曝光继续放大：${bestReach.label}`,
+            body: `累计播放 ${formatNumber(bestReach.views)}，代表视频「${videoShortTitle(leaders.brand || bestReach.topVideo || {})}」。这类负责本地影响力，建议下一轮保留 3 条。`
+          });
+        }
+        if (bestLeads) {
+          cards.push({
+            tone: "good",
+            title: `招生转化重点验证：${bestLeads.label}`,
+            body: `咨询线索 ${formatNumber(bestLeads.leads)}，每万播放 ${perWan(bestLeads.leadRate)}。这类要重点复盘结尾口播、评论区关键词和主页承接，建议下一轮拍 2 条。`
+          });
+        }
+        if (bestFans) {
+          cards.push({
+            tone: "good",
+            title: `账号增长题材：${bestFans.label}`,
+            body: `涨粉 ${formatNumber(bestFans.followers)}，每万播放 ${perWan(bestFans.fanRate)}。这类负责扩大长期账号池，建议下一轮拍 2 条。`
+          });
+        }
+        if (bestSave) {
+          cards.push({
+            tone: "",
+            title: `干货收藏系列：${bestSave.label}`,
+            body: `收藏转发 ${formatNumber(bestSave.saveShare)}，每万播放 ${perWan(bestSave.saveShareRate)}。这类适合做“家长愿意保存”的题型库，建议下一轮拍 2 条。`
+          });
+        }
+        const hasTraffic = ownVideoRows().some((row) => row.trafficSourceLines?.length || row.searchKeywords?.length);
+        cards.push({
+          tone: hasTraffic ? "good" : "warn",
+          title: "每条选题都要加本地化判断",
+          body: hasTraffic
+            ? "已有部分流量来源/搜索词，可以继续判断推荐、搜索、同城和粉丝流量。"
+            : "今晚深挖前先把流量来源/搜索词作为重点字段；本地教培账号要特别看同城、本地家长和搜索词带来的影响。"
+        });
+        return cards.slice(0, 6);
+      }
+
+      function nextTopicPlanText() {
+        return [
+          "短视频下一轮选题建议",
+          "",
+          ...buildNextTopicPlan().map((item, index) => `${index + 1}. ${item.title}\n${item.body}`)
+        ].join("\n");
+      }
+
+      function renderNextTopicPlan() {
+        const box = byId("nextTopicPlanList");
+        if (!box) return;
+        box.innerHTML = buildNextTopicPlan().map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
       }
 
       function conciseVideoForAi(row) {
@@ -2300,6 +2471,8 @@
           leadPerTenThousandViews: hasLeadSignal(row) ? Number(perWan(leadRate(row))) : 0,
           fansPerTenThousandViews: hasFollowerSignal(row) ? Number(perWan(followerRate(row))) : 0,
           platformAdvice: row.platformAdvice,
+          trafficSourceLines: (row.trafficSourceLines || []).slice(0, 5),
+          searchKeywords: (row.searchKeywords || []).slice(0, 5),
           dataCompleteness: row.dataCompleteness,
           officialMetricLines: (row.officialMetricLines || []).slice(0, 6),
           apiSignalLines: (row.apiSignalLines || []).slice(0, 6),
@@ -2331,7 +2504,7 @@
           .map(([key]) => accountAuditText(key).slice(0, 2600));
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值。数据不足处必须明说，不要编造。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。数据不足处必须明说，不要编造。",
           dataReadiness: readiness,
           accounts: state.accounts,
           benchmarkAccounts: benchmarkAccountsFromState(),
@@ -3116,7 +3289,7 @@
           return [{
             tone: "warn",
             title: "先深采自己的历史作品",
-            body: "当前还没有单条视频数据。先在 Mac mini 运行 npm run video:own-deep，优先把自己的历史作品、播放、点赞、收藏、分享和详情页数据采回来。"
+            body: "当前还没有单条视频数据。先让 Mac mini 采集器自动深挖自己的历史作品，把播放、点赞、收藏、分享和详情页数据采回来。"
           }];
         }
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
@@ -3129,7 +3302,7 @@
           title: "先把自有账号样本扩到 100 条左右",
           body: rows.length >= 80
             ? `当前已有 ${rows.length} 条自有视频样本，可以开始做阶段性优势归因。`
-            : `当前只有 ${rows.length} 条自有视频样本。下一步运行 npm run video:own-deep，先把自己的历史作品尽量采到 100 条左右，再稳定判断长期优势。`
+            : `当前只有 ${rows.length} 条自有视频样本。下一步让 Mac mini 采集器继续自动深挖，先把自己的历史作品尽量采到 100 条左右，再稳定判断长期优势。`
         });
         if (remake[0]) {
           const row = remake[0].row;
@@ -3483,6 +3656,7 @@
         renderCollectorStatus();
         renderCollectionPlan();
         renderDataReadiness();
+        renderOvernightMiningPlan();
         renderAiExpertReport();
         renderExpertFramework();
         renderBenchmarkLibrary();
@@ -3491,6 +3665,7 @@
         renderExecutiveSummary();
         renderShootingTasks();
         renderAdvantagePlan();
+        renderNextTopicPlan();
         renderAccounts();
         renderAccountAudit();
         renderSignalRankings();
@@ -3591,11 +3766,13 @@
       }
 
       function refreshVideoLists() {
+        renderOvernightMiningPlan();
         renderSignalRankings();
         renderTopicPerformance();
         renderPriorityVideos();
         renderVideos();
         renderRankings();
+        renderNextTopicPlan();
       }
 
       function toggleSaveVideo(videoId) {
@@ -3662,8 +3839,7 @@
         return {
           accounts: [
             { platform: "抖音", accountType: "自有账号", name: "匠人程数学", owner: "高芳燕", weeklyTarget: 7 },
-            { platform: "视频号", accountType: "自有账号", name: "匠人程学堂", owner: "陈雨晴", weeklyTarget: 5 },
-            { platform: "抖音", accountType: "同行账号", name: "同行数学样本", owner: "公开样本" }
+            { platform: "视频号", accountType: "自有账号", name: "匠人程学堂", owner: "陈雨晴", weeklyTarget: 5 }
           ],
           accountAudits: [
             {
@@ -3734,21 +3910,6 @@
               messages: 0,
               leads: 0,
               platformAdvice: "前段流失偏高，建议缩短铺垫"
-            },
-            {
-              platform: "抖音",
-              accountType: "同行账号",
-              accountName: "同行数学样本",
-              videoId: "dy-peer-001",
-              title: "初中数学提分最怕这三件事",
-              topic: "初中数学学习方法",
-              publishedAt: "2026-07-02 18:00",
-              capturedAt: new Date().toISOString(),
-              views: 9800,
-              likes: 410,
-              comments: 31,
-              favorites: 160,
-              shares: 22
             }
           ]
         };
@@ -3805,10 +3966,6 @@
         });
         byId("importJsonButton").addEventListener("click", () => importJson());
         byId("importJsonFileInput").addEventListener("change", importJsonFile);
-        byId("quickImportJsonButton").addEventListener("click", () => {
-          byId("quickImportJsonFileInput").click();
-        });
-        byId("quickImportJsonFileInput").addEventListener("change", importJsonFile);
         byId("sampleJsonButton").addEventListener("click", () => {
           byId("importJsonInput").value = JSON.stringify(samplePayload(), null, 2);
           byId("videoOpsMessage").textContent = "已生成示例数据格式，可以直接导入测试。";
@@ -3820,6 +3977,15 @@
           byId(id).addEventListener("change", refreshVideoLists);
         });
         byId("auditAccountSelect").addEventListener("change", renderAccountAudit);
+        ["copyOvernightCommandButton", "copyOvernightCommandButton2"].forEach((id) => {
+          byId(id)?.addEventListener("click", async () => {
+            await navigator.clipboard?.writeText(OVERNIGHT_COMMAND);
+            byId("videoOpsMessage").textContent = "已复制今晚整夜深挖命令。";
+          });
+        });
+        byId("scrollToVideosButton")?.addEventListener("click", () => {
+          byId("signalRankingGrid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
         byId("copyAccountAuditButton").addEventListener("click", async () => {
           const key = byId("auditAccountSelect").value;
           await navigator.clipboard?.writeText(accountAuditText(key));
@@ -3837,10 +4003,6 @@
         });
         byId("priorityVideoList").addEventListener("click", handleVideoAction);
         byId("videoList").addEventListener("click", handleVideoAction);
-        byId("copyWeeklyReportButton").addEventListener("click", async () => {
-          await navigator.clipboard?.writeText(buildWeeklyReport());
-          byId("videoOpsMessage").textContent = "已复制本周短视频运营复盘。";
-        });
         byId("copyShootingTasksButton").addEventListener("click", async () => {
           await navigator.clipboard?.writeText(shootingTasksText());
           byId("videoOpsMessage").textContent = "已复制自有账号深度挖掘任务。";
@@ -3849,16 +4011,29 @@
           await navigator.clipboard?.writeText(advantagePlanText());
           byId("videoOpsMessage").textContent = "已复制账号优势强化方案。";
         });
+        byId("copyNextTopicPlanButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(nextTopicPlanText());
+          byId("videoOpsMessage").textContent = "已复制下一轮选题建议。";
+        });
       }
 
       bindEvents();
       renderAll();
       loadBenchmarkAccountLibrary({ persist: false })
-        .then(() => hydrateCloud())
+        .then(() => hydrateCloud({ silent: true }))
         .finally(() => loadBenchmarkAccountLibrary({ persist: false }));
       setInterval(() => {
-        if (state.collectorStatus?.status === "running") hydrateCloud();
-      }, 12000);
+        if (document.hidden) return;
+        const running = state.collectorStatus?.status === "running";
+        const elapsed = Date.now() - lastCloudHydrateAt;
+        if (running || elapsed >= 90000) hydrateCloud({ silent: !running });
+      }, 20000);
+      window.addEventListener("focus", () => {
+        if (Date.now() - lastCloudHydrateAt >= 30000) hydrateCloud({ silent: true });
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && Date.now() - lastCloudHydrateAt >= 30000) hydrateCloud({ silent: true });
+      });
     </script>
     <script src="/jrcedu/portal/mobile-unified.js?v=20260629a"></script>
   </body>
