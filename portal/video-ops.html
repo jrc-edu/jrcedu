@@ -209,11 +209,11 @@
             <span class="tag">数学教培诊断</span>
             <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
-            <span class="tag" id="videoOpsVersionTag">页面版本 20260704c</span>
+            <span class="tag" id="videoOpsVersionTag">页面版本 20260704d</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
-            <strong>页面版本 20260704c｜等待同步</strong>
+            <strong>页面版本 20260704d｜等待同步</strong>
             <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
           </div>
         </article>
@@ -510,19 +510,151 @@
       </section>
     </main>
 
+    <script>
+      (function () {
+        const storeKey = "jrc-video-ops-monitor-v1";
+        const pageVersion = "20260704d";
+        const sessionKey = "jrc-portal-auth-session";
+        function escapeText(value) {
+          return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+        function node(id) {
+          return document.getElementById(id);
+        }
+        function readCookie(name) {
+          try {
+            const prefix = `${encodeURIComponent(name)}=`;
+            return document.cookie
+              .split(";")
+              .map((item) => item.trim())
+              .find((item) => item.startsWith(prefix))
+              ?.slice(prefix.length) || "";
+          } catch {
+            return "";
+          }
+        }
+        function readSession() {
+          try {
+            return JSON.parse(localStorage.getItem(sessionKey) || decodeURIComponent(readCookie(sessionKey) || "") || "null") || {};
+          } catch {
+            return {};
+          }
+        }
+        function showBootstrapDiagnostic(level, title, lines = []) {
+          const panel = node("cloudSyncDiagnostic");
+          const message = node("videoOpsMessage");
+          if (message) message.textContent = title;
+          if (!panel) return;
+          panel.hidden = false;
+          panel.className = `sync-diagnostic ${level || "warn"}`;
+          panel.innerHTML = [
+            `<strong>${escapeText(title)}｜${pageVersion}</strong>`,
+            ...lines.map((line) => `<span>${escapeText(line)}</span>`)
+          ].join("");
+        }
+        async function readCloudDirectly() {
+          const session = readSession();
+          const token = session.cloudApiToken || "";
+          const url = `${location.origin}/api/module-data?storeKey=${encodeURIComponent(storeKey)}`;
+          if (!token) {
+            return { ok: false, status: 401, data: null, message: "当前浏览器没有云端登录 token，请退出工作台重新登录。" };
+          }
+          const response = await fetch(url, {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include"
+          });
+          const text = await response.text();
+          let data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch {
+            data = text;
+          }
+          return { ok: response.ok, status: response.status, data };
+        }
+        function payloadCounts(payload = {}) {
+          const source = payload && typeof payload === "object" ? payload : {};
+          return {
+            accounts: Array.isArray(source.accounts) ? source.accounts.length : 0,
+            accountAudits: Array.isArray(source.accountAudits) ? source.accountAudits.length : (Array.isArray(source.accountScans) ? source.accountScans.length : 0),
+            snapshots: Array.isArray(source.snapshots) ? source.snapshots.length : (Array.isArray(source.videos) ? source.videos.length : 0)
+          };
+        }
+        window.__jrcVideoManualSync = async function () {
+          const button = node("refreshCloudButton");
+          if (button) {
+            button.disabled = true;
+            button.textContent = "正在同步...";
+          }
+          showBootstrapDiagnostic("warn", "正在同步云端短视频数据", ["启动级同步函数已接管按钮，正在读取云端。"]);
+          try {
+            if (window.__jrcVideoHydrateCloudReal) {
+              await window.__jrcVideoHydrateCloudReal({ manual: true });
+              return;
+            }
+            const result = window.JRC_CLOUD?.readModuleData
+              ? await window.JRC_CLOUD.readModuleData(storeKey)
+              : await readCloudDirectly();
+            if (!result?.ok) {
+              const status = result?.status || result?.error || result?.reason || "未知状态";
+              showBootstrapDiagnostic("failed", "云端同步失败", [
+                `接口状态：${status}`,
+                result?.message || (status === 401 ? "登录凭证失效，请退出工作台后重新登录。" : "请把这块截图发给我继续查。")
+              ]);
+              return;
+            }
+            if (!result.data?.found || !result.data?.payload) {
+              showBootstrapDiagnostic("warn", "云端没有找到短视频数据", [
+                `接口状态：HTTP ${result.status || 200}`,
+                "接口已经连通，但云端没有返回短视频 payload。"
+              ]);
+              return;
+            }
+            const payload = result.data.payload;
+            const counts = payloadCounts(payload);
+            localStorage.setItem(storeKey, JSON.stringify(payload));
+            if (node("metricAccounts")) node("metricAccounts").textContent = counts.accounts;
+            if (node("metricVideos")) node("metricVideos").textContent = counts.snapshots;
+            showBootstrapDiagnostic(counts.snapshots ? "success" : "warn", "云端已读取到短视频数据", [
+              `云端原始：账号 ${counts.accounts} 个，账号体检 ${counts.accountAudits} 条，视频快照 ${counts.snapshots} 条。`,
+              "数据已写入本机缓存；如果下方列表还没展开，请刷新一次短视频页面。"
+            ]);
+          } catch (error) {
+            showBootstrapDiagnostic("failed", "云端同步异常", [error?.message || String(error || "未知错误")]);
+          } finally {
+            if (button) {
+              button.disabled = false;
+              button.textContent = "同步云端";
+            }
+          }
+        };
+        window.addEventListener("error", (event) => {
+          showBootstrapDiagnostic("failed", "短视频页面脚本异常", [event?.message || "未知脚本错误"]);
+        });
+        window.addEventListener("unhandledrejection", (event) => {
+          showBootstrapDiagnostic("failed", "短视频页面异步异常", [event?.reason?.message || event?.reason || "未知异步错误"]);
+        });
+      })();
+    </script>
     <script src="/jrcedu/portal/cloud-api.js?v=20260623b"></script>
     <script src="/jrcedu/portal/auth.js?v=20260703a"></script>
     <script src="/jrcedu/portal/business-modules.js?v=20260703a"></script>
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704c";
+      const PAGE_VERSION = "20260704d";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
       ];
       const byId = (id) => document.getElementById(id);
-      const currentEmployee = window.JRC_CURRENT_EMPLOYEE || {};
+      const videoOpsCurrentEmployee = window.JRC_CURRENT_EMPLOYEE || {};
       let state = readLocalState();
       let editingAccountId = "";
       let benchmarkLibrary = [];
@@ -1203,6 +1335,7 @@
           }
         }
       }
+      window.__jrcVideoHydrateCloudReal = hydrateCloud;
       window.__jrcVideoManualSync = () => hydrateCloud({ manual: true });
 
       function videoKey(row) {
@@ -1967,9 +2100,9 @@
             modeLabel: "短视频运营专家报告",
             target: "短视频系统",
             text: buildVideoOpsAiInput(),
-            operatorName: currentEmployee.name || "",
-            operatorUsername: currentEmployee.username || "",
-            operatorRole: currentEmployee.role || ""
+            operatorName: videoOpsCurrentEmployee.name || "",
+            operatorUsername: videoOpsCurrentEmployee.username || "",
+            operatorRole: videoOpsCurrentEmployee.role || ""
           });
           if (!result?.ok || !result.data?.result) {
             throw new Error(result?.data?.message || result?.data?.error || "MiniMax 没有返回专家报告。");
