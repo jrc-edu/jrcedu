@@ -13,6 +13,7 @@
     "video:run": "node scripts/video-ops-agent.mjs run",
     "video:rebuild": "node scripts/video-ops-agent.mjs run --fresh --max-videos 30",
     "video:own-deep": "node scripts/video-ops-agent.mjs run --fresh --max-videos 500 --deep-own --no-benchmarks --scan-mode 自有账号整夜深挖",
+    "video:discover-api": "node scripts/video-ops-agent.mjs collect --fresh --max-videos 80 --deep-own --no-benchmarks --scan-mode 自有账号接口发现",
     "video:overnight": "node scripts/video-ops-agent.mjs run --fresh --max-videos 500 --deep-own --no-benchmarks --scan-mode 自有账号整夜深挖",
     "video:daily": "node scripts/video-ops-agent.mjs run --max-videos 40 --deep-own --no-benchmarks --scan-mode 日常轻量巡检",
     "video:weekly": "node scripts/video-ops-agent.mjs run --max-videos 120 --deep-own --no-benchmarks --scan-mode 每周阶段复盘",

@@ -18,7 +18,7 @@ const DEFAULT_CONFIG_PATH = path.join(DEFAULT_DATA_DIR, "config.json");
 const DEFAULT_CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const DEFAULT_BENCHMARK_ACCOUNTS_PATH = path.join(REPO_ROOT, "data", "video_benchmark_accounts.json");
 const LOGIN_HINTS = ["扫码登录", "微信扫码", "登录", "验证码", "安全验证", "请验证", "重新登录"];
-const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录|下载抖音精选|用户服务协议|平均播放时长|平均观看时长|人均观看时长|封面点击率|播放点击率|点击率|播放量|点赞量|评论量|收藏量|分享量|转发量|完播率|播放完成率|3秒留存|三秒留存|5秒留存|五秒留存|\d{1,2}:\d{2})$/i;
+const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录|下载抖音精选|用户服务协议|平均播放时长|平均观看时长|人均观看时长|封面点击率|播放点击率|点击率|播放量|点赞量|评论量|收藏量|分享量|转发量|完播率|播放完成率|3秒留存|三秒留存|5秒留存|五秒留存|\d{1,2}:\d{2}|\d+(?:\.\d+)?\s*(?:万|w)?)$/i;
 const INVALID_VIDEO_URL_RE = /^(javascript:|mailto:|tel:|#)|developers\.weixin\.qq\.com|tencent\.com\/?$|weixin\.qq\.com\/cgi-bin\/readtemplate/i;
 const GENERIC_VIDEO_CARD_SELECTOR = [
   "article",
@@ -560,6 +560,193 @@ function extractMetricsFromSignals(signals) {
   return Object.fromEntries(Object.keys(METRIC_KEY_PATTERNS).map((key) => [key, metricValueFromSignals(signals, key)]));
 }
 
+const API_TITLE_KEY_RE = /(^|_)(title|desc|description|caption|content|text|name)(_|$)|aweme_desc|item_title|video_title|post_title/i;
+const API_ID_KEY_RE = /(^|_)(id|item_id|aweme_id|video_id|post_id|group_id|material_id)(_|$)/i;
+const API_URL_KEY_RE = /url|href|share|play_addr|download_addr|video_addr|uri/i;
+const API_TIME_KEY_RE = /create.*time|publish.*time|post.*time|release.*time|create_at|publish_at|published_at|发布时间|创建时间/i;
+
+function pickApiStringByKey(value, pattern, depth = 0) {
+  if (depth > 4 || value == null) return "";
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 12)) {
+      const picked = pickApiStringByKey(item, pattern, depth + 1);
+      if (picked) return picked;
+    }
+    return "";
+  }
+  if (typeof value !== "object") return "";
+  for (const [key, item] of Object.entries(value)) {
+    if (SENSITIVE_KEY_RE.test(key)) continue;
+    if (pattern.test(key) && (typeof item === "string" || typeof item === "number")) {
+      const text = normalizeText(item);
+      if (text) return text;
+    }
+  }
+  for (const [key, item] of Object.entries(value).slice(0, 80)) {
+    if (SENSITIVE_KEY_RE.test(key)) continue;
+    if (item && typeof item === "object") {
+      const picked = pickApiStringByKey(item, pattern, depth + 1);
+      if (picked) return picked;
+    }
+  }
+  return "";
+}
+
+function pickDirectApiStringByKey(value, pattern) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  for (const [key, item] of Object.entries(value)) {
+    if (SENSITIVE_KEY_RE.test(key)) continue;
+    if (pattern.test(key) && (typeof item === "string" || typeof item === "number")) {
+      const text = normalizeText(item);
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
+function pickApiTitle(value) {
+  const raw = pickApiStringByKey(value, API_TITLE_KEY_RE);
+  const lines = String(raw || "")
+    .split(/\n|\r| {2,}/)
+    .map(normalizeText)
+    .filter((line) => line.length >= 4 && line.length <= 140)
+    .filter((line) => !INVALID_VIDEO_TITLE_RE.test(line))
+    .filter((line) => !/登录|首页|消息|设置|数据|管理|创作者|发布|扫码|播放量|点赞|评论|收藏|转发|分享|曝光|展现|完播|留存/.test(line));
+  return lines[0] || "";
+}
+
+function pickApiUrl(value) {
+  const raw = pickApiStringByKey(value, API_URL_KEY_RE);
+  if (isNavigableHttpUrl(raw)) return raw;
+  return "";
+}
+
+function pickApiPublishedAt(value) {
+  const raw = pickApiStringByKey(value, API_TIME_KEY_RE);
+  if (!raw) return "";
+  const number = Number(raw);
+  if (Number.isFinite(number) && number > 0) {
+    const ms = number > 100000000000 ? number : number > 1000000000 ? number * 1000 : 0;
+    if (ms) return new Date(ms).toISOString();
+  }
+  return extractPublishedAt(raw);
+}
+
+function metricValueFromObject(value, metricKey, depth = 0) {
+  if (depth > 6 || value == null) return 0;
+  const patterns = METRIC_KEY_PATTERNS[metricKey] || [];
+  let best = 0;
+  if (Array.isArray(value)) {
+    value.slice(0, 120).forEach((item) => {
+      best = Math.max(best, metricValueFromObject(item, metricKey, depth + 1));
+    });
+    return best;
+  }
+  if (typeof value !== "object") return 0;
+  Object.entries(value).slice(0, 120).forEach(([key, item]) => {
+    if (SENSITIVE_KEY_RE.test(key)) return;
+    if (patterns.some((pattern) => pattern.test(key))) {
+      const parsed = metricKey === "avgWatchSeconds" || metricKey === "videoDurationSeconds"
+        ? parseDurationValue(item) || parseNumber(item)
+        : parseNumber(item);
+      if (Number(parsed) > best) best = Number(parsed);
+    }
+    if (item && typeof item === "object") {
+      best = Math.max(best, metricValueFromObject(item, metricKey, depth + 1));
+    }
+  });
+  return best;
+}
+
+function extractMetricsFromObject(value) {
+  return Object.fromEntries(Object.keys(METRIC_KEY_PATTERNS).map((key) => [key, metricValueFromObject(value, key)]));
+}
+
+function collectApiCandidateObjects(value, rows = [], depth = 0) {
+  if (rows.length >= 1200 || depth > 8 || value == null) return rows;
+  if (Array.isArray(value)) {
+    value.slice(0, 1000).forEach((item) => collectApiCandidateObjects(item, rows, depth + 1));
+    return rows;
+  }
+  if (typeof value !== "object") return rows;
+  const title = pickApiTitle(value);
+  const metrics = extractMetricsFromObject(value);
+  const metricCount = Object.values(metrics).filter((item) => Number(item) > 0).length;
+  const id = pickApiStringByKey(value, API_ID_KEY_RE);
+  const url = pickApiUrl(value);
+  const publishedAt = pickApiPublishedAt(value);
+  const directTitle = pickDirectApiStringByKey(value, API_TITLE_KEY_RE);
+  const directId = pickDirectApiStringByKey(value, API_ID_KEY_RE);
+  const score = (title ? 4 : 0) + (metricCount >= 2 ? 5 : metricCount ? 2 : 0) + (id ? 2 : 0) + (url ? 1 : 0) + (publishedAt ? 1 : 0);
+  if (score >= 7 && title && metricCount && (directTitle || directId || url || publishedAt)) {
+    rows.push(value);
+  }
+  Object.entries(value).slice(0, 100).forEach(([key, item]) => {
+    if (SENSITIVE_KEY_RE.test(key)) return;
+    if (item && typeof item === "object") collectApiCandidateObjects(item, rows, depth + 1);
+  });
+  return rows;
+}
+
+function snapshotFromApiObject(object = {}, account = {}, sourceUrl = "") {
+  const title = pickApiTitle(object);
+  const metrics = extractMetricsFromObject(object);
+  const url = pickApiUrl(object);
+  const videoId = pickApiStringByKey(object, API_ID_KEY_RE) || `api-${hashText([account.platform, account.name, title, url].join("|"))}`;
+  const publishedAt = pickApiPublishedAt(object);
+  const signalLines = flattenMetricSignals(object).slice(0, 40);
+  const topic = extractTopic(`${title} ${signalLines.join(" ")}`, account.defaultTopic || "");
+  const snapshot = {
+    platform: account.platform,
+    accountType: account.accountType || "自有账号",
+    accountName: account.name,
+    owner: account.owner || "",
+    videoId: normalizeText(videoId).slice(0, 120),
+    title,
+    url,
+    topic,
+    contentTags: inferVideoTags({ title, topic, ...metrics }),
+    publishedAt,
+    capturedAt: nowIso(),
+    ...metrics,
+    platformAdvice: "",
+    trafficSourceLines: signalLines.filter((line) => /流量|推荐|搜索|同城|关注|主页|粉丝|附近|朋友|来源|入口/.test(line)).slice(0, 8),
+    searchKeywords: signalLines.filter((line) => /搜索词|关键词|搜索|初一|初二|初三|数学|科学|暑假|提分|几何|计算|奥数|培优|小升初|中考/.test(line)).slice(0, 8),
+    officialMetricLines: signalLines.slice(0, 30),
+    apiSignalLines: signalLines,
+    deepSources: [normalizeText(sourceUrl).split("?")[0]].filter(Boolean).slice(0, 8),
+    source: "creator-center-api-json"
+  };
+  snapshot.dataCompleteness = metricCompleteness(snapshot);
+  snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId || snapshot.url || snapshot.title, snapshot.capturedAt].join("|"))}`;
+  return snapshot;
+}
+
+function dedupeApiSnapshots(rows = []) {
+  const map = new Map();
+  rows.filter(Boolean).forEach((row) => {
+    const key = stableSnapshotKey(row);
+    if (!key.replace(/\|/g, "")) return;
+    const existing = map.get(key);
+    if (!existing || snapshotConfidence(row) > snapshotConfidence(existing) || metricCompleteness(row).score > metricCompleteness(existing).score) {
+      map.set(key, row);
+    }
+  });
+  return [...map.values()];
+}
+
+function apiSnapshotsFromRecords(records = [], account = {}) {
+  const rows = [];
+  records.forEach((record) => {
+    const candidates = collectApiCandidateObjects(record.json || {});
+    candidates.forEach((object) => {
+      const snapshot = snapshotFromApiObject(object, account, record.url);
+      if (isTrustedSnapshot(snapshot)) rows.push(snapshot);
+    });
+  });
+  return dedupeApiSnapshots(rows);
+}
+
 function mergeMetricObjects(primary = {}, fallback = {}) {
   const merged = { ...primary };
   Object.keys(METRIC_KEY_PATTERNS).forEach((key) => {
@@ -596,20 +783,23 @@ function metricCompleteness(row = {}) {
 function attachApiCapture(page, label = "") {
   const records = [];
   const handler = async (response) => {
-    if (records.length >= 80) return;
+    if (records.length >= 160) return;
     const url = response.url();
     if (!/creator|douyin|aweme|channels|weixin|data|stat|analysis|metric|video|item|post|feed|dashboard/i.test(url)) return;
     const contentType = response.headers()["content-type"] || "";
     if (!/json|javascript|text/i.test(contentType)) return;
     try {
-      const json = contentType.includes("json") ? await response.json() : JSON.parse(await response.text());
+      const text = await response.text();
+      if (!text || text.length > 3000000) return;
+      const json = JSON.parse(text);
       const signalLines = flattenMetricSignals(json).slice(0, 30);
       if (!signalLines.length) return;
       records.push({
         label,
         url: url.split("?")[0].slice(0, 180),
         capturedAt: nowIso(),
-        signalLines
+        signalLines,
+        json
       });
     } catch {
       // Some endpoints return script/text or blocked bodies. Ignore quietly.
@@ -623,6 +813,9 @@ function attachApiCapture(page, label = "") {
     },
     sources() {
       return records.map((record) => record.url).filter((url, index, arr) => arr.indexOf(url) === index).slice(0, 12);
+    },
+    apiSnapshots(account = {}) {
+      return apiSnapshotsFromRecords(records, account);
     },
     detach() {
       page.off("response", handler);
@@ -839,6 +1032,46 @@ async function scrollToLoadVideoList(page, config, maxVideos, onProgress = async
   }
   await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
   await randomDelay(config);
+}
+
+async function clickLoadMoreControls(page) {
+  const more = page.locator("button, a, [role='button']").filter({ hasText: /加载更多|查看更多|更多作品|更多视频|下一页|展开更多/ }).first();
+  if (await more.count().catch(() => 0)) {
+    const text = normalizeText(await more.innerText({ timeout: 1000 }).catch(() => ""));
+    if (text && !UNSAFE_CONTROL_RE.test(text)) {
+      await more.click({ timeout: 2500 }).catch(() => {});
+      return true;
+    }
+  }
+  return false;
+}
+
+async function scrollVideoListOnce(page) {
+  return await page.evaluate(() => {
+    const visible = (el) => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 120 && rect.height > 120;
+    };
+    const before = {
+      y: window.scrollY || 0,
+      height: document.body?.scrollHeight || 0,
+      textLength: (document.body?.innerText || "").length,
+      anchors: document.querySelectorAll("a[href]").length
+    };
+    const containers = Array.from(document.querySelectorAll("main, section, div, [role='main'], [class*='scroll'], [class*='Scroll'], [class*='list'], [class*='List'], [class*='content'], [class*='Content']"))
+      .filter((el) => visible(el) && el.scrollHeight > el.clientHeight + 120)
+      .sort((left, right) => (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight))
+      .slice(0, 6);
+    containers.forEach((el) => {
+      el.scrollTop += Math.max(700, Math.floor(el.clientHeight * 0.85));
+    });
+    window.scrollBy(0, Math.max(900, Math.floor(window.innerHeight * 0.95)));
+    return {
+      ...before,
+      scrollableContainers: containers.length
+    };
+  }).catch(() => ({ y: 0, height: 0, textLength: 0, anchors: 0, scrollableContainers: 0 }));
 }
 
 async function readSelector(page, selector) {
@@ -1164,12 +1397,10 @@ async function extractAccountAudit(page, account, config, deepSignals = {}) {
   return audit;
 }
 
-async function collectVideoCards(page, account, config, onProgress = async () => {}) {
-  const maxVideos = Number(account.maxVideosPerRun || config.limits?.maxVideosPerAccount || 30);
-  const listSelectors = account.selectors?.videoList || {};
-  await scrollToLoadVideoList(page, config, maxVideos, onProgress);
+async function captureVisibleVideoCards(page, account, listSelectors = {}, maxVideos = 30) {
+  const cards = [];
   if (listSelectors.card) {
-    const cards = await page.locator(listSelectors.card).evaluateAll((nodes, payload) => nodes.slice(0, payload.limit).map((node) => {
+    const selectorCards = await page.locator(listSelectors.card).evaluateAll((nodes, payload) => nodes.slice(0, payload.limit).map((node) => {
       const selectors = payload.selectors || {};
       const pick = (selector) => selector ? node.querySelector(selector)?.textContent?.trim() || "" : "";
       const linkNode = selectors.url ? node.querySelector(selectors.url) : node.querySelector("a[href]");
@@ -1181,7 +1412,7 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
         priority: 10
       };
     }), { selectors: listSelectors, limit: Math.max(260, Math.min(720, maxVideos * 2)) }).catch(() => []);
-    return dedupeCards(cards, maxVideos);
+    cards.push(...selectorCards);
   }
 
   const anchors = await page.locator("a[href]").evaluateAll((nodes) => nodes.map((node) => ({
@@ -1191,9 +1422,10 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
     rawText: (node.closest("li,article,tr,[role='listitem']")?.innerText || node.closest("div")?.innerText || node.textContent || "").trim(),
     priority: 4
   }))).catch(() => []);
+  cards.push(...anchors);
   const genericCards = [];
   const locator = page.locator(GENERIC_VIDEO_CARD_SELECTOR);
-  const count = Math.min(await locator.count().catch(() => 0), Math.max(520, Math.min(900, maxVideos * 3)));
+  const count = Math.min(await locator.count().catch(() => 0), Math.max(420, Math.min(900, maxVideos * 3)));
   for (let index = 0; index < count; index += 1) {
     const item = await locator.nth(index).evaluate((node) => {
       const rect = node.getBoundingClientRect();
@@ -1214,8 +1446,6 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
     if (!item) continue;
     const normalized = normalizeVideoCard({
       ...item,
-      cardSelector: GENERIC_VIDEO_CARD_SELECTOR,
-      cardIndex: index,
       priority: 1
     });
     if (normalized.text.length < 8 || normalized.text.length > 1500) continue;
@@ -1223,7 +1453,52 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
     if (/登录|扫码|验证码|帮助中心|官方文档|运营规范/.test(normalized.title)) continue;
     genericCards.push(normalized);
   }
-  return dedupeCards([...anchors, ...genericCards], maxVideos);
+  cards.push(...genericCards);
+  return cards;
+}
+
+async function collectVideoCards(page, account, config, onProgress = async () => {}) {
+  const maxVideos = Number(account.maxVideosPerRun || config.limits?.maxVideosPerAccount || 30);
+  const listSelectors = account.selectors?.videoList || {};
+  const collected = [];
+  const target = Math.max(1, maxVideos);
+  const maxRounds = target >= 300 ? 220 : target >= 150 ? 140 : target >= 80 ? 90 : 45;
+  let lastCount = 0;
+  let noGrowthRounds = 0;
+  let lastMarker = null;
+
+  await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
+  await randomDelay(config);
+
+  for (let round = 0; round < maxRounds; round += 1) {
+    const visibleCards = await captureVisibleVideoCards(page, account, listSelectors, target);
+    collected.push(...visibleCards);
+    const deduped = dedupeCards(collected, target);
+    const currentCount = deduped.length;
+    if (round % 4 === 0 || currentCount >= target) {
+      await onProgress(`深度加载作品列表 ${round + 1}/${maxRounds}，已识别 ${currentCount}/${target} 条候选`, { increment: false });
+    }
+    if (currentCount >= target) return deduped;
+    if (currentCount <= lastCount) noGrowthRounds += 1;
+    else noGrowthRounds = 0;
+    lastCount = Math.max(lastCount, currentCount);
+
+    await clickLoadMoreControls(page);
+    const marker = await scrollVideoListOnce(page);
+    await randomDelay(config);
+    const markerKey = [marker.y, marker.height, marker.textLength, marker.anchors].join("|");
+    if (lastMarker === markerKey) noGrowthRounds += 1;
+    lastMarker = markerKey;
+
+    if (round >= 24 && noGrowthRounds >= 18) {
+      await onProgress(`作品列表连续多轮没有新增，停止加载；本轮识别 ${currentCount} 条候选`, { increment: false });
+      break;
+    }
+  }
+
+  const finalCards = await captureVisibleVideoCards(page, account, listSelectors, target);
+  collected.push(...finalCards);
+  return dedupeCards(collected, target);
 }
 
 async function extractVideoSnapshot(page, account, card, config, detailSignals = {}) {
@@ -1530,6 +1805,32 @@ async function collectAccount(context, account, config, onProgress = async () =>
       if (!cards.length) {
         const screenshot = await saveEvidence(page, config, `${account.name}-video-list-no-cards`);
         warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要补充 selectors，或后台列表当前没有展示视频数据。截图：${screenshot}`);
+      }
+      const apiSnapshots = pageApiCapture.apiSnapshots(account);
+      let apiImported = 0;
+      for (const snapshot of apiSnapshots) {
+        const duplicate = snapshotResumeKeys(snapshot).some((key) => resumeState?.snapshotKeys?.has(key));
+        if (duplicate) continue;
+        snapshot.confidence = snapshotConfidence(snapshot);
+        snapshot.source = `${snapshot.source || "creator-center-api-json"}+auto-trusted`;
+        snapshots.push(snapshot);
+        apiImported += 1;
+        snapshotResumeKeys(snapshot).forEach((key) => resumeState?.snapshotKeys?.add(key));
+        if (apiImported % 20 === 0) {
+          await onProgress(`已从后台网络JSON入库 ${apiImported} 条作品`, {
+            currentAccount: account.name,
+            currentPlatform: account.platform,
+            increment: false
+          });
+        }
+        await onCheckpoint({ account, snapshot, accountAudits, snapshots, warnings });
+      }
+      if (apiImported) {
+        await onProgress(`后台网络JSON优先入库完成：${apiImported} 条作品`, {
+          currentAccount: account.name,
+          currentPlatform: account.platform,
+          increment: false
+        });
       }
       for (let cardIndex = 0; cardIndex < cards.length; cardIndex += 1) {
         const card = cards[cardIndex];
