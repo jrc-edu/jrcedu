@@ -152,6 +152,16 @@
       .quick-rank-item span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
       .quick-rank-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
       .compact-count { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .signal-ranking-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+      .signal-card { display: flex; flex-direction: column; gap: 10px; min-height: 188px; padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
+      .signal-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.055); }
+      .signal-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.055); }
+      .signal-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.045); }
+      .signal-card strong { display: block; font-size: 14px; line-height: 1.4; }
+      .signal-card p { color: var(--muted); font-size: 12px; line-height: 1.55; }
+      .signal-card ol { display: grid; gap: 7px; margin: 0; padding-left: 18px; color: var(--ink); font-size: 12px; line-height: 1.5; }
+      .signal-card li span { display: block; color: var(--muted); }
+      .signal-card .button { width: 100%; min-height: 34px; margin-top: auto; font-size: 12px; }
       .topic-performance-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
       .topic-performance-card { padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
       .topic-performance-card strong { display: block; font-size: 14px; line-height: 1.4; }
@@ -213,6 +223,7 @@
         .benchmark-library-list { grid-template-columns: 1fr; }
         .strategy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .signal-ranking-grid, .topic-performance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
@@ -220,7 +231,7 @@
         .page-version-floating { top: 8px; right: 8px; min-height: 28px; padding: 0 9px; font-size: 11px; }
         .topbar { align-items: flex-start; flex-direction: column; }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
-        .strategy-grid, .readiness-grid { grid-template-columns: 1fr; }
+        .strategy-grid, .readiness-grid, .signal-ranking-grid, .topic-performance-grid { grid-template-columns: 1fr; }
         .span-3 { grid-column: auto; }
         .button, .nav-link { width: 100%; min-height: 46px; }
         .video-card-head { flex-direction: column; }
@@ -229,7 +240,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260704k</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260704l</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -252,11 +263,11 @@
             <span class="tag">数学教培诊断</span>
             <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
-            <span class="tag" id="videoOpsVersionTag">页面版本 20260704k</span>
+            <span class="tag" id="videoOpsVersionTag">页面版本 20260704l</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
-            <strong>页面版本 20260704k｜等待同步</strong>
+            <strong>页面版本 20260704l｜等待同步</strong>
             <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
           </div>
         </article>
@@ -553,6 +564,7 @@
                 </select>
               </div>
             </div>
+            <div class="signal-ranking-grid" id="signalRankingGrid"></div>
             <div class="decision-list" id="videoQualityList"></div>
             <div class="topic-performance-grid" id="topicPerformanceGrid"></div>
             <div class="quick-rank-list" id="priorityVideoList"></div>
@@ -598,7 +610,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704k";
+        const pageVersion = "20260704l";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -733,7 +745,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704k";
+      const PAGE_VERSION = "20260704l";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -2729,6 +2741,108 @@
         ].join("｜");
       }
 
+      function analysisScopeVideos() {
+        const platform = byId("platformFilter")?.value || "";
+        const account = byId("accountFilter")?.value || "";
+        return latestSnapshots()
+          .filter((row) => row.accountType !== "同行账号")
+          .filter((row) => !platform || row.platform === platform)
+          .filter((row) => !account || row.accountName === account);
+      }
+
+      function signalMetricText(row, type) {
+        if (type === "brand") return `播放 ${formatNumber(row.views)}｜本地曝光`;
+        if (type === "fans") return `涨粉 ${formatNumber(row.followersGained || 0)}｜每万播放 ${hasFollowerSignal(row) ? perWan(followerRate(row)) : "-"}`;
+        if (type === "leads") return `咨询线索 ${formatNumber(leadCount(row))}｜每万播放 ${hasLeadSignal(row) ? perWan(leadRate(row)) : "-"}`;
+        if (type === "saveShare") return `收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}｜每万播放 ${perWan(saveShareRate(row))}`;
+        return compactVideoMetrics(row);
+      }
+
+      function signalRankingRows(type) {
+        const rows = analysisScopeVideos();
+        const sorted = rows.slice().sort((left, right) => {
+          if (type === "brand") return (right.views || 0) - (left.views || 0);
+          if (type === "fans") return (right.followersGained || 0) - (left.followersGained || 0) || followerRate(right) - followerRate(left) || (right.views || 0) - (left.views || 0);
+          if (type === "leads") return leadCount(right) - leadCount(left) || leadRate(right) - leadRate(left) || (right.profileVisits || 0) - (left.profileVisits || 0);
+          if (type === "saveShare") return ((right.favorites || 0) + (right.shares || 0)) - ((left.favorites || 0) + (left.shares || 0)) || saveShareRate(right) - saveShareRate(left);
+          return priorityScore(right) - priorityScore(left);
+        });
+        if (type === "fans") return sorted.filter((row) => hasFollowerSignal(row));
+        if (type === "leads") return sorted.filter((row) => hasLeadSignal(row));
+        if (type === "saveShare") return sorted.filter((row) => (row.favorites || 0) + (row.shares || 0));
+        return sorted;
+      }
+
+      function signalRankingCard(config) {
+        const rows = signalRankingRows(config.type).slice(0, 3);
+        const emptyText = config.type === "fans" ? "还没采到涨粉字段。"
+          : config.type === "leads" ? "还没采到私信/线索字段。"
+            : config.type === "saveShare" ? "还没采到收藏转发字段。"
+              : "还没有自有账号视频。";
+        return `
+          <div class="signal-card ${escapeHtml(config.tone || "")}">
+            <div>
+              <strong>${escapeHtml(config.title)}</strong>
+              <p>${escapeHtml(config.subtitle)}</p>
+            </div>
+            ${rows.length ? `
+              <ol>
+                ${rows.map((row) => `
+                  <li>
+                    ${escapeHtml(videoShortTitle(row))}
+                    <span>${escapeHtml(signalMetricText(row, config.type))}</span>
+                  </li>
+                `).join("")}
+              </ol>
+            ` : `<p>${escapeHtml(emptyText)}</p>`}
+            <button class="button secondary" type="button" data-signal-sort="${escapeHtml(config.sortKey)}" data-signal-type="${escapeHtml(config.filterType || "")}">${escapeHtml(config.buttonText)}</button>
+          </div>
+        `;
+      }
+
+      function renderSignalRankings() {
+        const box = byId("signalRankingGrid");
+        if (!box) return;
+        box.innerHTML = [
+          signalRankingCard({
+            type: "brand",
+            title: "品牌播放榜",
+            subtitle: "高播放负责本地影响力和认知扩散。",
+            tone: "good",
+            sortKey: "views",
+            filterType: "",
+            buttonText: "看播放完整榜"
+          }),
+          signalRankingCard({
+            type: "fans",
+            title: "涨粉 / C粉榜",
+            subtitle: "看哪类内容最能把路人变成粉丝。",
+            tone: "good",
+            sortKey: "fans",
+            filterType: "fans",
+            buttonText: "看涨粉完整榜"
+          }),
+          signalRankingCard({
+            type: "leads",
+            title: "咨询线索榜",
+            subtitle: "看哪类内容最接近招生转化。",
+            tone: "warn",
+            sortKey: "leads",
+            filterType: "leads",
+            buttonText: "看线索完整榜"
+          }),
+          signalRankingCard({
+            type: "saveShare",
+            title: "收藏转发榜",
+            subtitle: "看家长愿意保存、转给孩子的内容。",
+            tone: "",
+            sortKey: "saveShare",
+            filterType: "",
+            buttonText: "看收藏转发榜"
+          })
+        ].join("");
+      }
+
       function renderPriorityVideos() {
         const box = byId("priorityVideoList");
         if (!box) return;
@@ -3379,6 +3493,7 @@
         renderAdvantagePlan();
         renderAccounts();
         renderAccountAudit();
+        renderSignalRankings();
         renderVideoQuality();
         renderTopicPerformance();
         renderPriorityVideos();
@@ -3476,6 +3591,7 @@
       }
 
       function refreshVideoLists() {
+        renderSignalRankings();
         renderTopicPerformance();
         renderPriorityVideos();
         renderVideos();
@@ -3641,6 +3757,21 @@
       function bindEvents() {
         byId("accountForm").addEventListener("submit", handleAccountSubmit);
         document.addEventListener("click", async (event) => {
+          const signalButton = event.target.closest("[data-signal-sort]");
+          if (signalButton) {
+            const sortKey = signalButton.dataset.signalSort || "priority";
+            const filterType = signalButton.dataset.signalType || "";
+            const sortSelect = byId("videoSortFilter");
+            const typeSelect = byId("videoTypeFilter");
+            if (sortSelect) sortSelect.value = sortKey;
+            if (typeSelect) typeSelect.value = filterType;
+            refreshVideoLists();
+            byId("priorityVideoList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            byId("videoOpsMessage").textContent = filterType
+              ? "已切换到对应榜单，下面只显示有这个数据的视频。"
+              : "已切换到对应榜单排序。";
+            return;
+          }
           if (event.target.closest("[data-benchmark-action='import']")) {
             await loadBenchmarkAccountLibrary({ persist: true });
             byId("videoOpsMessage").textContent = "标杆账号库已检查并合并；视频号对应账号保持待匹配，等确认后再补。";
