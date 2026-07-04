@@ -114,10 +114,24 @@
       th { color: var(--muted); background: rgba(13,148,136,0.06); font-weight: 900; white-space: nowrap; }
       tr:last-child td { border-bottom: 0; }
       .video-list { display: grid; gap: 12px; margin-top: 14px; }
-      .video-card { border: 1px solid var(--line); border-radius: 18px; padding: 15px; background: #fff; }
+      .video-card { border: 1px solid var(--line); border-radius: 18px; padding: 0; background: #fff; overflow: hidden; }
+      .video-card summary { list-style: none; cursor: pointer; padding: 14px 15px; }
+      .video-card summary::-webkit-details-marker { display: none; }
+      .video-card[open] summary { border-bottom: 1px solid var(--line); background: rgba(13,148,136,0.035); }
+      .video-card-body { padding: 15px; }
       .video-card-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+      .rank-badge { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 900; font-size: 14px; }
+      .video-summary-line { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+      .video-summary-main { min-width: 0; flex: 1; }
       .video-title { font-size: 16px; font-weight: 900; color: var(--ink); }
       .video-meta { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .video-one-line { margin-top: 8px; color: var(--ink); font-size: 13px; line-height: 1.55; }
+      .quick-rank-list { display: grid; gap: 10px; margin-top: 12px; }
+      .quick-rank-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+      .quick-rank-item strong { display: block; font-size: 14px; line-height: 1.35; }
+      .quick-rank-item span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .quick-rank-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+      .compact-count { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
       .score { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-dark); font-weight: 900; flex: 0 0 auto; }
       .score.warn { background: rgba(180,83,9,0.10); color: var(--warn); }
       .score.danger { background: rgba(185,28,28,0.10); color: var(--danger); }
@@ -209,11 +223,11 @@
             <span class="tag">数学教培诊断</span>
             <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
-            <span class="tag" id="videoOpsVersionTag">页面版本 20260704h</span>
+            <span class="tag" id="videoOpsVersionTag">页面版本 20260704i</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
-            <strong>页面版本 20260704h｜等待同步</strong>
+            <strong>页面版本 20260704i｜等待同步</strong>
             <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
           </div>
         </article>
@@ -489,14 +503,29 @@
                 <select id="accountFilter"><option value="">全部账号</option></select>
                 <select id="videoTypeFilter">
                   <option value="">全部视频</option>
+                  <option value="saved">只看已收藏</option>
                   <option value="strong">只看可复拍</option>
                   <option value="weak">只看需复盘</option>
+                  <option value="fans">只看涨粉强</option>
+                  <option value="leads">只看咨询线索强</option>
                   <option value="own">只看自有账号</option>
                   <option value="competitor">只看同行公开</option>
+                </select>
+                <select id="videoSortFilter">
+                  <option value="priority">按处理优先级</option>
+                  <option value="fans">按涨粉能力</option>
+                  <option value="leads">按咨询线索</option>
+                  <option value="views">按播放量</option>
+                  <option value="saveShare">按收藏转发</option>
+                  <option value="score">按诊断分</option>
+                  <option value="weak">按低分复盘</option>
+                  <option value="latest">按最新采集</option>
                 </select>
               </div>
             </div>
             <div class="decision-list" id="videoQualityList"></div>
+            <div class="quick-rank-list" id="priorityVideoList"></div>
+            <div class="compact-count" id="videoListCount"></div>
             <div class="video-list" id="videoList"></div>
           </article>
         </div>
@@ -538,7 +567,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704h";
+        const pageVersion = "20260704i";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -673,7 +702,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704h";
+      const PAGE_VERSION = "20260704i";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -1115,6 +1144,8 @@
           deepSources: normalizeTextList(row.deepSources || row["深采来源"]),
           dataCompleteness: normalizeCompleteness(row.dataCompleteness || row["数据完整度"]),
           notes: normalizeText(row.notes || row.note || row["备注"]),
+          saved: row.saved === true || row["收藏"] === true,
+          savedAt: normalizeText(row.savedAt || row["收藏时间"]),
           benchmarkMatched: row.benchmarkMatched === true,
           source: normalizeText(row.source) || "robot",
           importedAt: normalizeText(row.importedAt) || new Date().toISOString()
@@ -1492,6 +1523,30 @@
         return safeRate((row.messages || 0) + (row.leads || 0) + (row.profileVisits || 0) * 0.25, row.views || 0);
       }
 
+      function leadCount(row) {
+        return (row.messages || 0) + (row.leads || 0);
+      }
+
+      function leadRate(row) {
+        return safeRate(leadCount(row), row.views || 0);
+      }
+
+      function followerRate(row) {
+        return safeRate(row.followersGained || 0, row.views || 0);
+      }
+
+      function perWan(value) {
+        return ((Number(value) || 0) * 10000).toFixed(value >= 0.001 ? 1 : 2);
+      }
+
+      function hasFollowerSignal(row) {
+        return Number(row.followersGained || 0) > 0;
+      }
+
+      function hasLeadSignal(row) {
+        return leadCount(row) > 0;
+      }
+
       function averageWatchRatio(row) {
         if (row.avgWatchSeconds && row.videoDurationSeconds) return Math.min(1.8, row.avgWatchSeconds / row.videoDurationSeconds);
         return 0;
@@ -1671,6 +1726,62 @@
         return { text: "继续观察", tone: "warn" };
       }
 
+      function isSavedVideo(row) {
+        return row.saved === true || Boolean(normalizeText(row.savedAt));
+      }
+
+      function priorityScore(row, diagnosis = diagnoseVideo(row)) {
+        const saveShare = (row.favorites || 0) + (row.shares || 0);
+        const leads = leadCount(row);
+        const fans = row.followersGained || 0;
+        const sourceBonus = row.deepSources?.length ? 8 : 0;
+        const strongBonus = isStrongVideo(row, diagnosis) ? 28 : 0;
+        const weakBonus = isReviewVideo(row, diagnosis) ? 18 : 0;
+        const savedBonus = isSavedVideo(row) ? 12 : 0;
+        return Math.round(
+          diagnosis.score * 1.15 +
+          Math.min(34, Math.log10((row.views || 0) + 1) * 7) +
+          Math.min(32, Math.log10(saveShare + 1) * 10) +
+          Math.min(40, leads * 9 + leadRate(row) * 60000) +
+          Math.min(32, fans * 6 + followerRate(row) * 45000) +
+          sourceBonus +
+          strongBonus +
+          weakBonus +
+          savedBonus
+        );
+      }
+
+      function priorityReason(row, diagnosis = diagnoseVideo(row)) {
+        const parts = [];
+        if (isSavedVideo(row)) parts.push("已收藏");
+        if (isStrongVideo(row, diagnosis)) parts.push("可复拍");
+        if (isReviewVideo(row, diagnosis)) parts.push("需复盘");
+        if (hasLeadSignal(row)) parts.push(`咨询/线索 ${leadCount(row)}，每万播放 ${perWan(leadRate(row))}`);
+        if (hasFollowerSignal(row)) parts.push(`涨粉 ${formatNumber(row.followersGained)}，每万播放 ${perWan(followerRate(row))}`);
+        if ((row.favorites || 0) + (row.shares || 0)) parts.push(`收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}`);
+        if (row.deepSources?.length) parts.push("有官方深采");
+        return parts.slice(0, 4).join("｜") || `诊断分 ${diagnosis.score}`;
+      }
+
+      function sortVideoRows(rows, sortKey = "priority") {
+        const diagnostics = new Map(rows.map((row) => [row.id || videoKey(row), diagnoseVideo(row)]));
+        const getDiagnosis = (row) => diagnostics.get(row.id || videoKey(row)) || diagnoseVideo(row);
+        const sorted = rows.slice();
+        sorted.sort((left, right) => {
+          const leftDiagnosis = getDiagnosis(left);
+          const rightDiagnosis = getDiagnosis(right);
+          if (sortKey === "fans") return (right.followersGained || 0) - (left.followersGained || 0) || followerRate(right) - followerRate(left) || (right.views || 0) - (left.views || 0);
+          if (sortKey === "leads") return leadCount(right) - leadCount(left) || leadRate(right) - leadRate(left) || (right.profileVisits || 0) - (left.profileVisits || 0);
+          if (sortKey === "views") return (right.views || 0) - (left.views || 0);
+          if (sortKey === "saveShare") return ((right.favorites || 0) + (right.shares || 0)) - ((left.favorites || 0) + (left.shares || 0));
+          if (sortKey === "score") return rightDiagnosis.score - leftDiagnosis.score || (right.views || 0) - (left.views || 0);
+          if (sortKey === "weak") return leftDiagnosis.score - rightDiagnosis.score || (left.views || 0) - (right.views || 0);
+          if (sortKey === "latest") return String(right.capturedAt || "").localeCompare(String(left.capturedAt || ""));
+          return priorityScore(right, rightDiagnosis) - priorityScore(left, leftDiagnosis) || rightDiagnosis.score - leftDiagnosis.score;
+        });
+        return sorted;
+      }
+
       function rowsForAccount(key) {
         if (!key) return [];
         return latestSnapshots().filter((row) => accountIdentity(row) === key);
@@ -1847,16 +1958,21 @@
         const platform = byId("platformFilter")?.value || "";
         const account = byId("accountFilter")?.value || "";
         const type = byId("videoTypeFilter")?.value || "";
-        return latestSnapshots().filter((row) => {
+        const sortKey = byId("videoSortFilter")?.value || "priority";
+        const rows = latestSnapshots().filter((row) => {
           if (platform && row.platform !== platform) return false;
           if (account && row.accountName !== account) return false;
           const diagnosis = diagnoseVideo(row);
+          if (type === "saved" && !isSavedVideo(row)) return false;
           if (type === "strong" && !isStrongVideo(row, diagnosis)) return false;
           if (type === "weak" && !isReviewVideo(row, diagnosis)) return false;
+          if (type === "fans" && !hasFollowerSignal(row)) return false;
+          if (type === "leads" && !hasLeadSignal(row)) return false;
           if (type === "own" && row.accountType !== "自有账号") return false;
           if (type === "competitor" && row.accountType !== "同行账号") return false;
           return true;
         });
+        return sortVideoRows(rows, sortKey);
       }
 
       function renderMetrics() {
@@ -2552,10 +2668,52 @@
         if (names.includes(current)) select.value = current;
       }
 
+      function compactVideoMetrics(row) {
+        return [
+          `播放 ${formatNumber(row.views)}`,
+          `收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}`,
+          hasFollowerSignal(row) ? `涨粉 ${formatNumber(row.followersGained)} / 每万播放 ${perWan(followerRate(row))}` : "涨粉 -",
+          hasLeadSignal(row) ? `咨询线索 ${formatNumber(leadCount(row))} / 每万播放 ${perWan(leadRate(row))}` : "咨询线索 -"
+        ].join("｜");
+      }
+
+      function renderPriorityVideos() {
+        const box = byId("priorityVideoList");
+        if (!box) return;
+        const rows = filteredVideos();
+        byId("videoListCount").textContent = rows.length
+          ? `当前筛选出 ${rows.length} 条视频。上方只显示最需要先看的前 12 条；下方档案默认收起，点开才看完整诊断。`
+          : "当前筛选条件下没有视频。";
+        const topRows = rows.slice(0, 12);
+        if (!topRows.length) {
+          box.innerHTML = `<div class="empty">暂无排行数据。</div>`;
+          return;
+        }
+        box.innerHTML = topRows.map((row, index) => {
+          const diagnosis = diagnoseVideo(row);
+          const action = videoActionLabel(row, diagnosis);
+          return `
+            <div class="quick-rank-item">
+              <span class="rank-badge">${index + 1}</span>
+              <div>
+                <strong>${escapeHtml(row.title || row.videoId || "未命名视频")}</strong>
+                <span>${escapeHtml(action.text)}｜优先级 ${priorityScore(row, diagnosis)}｜${escapeHtml(priorityReason(row, diagnosis))}</span>
+                <span>${escapeHtml(compactVideoMetrics(row))}｜诊断分 ${diagnosis.score}</span>
+              </div>
+              <div class="quick-rank-actions">
+                <button class="button secondary" type="button" data-video-action="toggle-save" data-video-id="${escapeHtml(row.id)}">${isSavedVideo(row) ? "已收藏" : "收藏"}</button>
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(row.id)}">看详情</button>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
       function renderVideos() {
         const list = byId("videoList");
         const rows = filteredVideos();
-        list.innerHTML = rows.length ? rows.map((row) => {
+        const displayRows = rows.slice(0, 60);
+        list.innerHTML = displayRows.length ? displayRows.map((row, index) => {
           const diagnosis = diagnoseVideo(row);
           const action = videoActionLabel(row, diagnosis);
           const completenessText = row.dataCompleteness?.summary
@@ -2565,22 +2723,31 @@
             ? `｜官方来源 ${row.deepSources.length} 个`
             : "";
           return `
-            <article class="video-card">
-              <div class="video-card-head">
-                <div>
-                  <div class="tag-row">
-                    <span class="badge">${escapeHtml(row.platform)}</span>
-                    <span class="badge ${row.accountType === "同行账号" ? "warn" : "good"}">${escapeHtml(row.accountType)}</span>
-                    <span class="badge ${escapeHtml(action.tone)}">${escapeHtml(action.text)}</span>
-                    ${row.topic ? `<span class="badge">${escapeHtml(row.topic)}</span>` : ""}
+            <details class="video-card" data-video-card-id="${escapeHtml(row.id)}">
+              <summary>
+                <div class="video-card-head">
+                  <div class="video-summary-line">
+                    <span class="rank-badge">${index + 1}</span>
+                    <div class="video-summary-main">
+                      <div class="tag-row">
+                        <span class="badge">${escapeHtml(row.platform)}</span>
+                        <span class="badge ${row.accountType === "同行账号" ? "warn" : "good"}">${escapeHtml(row.accountType)}</span>
+                        <span class="badge ${escapeHtml(action.tone)}">${escapeHtml(action.text)}</span>
+                        ${isSavedVideo(row) ? `<span class="badge good">已收藏</span>` : ""}
+                        ${row.topic ? `<span class="badge">${escapeHtml(row.topic)}</span>` : ""}
+                      </div>
+                      <div class="video-title" style="margin-top:8px;">${escapeHtml(row.title || row.videoId || "未命名视频")}</div>
+                      <div class="video-meta">${escapeHtml(row.accountName || "-")}｜${escapeHtml(compactVideoMetrics(row))}｜${escapeHtml(sourceLabel(row.source))}</div>
+                      <div class="video-one-line">${escapeHtml(priorityReason(row, diagnosis))}</div>
+                    </div>
                   </div>
-                  <div class="video-title" style="margin-top:8px;">${escapeHtml(row.title || row.videoId || "未命名视频")}</div>
-                  <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜${escapeHtml(sourceLabel(row.source))}｜${escapeHtml(diagnosis.historyText)}${escapeHtml(completenessText)}${escapeHtml(deepSourceText)}</div>
+                  <div class="score ${diagnosis.tone === "danger" ? "danger" : diagnosis.tone === "warn" ? "warn" : ""}">
+                    ${diagnosis.score}<small>诊断分</small>
+                  </div>
                 </div>
-                <div class="score ${diagnosis.tone === "danger" ? "danger" : diagnosis.tone === "warn" ? "warn" : ""}">
-                  ${diagnosis.score}<small>诊断分</small>
-                </div>
-              </div>
+              </summary>
+              <div class="video-card-body">
+              <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜${escapeHtml(diagnosis.historyText)}${escapeHtml(completenessText)}${escapeHtml(deepSourceText)}</div>
               <div class="video-stats">
                 <div class="stat"><span>播放</span><strong>${formatNumber(row.views)}</strong></div>
                 <div class="stat"><span>点赞</span><strong>${formatNumber(row.likes)}</strong></div>
@@ -2592,6 +2759,9 @@
                 <div class="stat"><span>收藏/转发</span><strong>${formatNumber((row.favorites || 0) + (row.shares || 0))}</strong></div>
                 <div class="stat"><span>主页访问</span><strong>${formatNumber(row.profileVisits)}</strong></div>
                 <div class="stat"><span>咨询/线索</span><strong>${formatNumber((row.messages || 0) + (row.leads || 0))}</strong></div>
+                <div class="stat"><span>涨粉</span><strong>${row.followersGained ? formatNumber(row.followersGained) : "-"}</strong></div>
+                <div class="stat"><span>每万播放线索</span><strong>${hasLeadSignal(row) ? perWan(leadRate(row)) : "-"}</strong></div>
+                <div class="stat"><span>每万播放涨粉</span><strong>${hasFollowerSignal(row) ? perWan(followerRate(row)) : "-"}</strong></div>
               </div>
               <div class="diagnosis-grid">
                 <div class="diagnosis-box"><strong>做得好的地方</strong><ul>${diagnosis.strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
@@ -2600,11 +2770,16 @@
               </div>
               <div class="actions" style="margin-top:12px;">
                 ${row.url ? `<a class="button secondary" href="${escapeHtml(row.url)}" target="_blank" rel="noopener">打开视频</a>` : ""}
+                <button class="button secondary" type="button" data-video-action="toggle-save" data-video-id="${escapeHtml(row.id)}">${isSavedVideo(row) ? "取消收藏" : "收藏"}</button>
                 <button class="button secondary" type="button" data-video-action="copy" data-video-id="${escapeHtml(row.id)}">复制诊断</button>
               </div>
-            </article>
+              </div>
+            </details>
           `;
         }).join("") : `<div class="empty">${latestAccountAudits().length ? "账号级数据已同步；当前没有有效单条视频快照。下一步需要让采集器进入作品列表/详情页补采播放、点赞、留存等单条视频数据。" : "暂无可显示视频。等 Mac mini 采集器同步数据后，这里会按视频自动生成诊断。"}</div>`;
+        if (rows.length > displayRows.length) {
+          list.insertAdjacentHTML("beforeend", `<div class="empty">已显示前 ${displayRows.length} 条。其余 ${rows.length - displayRows.length} 条先收进档案库，请用上方筛选/排序定位重点视频。</div>`);
+        }
       }
 
       function warningBuckets() {
@@ -2886,12 +3061,12 @@
         }
         const sorted = rows
           .map((row) => ({ row, diagnosis: diagnoseVideo(row) }))
-          .sort((left, right) => right.diagnosis.score - left.diagnosis.score)
+          .sort((left, right) => priorityScore(right.row, right.diagnosis) - priorityScore(left.row, left.diagnosis))
           .slice(0, 6);
         list.innerHTML = sorted.map(({ row, diagnosis }, index) => `
           <div class="mini-item">
             <strong>${index + 1}. ${escapeHtml(row.title || row.videoId)}</strong>
-            <span>${escapeHtml(row.accountName)}｜${escapeHtml(videoActionLabel(row, diagnosis).text)}｜播放 ${formatNumber(row.views)}｜收藏/转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}｜诊断分 ${diagnosis.score}</span>
+            <span>${escapeHtml(row.accountName)}｜${escapeHtml(videoActionLabel(row, diagnosis).text)}｜${escapeHtml(priorityReason(row, diagnosis))}｜诊断分 ${diagnosis.score}</span>
             <div class="bar"><i style="width:${Math.max(6, Math.min(100, diagnosis.score))}%"></i></div>
           </div>
         `).join("");
@@ -3067,6 +3242,7 @@
         renderAccounts();
         renderAccountAudit();
         renderVideoQuality();
+        renderPriorityVideos();
         renderVideos();
         renderRankings();
         renderReport();
@@ -3158,6 +3334,72 @@
         } finally {
           event.target.value = "";
         }
+      }
+
+      function refreshVideoLists() {
+        renderPriorityVideos();
+        renderVideos();
+        renderRankings();
+      }
+
+      function toggleSaveVideo(videoId) {
+        const row = state.snapshots.find((item) => item.id === videoId);
+        if (!row) return;
+        const key = videoKey(row);
+        const nextSaved = !isSavedVideo(row);
+        state.snapshots = state.snapshots.map((item) => videoKey(item) === key
+          ? {
+              ...item,
+              saved: nextSaved,
+              savedAt: nextSaved ? new Date().toISOString() : ""
+            }
+          : item);
+        saveState(nextSaved ? "已收藏这条视频，后面可以筛选“只看已收藏”。" : "已取消收藏。");
+      }
+
+      function focusVideo(videoId) {
+        const rows = filteredVideos();
+        const index = rows.findIndex((row) => row.id === videoId);
+        if (index >= 60) {
+          byId("videoOpsMessage").textContent = "这条视频不在当前前 60 条显示范围内，请先调整排序或筛选。";
+          return;
+        }
+        const cards = [...document.querySelectorAll("[data-video-card-id]")];
+        const card = cards.find((item) => item.getAttribute("data-video-card-id") === videoId);
+        if (!card) return;
+        card.open = true;
+        card.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      async function handleVideoAction(event) {
+        const button = event.target.closest("button[data-video-action]");
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const action = button.dataset.videoAction;
+        const videoId = button.dataset.videoId;
+        if (action === "toggle-save") {
+          toggleSaveVideo(videoId);
+          return;
+        }
+        if (action === "focus") {
+          focusVideo(videoId);
+          return;
+        }
+        if (action !== "copy") return;
+        const row = state.snapshots.find((item) => item.id === videoId);
+        if (!row) return;
+        const diagnosis = diagnoseVideo(row);
+        const text = [
+          `${row.platform}｜${row.accountName}｜${row.title}`,
+          `播放 ${formatNumber(row.views)}，收藏/转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}，涨粉 ${row.followersGained ? formatNumber(row.followersGained) : "-"}，每万播放涨粉 ${hasFollowerSignal(row) ? perWan(followerRate(row)) : "-"}，咨询线索 ${hasLeadSignal(row) ? formatNumber(leadCount(row)) : "-"}，每万播放线索 ${hasLeadSignal(row) ? perWan(leadRate(row)) : "-"}，诊断分 ${diagnosis.score}`,
+          `优先级：${priorityScore(row, diagnosis)}｜${priorityReason(row, diagnosis)}`,
+          `优点：${diagnosis.strengths.join("；")}`,
+          `不足：${diagnosis.weaknesses.join("；")}`,
+          `建议：${diagnosis.next.join("；")}`
+        ].join("\n");
+        await navigator.clipboard?.writeText(text);
+        byId("videoOpsMessage").textContent = "已复制这条视频诊断。";
       }
 
       function samplePayload() {
@@ -3303,8 +3545,8 @@
         byId("clearImportButton").addEventListener("click", () => {
           byId("importJsonInput").value = "";
         });
-        ["platformFilter", "accountFilter", "videoTypeFilter"].forEach((id) => {
-          byId(id).addEventListener("change", renderVideos);
+        ["platformFilter", "accountFilter", "videoTypeFilter", "videoSortFilter"].forEach((id) => {
+          byId(id).addEventListener("change", refreshVideoLists);
         });
         byId("auditAccountSelect").addEventListener("change", renderAccountAudit);
         byId("copyAccountAuditButton").addEventListener("click", async () => {
@@ -3322,22 +3564,8 @@
           await navigator.clipboard?.writeText(text);
           byId("videoOpsMessage").textContent = "已复制 AI 短视频专家报告。";
         });
-        byId("videoList").addEventListener("click", async (event) => {
-          const button = event.target.closest("button[data-video-action='copy']");
-          if (!button) return;
-          const row = state.snapshots.find((item) => item.id === button.dataset.videoId);
-          if (!row) return;
-          const diagnosis = diagnoseVideo(row);
-          const text = [
-            `${row.platform}｜${row.accountName}｜${row.title}`,
-            `播放 ${formatNumber(row.views)}，点击率 ${row.clickThroughRate ? formatPercent(row.clickThroughRate) : "-"}，留存 ${row.completeRate ? formatPercent(row.completeRate) : "-"}，互动率 ${formatPercent(engagementRate(row))}，诊断分 ${diagnosis.score}`,
-            `优点：${diagnosis.strengths.join("；")}`,
-            `不足：${diagnosis.weaknesses.join("；")}`,
-            `建议：${diagnosis.next.join("；")}`
-          ].join("\n");
-          await navigator.clipboard?.writeText(text);
-          byId("videoOpsMessage").textContent = "已复制这条视频诊断。";
-        });
+        byId("priorityVideoList").addEventListener("click", handleVideoAction);
+        byId("videoList").addEventListener("click", handleVideoAction);
         byId("copyWeeklyReportButton").addEventListener("click", async () => {
           await navigator.clipboard?.writeText(buildWeeklyReport());
           byId("videoOpsMessage").textContent = "已复制本周短视频运营复盘。";
