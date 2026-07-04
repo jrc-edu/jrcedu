@@ -9,6 +9,7 @@
     "video:login": "node scripts/video-ops-agent.mjs login",
     "video:collect": "node scripts/video-ops-agent.mjs collect",
     "video:push": "node scripts/video-ops-agent.mjs push",
+    "video:import": "node scripts/video-ops-agent.mjs import --fresh",
     "video:run": "node scripts/video-ops-agent.mjs run",
     "video:rebuild": "node scripts/video-ops-agent.mjs run --fresh --max-videos 30",
     "video:trial": "node scripts/video-ops-agent.mjs run --fresh --max-videos 30 --deep-own --with-benchmarks --benchmark-top --benchmark-accounts 10 --benchmark-videos 3",

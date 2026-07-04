@@ -1051,7 +1051,8 @@
             return;
           }
           if (result?.ok && result.data?.found && result.data.payload) {
-            state = mergeState(state, result.data.payload);
+            const cloudPayload = result.data.payload;
+            state = cloudPayload?.rebuildMode ? normalizeState(cloudPayload) : mergeState(state, cloudPayload);
             localStorage.setItem(STORE_KEY, JSON.stringify(state));
             renderAll();
             byId("videoOpsMessage").textContent = `已同步云端短视频运营数据：${state.accounts.length} 个账号、${state.accountAudits.length} 条账号体检、${state.snapshots.length} 条有效视频快照。`;

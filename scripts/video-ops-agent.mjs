@@ -1365,6 +1365,17 @@ function mergePayloads(existing, incoming) {
   };
 }
 
+function payloadSummary(payload = {}) {
+  const rows = payload && typeof payload === "object" ? payload : {};
+  return {
+    accounts: Array.isArray(rows.accounts) ? rows.accounts.length : 0,
+    accountAudits: Array.isArray(rows.accountAudits) ? rows.accountAudits.length : 0,
+    snapshots: Array.isArray(rows.snapshots) ? rows.snapshots.length : 0,
+    warnings: Array.isArray(rows.warnings) ? rows.warnings.length : 0,
+    updatedAt: rows.updatedAt || rows.collectedAt || ""
+  };
+}
+
 async function pushPayload(configPath, filePath = "", runtimeOptions = {}) {
   const config = await loadConfig(configPath);
   const token = apiToken(config);
@@ -1381,8 +1392,26 @@ async function pushPayload(configPath, filePath = "", runtimeOptions = {}) {
   const existing = replaceExisting ? null : await readRemoteState(config, token);
   const merged = mergePayloads(existing, incoming);
   const resultText = await writeRemoteState(config, token, merged);
-  console.log(`${replaceExisting ? "重建推送成功" : "推送成功"}：${resultText}`);
-  return resultText;
+  const expected = payloadSummary(merged);
+  console.log(`${replaceExisting ? "重建自动导入成功" : "自动导入成功"}：${resultText}`);
+  console.log(`已写入网站：账号 ${expected.accounts} 个，账号体检 ${expected.accountAudits} 条，视频快照 ${expected.snapshots} 条，异常 ${expected.warnings} 条。`);
+  const remote = await readRemoteState(config, token);
+  const actual = payloadSummary(remote);
+  console.log(`云端读回校验：账号 ${actual.accounts} 个，账号体检 ${actual.accountAudits} 条，视频快照 ${actual.snapshots} 条，异常 ${actual.warnings} 条。`);
+  if (expected.snapshots > 0 && actual.snapshots <= 0) {
+    throw new Error("自动导入后云端读回为 0 条视频快照，请检查 API Token、服务器部署版本或 module-data 接口。");
+  }
+  const importStatus = {
+    status: "success",
+    importedAt: nowIso(),
+    replaceExisting,
+    expected,
+    actual,
+    message: `已自动导入网站：${actual.snapshots} 条视频快照、${actual.accountAudits} 条账号体检。`
+  };
+  const statusFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-import-status.json");
+  await writeJson(statusFile, importStatus).catch(() => {});
+  return { resultText, expected, actual };
 }
 
 async function login(configPath) {
@@ -1425,14 +1454,16 @@ function usage() {
   node scripts/video-ops-agent.mjs login [--config 路径]
   node scripts/video-ops-agent.mjs collect [--config 路径] [--fresh] [--max-videos 数量] [--manual]
   node scripts/video-ops-agent.mjs push [--config 路径] [--file JSON路径] [--fresh]
+  node scripts/video-ops-agent.mjs import [--config 路径] [--file JSON路径] [--fresh]
   node scripts/video-ops-agent.mjs run [--config 路径] [--fresh] [--max-videos 数量] [--manual] [--deep-own] [--with-benchmarks]
 
 说明：
   init     创建配置文件
   login    打开独立 Chrome 档案，人工扫码登录抖音/视频号后台
   collect  自动打开后台采自有账号数据，并用可信度规则过滤无效页面；默认不采标杆公开搜索
-  push     推送 latest-video-ops-payload.json 到网站短视频系统
-  run      collect + push；建议本轮重建使用 --fresh，清掉旧脏数据，只保留新流程可信数据
+  push     自动导入 latest-video-ops-payload.json 到网站短视频系统，并读回校验
+  import   push 的中文语义别名；已采集完时可以单独运行自动导入
+  run      collect + 自动导入；建议本轮重建使用 --fresh，清掉旧脏数据，只保留新流程可信数据
 
 采集策略：
   自有账号不是随机采集，而是按创作者中心作品列表优先采最近作品。
@@ -1452,7 +1483,7 @@ async function main() {
   if (command === "init") return await initConfig(configPath);
   if (command === "login") return await login(configPath);
   if (command === "collect") return await collect(configPath, args);
-  if (command === "push") return await pushPayload(configPath, args.file ? path.resolve(String(args.file)) : "", args);
+  if (command === "push" || command === "import") return await pushPayload(configPath, args.file ? path.resolve(String(args.file)) : "", args);
   if (command === "run") {
     const collected = await collect(configPath, args);
     try {
