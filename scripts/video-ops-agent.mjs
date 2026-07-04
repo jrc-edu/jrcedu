@@ -2111,15 +2111,128 @@ function compactVideoForReport(row = {}) {
   };
 }
 
+function reportLeadCount(row = {}) {
+  return Number(row.leads || 0) + Number(row.messages || 0);
+}
+
+function reportSaveShare(row = {}) {
+  return Number(row.favorites || 0) + Number(row.shares || 0);
+}
+
+function reportHasRealMetrics(row = {}) {
+  return Boolean(
+    Number(row.views || 0) ||
+    Number(row.likes || 0) ||
+    Number(row.comments || 0) ||
+    reportSaveShare(row) ||
+    reportLeadCount(row) ||
+    Number(row.followersGained || 0) ||
+    Number(row.profileVisits || 0) ||
+    Number(row.completeRate || 0) ||
+    Number(row.threeSecondRetention || 0) ||
+    Number(row.avgWatchSeconds || 0)
+  );
+}
+
+function reportVideoKey(row = {}) {
+  return [
+    normalizeText(row.platform),
+    normalizeText(row.accountName),
+    normalizeText(row.title),
+    normalizeText(row.publishedAt)
+  ].join("|");
+}
+
+function uniqueReportRows(rows = [], limit = 120) {
+  const map = new Map();
+  rows.filter(Boolean).forEach((row) => {
+    const key = reportVideoKey(row);
+    if (key.replace(/\|/g, "") && !map.has(key)) map.set(key, row);
+  });
+  return [...map.values()].slice(0, limit);
+}
+
+function reportMetricLine(row = {}) {
+  return [
+    `播放 ${row.views || 0}`,
+    `收藏转发 ${reportSaveShare(row)}`,
+    `涨粉 ${row.followersGained || 0}`,
+    `咨询线索 ${reportLeadCount(row)}`,
+    `完播 ${row.completeRate || 0}`,
+    `3秒留存 ${row.threeSecondRetention || 0}`
+  ].join("｜");
+}
+
+function rankedReportRows(rows = [], label = "", limit = 40) {
+  return rows.slice(0, limit).map((row, index) => ({
+    rank: index + 1,
+    rankingLabel: label,
+    metricLine: reportMetricLine(row),
+    ...row
+  }));
+}
+
+function remakeReasonForReport(row = {}) {
+  if ((row.views || 0) >= 5000 && reportSaveShare(row) > 0) return "高播放且有收藏/转发，优先拆标题、开头、题型和讲解结构，做同类复拍或系列。";
+  if (reportLeadCount(row) > 0) return "已经产生咨询/私信线索，优先拆评论区关键词、主页承接和结尾口播。";
+  if ((row.followersGained || 0) > 0) return "已经产生涨粉/C粉，优先拆人群定位、家长痛点和账号关注理由。";
+  if (reportSaveShare(row) > 0) return "有收藏/转发价值，优先沉淀为家长愿意保存的题型库或方法库。";
+  if ((row.views || 0) >= 3000) return "有品牌曝光价值，不能因为暂无咨询字段就判定无效，先补转化承接。";
+  return "样本有一定信号，但需要结合标题、开头和官方深采字段再判断。";
+}
+
+function weakReasonForReport(row = {}) {
+  if (row.threeSecondRetention && row.threeSecondRetention < 0.3) return "3秒留存偏低，优先改前3秒和第一句话。";
+  if (row.completeRate && row.completeRate < 0.18) return "完播偏低，优先检查时长、节奏和是否过早进入复杂讲解。";
+  if ((row.views || 0) > 3000 && reportLeadCount(row) <= 0) return "播放有价值但转化字段弱，优先补咨询承接，不直接否定内容。";
+  if ((row.views || 0) < 1000 && reportSaveShare(row) <= 0) return "播放和收藏转发都弱，优先检查标题是否太泛、年级痛点是否不清。";
+  return "需要人工复盘标题、封面、前3秒、题目难度和结尾承接。";
+}
+
 function buildVideoOpsAiInputForAgent(payload = {}) {
   const state = payload && typeof payload === "object" ? payload : {};
   const snapshots = Array.isArray(state.snapshots) ? state.snapshots.map(compactVideoForReport) : [];
   const ownRows = snapshots.filter((row) => row.accountType !== "同行账号");
-  const byViews = ownRows.slice().sort((a, b) => b.views - a.views).slice(0, 60);
-  const byLeads = ownRows.slice().filter((row) => row.leads || row.messages).sort((a, b) => (b.leads + b.messages) - (a.leads + a.messages) || b.leadPerView - a.leadPerView).slice(0, 40);
-  const byFans = ownRows.slice().filter((row) => row.followersGained).sort((a, b) => b.followersGained - a.followersGained || b.followerPerView - a.followerPerView).slice(0, 40);
-  const bySaveShare = ownRows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0))).slice(0, 50);
-  const withDeepData = ownRows.filter((row) => row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length).slice(0, 80);
+  const analysisRows = ownRows.filter((row) => normalizeText(row.title) || reportHasRealMetrics(row));
+  const byViews = analysisRows.slice().sort((a, b) => b.views - a.views).slice(0, 60);
+  const byLeads = analysisRows.slice().filter((row) => row.leads || row.messages).sort((a, b) => (b.leads + b.messages) - (a.leads + a.messages) || b.leadPerView - a.leadPerView).slice(0, 40);
+  const byFans = analysisRows.slice().filter((row) => row.followersGained).sort((a, b) => b.followersGained - a.followersGained || b.followerPerView - a.followerPerView).slice(0, 40);
+  const bySaveShare = analysisRows.slice().filter((row) => reportSaveShare(row) > 0).sort((a, b) => reportSaveShare(b) - reportSaveShare(a) || b.saveSharePerView - a.saveSharePerView).slice(0, 50);
+  const withDeepData = analysisRows.filter((row) => row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length).slice(0, 80);
+  const recommendedRemakes = uniqueReportRows([
+    ...byViews.slice(0, 30),
+    ...bySaveShare.slice(0, 30),
+    ...byFans.slice(0, 25),
+    ...byLeads.slice(0, 25)
+  ], 80).map((row) => ({ ...row, remakeReason: remakeReasonForReport(row) }));
+  const weakToReview = analysisRows
+    .filter((row) => (
+      (row.threeSecondRetention && row.threeSecondRetention < 0.3) ||
+      (row.completeRate && row.completeRate < 0.18) ||
+      ((row.views || 0) < 1000 && reportSaveShare(row) <= 0 && reportLeadCount(row) <= 0) ||
+      ((row.views || 0) >= 3000 && reportLeadCount(row) <= 0 && row.profileVisits <= 0)
+    ))
+    .sort((a, b) => {
+      const leftWeak = (a.threeSecondRetention || 1) + (a.completeRate || 1) + Math.min(1, (a.views || 0) / 10000);
+      const rightWeak = (b.threeSecondRetention || 1) + (b.completeRate || 1) + Math.min(1, (b.views || 0) / 10000);
+      return leftWeak - rightWeak;
+    })
+    .slice(0, 60)
+    .map((row) => ({ ...row, reviewReason: weakReasonForReport(row) }));
+  const dataQualitySummary = {
+    ownVideos: ownRows.length,
+    analysisVideos: analysisRows.length,
+    videosWithCoreMetrics: ownRows.filter(reportHasRealMetrics).length,
+    videosWithRetention: ownRows.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds).length,
+    videosWithConversion: ownRows.filter((row) => row.profileVisits || row.messages || row.leads || row.followersGained).length,
+    videosWithTraffic: ownRows.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length).length,
+    videosWithOfficialDeepData: withDeepData.length,
+    boundary: [
+      ownRows.length >= 300 ? "自有账号样本已接近账号级深度复盘。" : `自有账号样本 ${ownRows.length} 条，未到 300 条前，长期账号定位仍需谨慎。`,
+      ownRows.some((row) => row.profileVisits || row.messages || row.leads) ? "已有部分转化字段，可以初步判断招生线索。" : "缺主页访问/私信/线索字段，不能强行判断招生转化。",
+      ownRows.some((row) => row.trafficSourceLines?.length || row.searchKeywords?.length) ? "已有部分流量来源/搜索词，可以初步判断推荐、搜索或本地流量。" : "缺流量来源/搜索词，不能判断流量来源。"
+    ]
+  };
   const tagGroups = new Map();
   ownRows.forEach((row) => {
     (row.contentTags || []).forEach((tag) => {
@@ -2156,15 +2269,26 @@ function buildVideoOpsAiInputForAgent(payload = {}) {
     },
     accounts: state.accounts || [],
     latestAccountAudits: state.accountAudits || [],
+    dataQualitySummary,
+    videoRankings: {
+      topByViews: rankedReportRows(byViews, "播放榜：本地影响力和认知扩散", 50),
+      topByLeads: rankedReportRows(byLeads, "咨询线索榜：招生转化", 35),
+      topByFans: rankedReportRows(byFans, "涨粉/C粉榜：账号增长", 35),
+      topBySaveShare: rankedReportRows(bySaveShare, "收藏转发榜：家长保存和干货价值", 45),
+      recommendedRemakes: rankedReportRows(recommendedRemakes, "复拍清单：先拆结构再复拍", 50),
+      weakToReview: rankedReportRows(weakToReview, "复盘清单：低留存、低完播或高播放低转化", 45)
+    },
     topVideosByViews: byViews,
     topVideosByLeads: byLeads,
     topVideosByFans: byFans,
     topVideosBySaveShare: bySaveShare,
+    recommendedRemakes,
+    weakToReview,
     topicTagSummary: [...tagGroups.values()]
       .sort((left, right) => (right.views + right.leads * 5000 + right.followers * 3000 + right.saveShare * 120) - (left.views + left.leads * 5000 + left.followers * 3000 + left.saveShare * 120))
       .slice(0, 30),
     videosWithOfficialDeepData: withDeepData,
-    latestOwnVideosSample: ownRows.slice(0, 120),
+    latestOwnVideosSample: analysisRows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || ""))).slice(0, 120),
     warnings: state.warnings || []
   };
   return JSON.stringify(input, null, 2).slice(0, 120000);

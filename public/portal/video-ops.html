@@ -665,7 +665,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704q";
+        const pageVersion = "20260704r";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -2755,17 +2755,96 @@
         };
       }
 
-      function selectedVideosForAi() {
-        const rows = latestSnapshots();
-        const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
-        const selected = [
-          ...diagnostics.slice().sort((a, b) => b.diagnosis.score - a.diagnosis.score).slice(0, 10).map((item) => item.row),
-          ...diagnostics.slice().sort((a, b) => a.diagnosis.score - b.diagnosis.score).slice(0, 10).map((item) => item.row),
-          ...rows.slice(0, 25)
-        ];
+      function uniqueVideoRows(rows = [], limit = 120) {
         const map = new Map();
-        selected.forEach((row) => map.set(row.id || videoKey(row), row));
-        return [...map.values()].slice(0, 45);
+        rows.filter(Boolean).forEach((row) => {
+          const key = row.id || videoKey(row);
+          if (key && !map.has(key)) map.set(key, row);
+        });
+        return [...map.values()].slice(0, limit);
+      }
+
+      function rankedVideosForAi(rows = [], label = "", limit = 30) {
+        return rows.slice(0, limit).map((row, index) => {
+          const diagnosis = diagnoseVideo(row);
+          return {
+            rank: index + 1,
+            rankingLabel: label,
+            priorityReason: priorityReason(row, diagnosis),
+            compactMetrics: compactVideoMetrics(row),
+            ...conciseVideoForAi(row)
+          };
+        });
+      }
+
+      function videoRankingPackForAi() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
+        const planned = diagnostics.map((item) => ({ ...item, remake: remakePlan(item.row, item.diagnosis) }));
+        const topByViews = rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0));
+        const topByFollowers = rows.slice().filter(hasFollowerSignal).sort((a, b) => (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a) || (b.views || 0) - (a.views || 0));
+        const topByLeads = rows.slice().filter(hasLeadSignal).sort((a, b) => leadCount(b) - leadCount(a) || leadRate(b) - leadRate(a) || (b.profileVisits || 0) - (a.profileVisits || 0));
+        const topBySaveShare = rows.slice().filter((row) => (row.favorites || 0) + (row.shares || 0) > 0).sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)) || saveShareRate(b) - saveShareRate(a));
+        const topByDiagnosisScore = diagnostics.slice().sort((a, b) => b.diagnosis.score - a.diagnosis.score || (b.row.views || 0) - (a.row.views || 0)).map((item) => item.row);
+        const recommendedRemakes = planned
+          .filter((item) => ["sameStructure", "titleUpgrade", "series", "conversion"].includes(item.remake.key))
+          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))
+          .map((item) => item.row);
+        const weakToReview = planned
+          .filter((item) => ["openingRewrite", "review"].includes(item.remake.key) || isReviewVideo(item.row, item.diagnosis))
+          .sort((a, b) => a.diagnosis.score - b.diagnosis.score || (a.row.views || 0) - (b.row.views || 0))
+          .map((item) => item.row);
+        const highBrandLowConversion = rows
+          .filter((row) => isBrandReachVideo(row) && leadRate(row) < 0.0015)
+          .sort((a, b) => (b.views || 0) - (a.views || 0));
+        const latestOwnVideos = rows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")));
+        const savedVideos = rows.filter(isSavedVideo).sort((a, b) => priorityScore(b) - priorityScore(a));
+        const dataQuality = {
+          ownUsefulVideos: rows.length,
+          videosWithCoreMetrics: rows.filter(snapshotHasMetrics).length,
+          videosWithRetention: rows.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds).length,
+          videosWithConversion: rows.filter((row) => row.profileVisits || row.messages || row.leads || row.followersGained).length,
+          videosWithTrafficSource: rows.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length).length,
+          videosWithOfficialDeepData: rows.filter((row) => row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length).length,
+          missingFieldGuidance: [
+            rows.some((row) => row.completeRate || row.threeSecondRetention || row.avgWatchSeconds) ? "" : "缺留存/完播/平均观看时长，暂时不能稳定判断开头和节奏。",
+            rows.some((row) => row.profileVisits || row.messages || row.leads) ? "" : "缺主页访问、私信或线索字段，暂时不能稳定判断招生转化。",
+            rows.some((row) => row.trafficSourceLines?.length || row.searchKeywords?.length) ? "" : "缺流量来源或搜索词，暂时不能判断推荐流、搜索流、本地同城和粉丝流量。"
+          ].filter(Boolean)
+        };
+        const rawRows = {
+          topByViews: topByViews.slice(0, 40),
+          topByFollowers: topByFollowers.slice(0, 30),
+          topByLeads: topByLeads.slice(0, 30),
+          topBySaveShare: topBySaveShare.slice(0, 35),
+          topByDiagnosisScore: topByDiagnosisScore.slice(0, 25),
+          recommendedRemakes: recommendedRemakes.slice(0, 40),
+          weakToReview: weakToReview.slice(0, 30),
+          highBrandLowConversion: highBrandLowConversion.slice(0, 25),
+          latestOwnVideos: latestOwnVideos.slice(0, 30),
+          savedVideos: savedVideos.slice(0, 20)
+        };
+        return {
+          dataQuality,
+          rawRows,
+          rankings: {
+            topByViews: rankedVideosForAi(rawRows.topByViews, "播放榜：本地影响力和认知扩散"),
+            topByFollowers: rankedVideosForAi(rawRows.topByFollowers, "涨粉/C粉榜：账号增长"),
+            topByLeads: rankedVideosForAi(rawRows.topByLeads, "咨询线索榜：招生转化"),
+            topBySaveShare: rankedVideosForAi(rawRows.topBySaveShare, "收藏转发榜：家长保存和干货价值"),
+            topByDiagnosisScore: rankedVideosForAi(rawRows.topByDiagnosisScore, "综合诊断高分榜"),
+            recommendedRemakes: rankedVideosForAi(rawRows.recommendedRemakes, "复拍清单：优先拆结构再复拍"),
+            weakToReview: rankedVideosForAi(rawRows.weakToReview, "复盘清单：低分或开头/转化短板"),
+            highBrandLowConversion: rankedVideosForAi(rawRows.highBrandLowConversion, "高播放低转化：先补承接，不直接否定"),
+            latestOwnVideos: rankedVideosForAi(rawRows.latestOwnVideos, "最新采集样本"),
+            savedVideos: rankedVideosForAi(rawRows.savedVideos, "人工收藏样本")
+          }
+        };
+      }
+
+      function selectedVideosForAi() {
+        const pack = videoRankingPackForAi();
+        return uniqueVideoRows(Object.values(pack.rawRows).flat(), 110);
       }
 
       function buildVideoOpsAiInput() {
@@ -2773,18 +2852,27 @@
         const accountReports = auditAccountOptions()
           .slice(0, 5)
           .map(([key]) => accountAuditText(key).slice(0, 2600));
+        const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。数据不足处必须明说，不要编造。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。请优先读取 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。数据不足处必须明说，不要编造。",
           dataReadiness: readiness,
           accounts: state.accounts,
           benchmarkAccounts: benchmarkAccountsFromState(),
           latestAccountAudits: latestAccountAudits(),
+          videoRankingQuality: rankingPack.dataQuality,
+          videoRankings: rankingPack.rankings,
           selectedVideos: selectedVideosForAi().map(conciseVideoForAi),
           topicTagSummary: advantageTagRows(ownVideoRows()).slice(0, 20),
           executiveSummary: executiveCards(),
           weeklyReport: buildWeeklyReport(),
           accountReports,
+          localActionDrafts: {
+            morningDecisions: buildMorningDecisions(),
+            shootingTasks: buildShootingTasks(),
+            nextTopicPlan: buildNextTopicPlan(),
+            advantagePlan: buildAdvantagePlan()
+          },
           currentCollectionPlan: currentCollectionPlan(),
           warnings: state.warnings || []
         }, null, 2).slice(0, 120000);
