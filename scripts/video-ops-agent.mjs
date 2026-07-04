@@ -100,11 +100,16 @@ const METRIC_KEY_PATTERNS = {
   avgWatchSeconds: [/avg.*watch/i, /average.*watch/i, /平均.*观看|平均.*播放/],
   videoDurationSeconds: [/duration/i, /视频时长|作品时长|时长/],
   profileVisits: [/profile.*visit/i, /home.*visit/i, /主页访问|主页浏览|主页访客/],
-  messages: [/message/i, /private.*message/i, /私信|咨询|消息/],
-  leads: [/lead/i, /clue/i, /form/i, /线索|留资|表单|客资/],
+  messages: [/private.*message/i, /message.*(count|num|uv|pv|user)/i, /私信|咨询|消息/],
+  leads: [
+    /(^|[_-])(lead|leads|clue|clues|inquiry|inquiries)([_-]|$|[A-Z])/i,
+    /(^|[_-])form([_-]?(count|cnt|num|submit|submission|uv|pv|user|users)|[A-Z].*(count|submit|submission|uv|pv|user))/i,
+    /线索|留资|表单|客资/
+  ],
   followersGained: [/new.*fan/i, /new.*follower/i, /follower.*gain/i, /涨粉|新增粉丝/]
 };
 const SENSITIVE_KEY_RE = /token|cookie|session|secret|password|authorization|credential|ticket|csrf|sign/i;
+const NON_METRIC_PATH_RE = /(^|[.[_-])(source[_-]?platform|platform|music|material|billboard|rank|sort|index|type|status|id|uid|version)(\]|[._-]|$)/i;
 
 function nowIso() {
   return new Date().toISOString();
@@ -179,6 +184,14 @@ function parseNumber(value) {
   if (lower.includes("k")) return Math.max(0, Math.round(base * 1000));
   if (raw.includes("%")) return Math.max(0, base / 100);
   return Math.max(0, base);
+}
+
+function normalizeDurationSeconds(value) {
+  const number = Number(value) || 0;
+  if (!number) return 0;
+  if (number > 7200 && number < 24 * 3600 * 1000) return Math.round(number / 1000);
+  if (number > 7200) return 0;
+  return number;
 }
 
 function parseArgs(argv) {
@@ -548,15 +561,24 @@ function flattenMetricSignals(value, prefix = "", rows = []) {
   return rows;
 }
 
+function isMetricPathBlocked(pathName, metricKey = "") {
+  const raw = String(pathName || "");
+  if (!raw) return false;
+  if (!NON_METRIC_PATH_RE.test(raw)) return false;
+  if (["leads", "messages", "profileVisits", "followersGained"].includes(metricKey)) return true;
+  return /source[_-]?platform|music|material|billboard|version/i.test(raw);
+}
+
 function metricValueFromSignals(signals, key) {
   const patterns = METRIC_KEY_PATTERNS[key] || [];
   const rows = Array.isArray(signals) ? signals : [];
   let best = 0;
   rows.forEach((line) => {
     const [name = "", value = ""] = String(line).split(/[:：=]/);
+    if (isMetricPathBlocked(name, key)) return;
     if (!patterns.some((pattern) => pattern.test(name))) return;
     const parsed = key === "avgWatchSeconds" || key === "videoDurationSeconds"
-      ? parseDurationValue(value) || parseNumber(value)
+      ? normalizeDurationSeconds(parseDurationValue(value) || parseNumber(value))
       : parseNumber(value);
     if (Number(parsed) > Number(best)) best = parsed;
   });
@@ -639,27 +661,29 @@ function pickApiPublishedAt(value) {
   return extractPublishedAt(raw);
 }
 
-function metricValueFromObject(value, metricKey, depth = 0) {
+function metricValueFromObject(value, metricKey, depth = 0, pathName = "") {
   if (depth > 6 || value == null) return 0;
   const patterns = METRIC_KEY_PATTERNS[metricKey] || [];
   let best = 0;
   if (Array.isArray(value)) {
     value.slice(0, 120).forEach((item) => {
-      best = Math.max(best, metricValueFromObject(item, metricKey, depth + 1));
+      best = Math.max(best, metricValueFromObject(item, metricKey, depth + 1, pathName));
     });
     return best;
   }
   if (typeof value !== "object") return 0;
   Object.entries(value).slice(0, 120).forEach(([key, item]) => {
     if (SENSITIVE_KEY_RE.test(key)) return;
+    const nextPath = pathName ? `${pathName}.${key}` : key;
+    if (isMetricPathBlocked(nextPath, metricKey)) return;
     if (patterns.some((pattern) => pattern.test(key))) {
       const parsed = metricKey === "avgWatchSeconds" || metricKey === "videoDurationSeconds"
-        ? parseDurationValue(item) || parseNumber(item)
+        ? normalizeDurationSeconds(parseDurationValue(item) || parseNumber(item))
         : parseNumber(item);
       if (Number(parsed) > best) best = Number(parsed);
     }
     if (item && typeof item === "object") {
-      best = Math.max(best, metricValueFromObject(item, metricKey, depth + 1));
+      best = Math.max(best, metricValueFromObject(item, metricKey, depth + 1, nextPath));
     }
   });
   return best;
@@ -760,6 +784,45 @@ function mergeMetricObjects(primary = {}, fallback = {}) {
     if (!Number(merged[key]) && Number(fallback[key])) merged[key] = fallback[key];
   });
   return merged;
+}
+
+function metricLineParts(line = "") {
+  const raw = String(line || "");
+  const index = raw.search(/[:：=]/);
+  if (index < 0) return { name: raw, value: "" };
+  return { name: raw.slice(0, index), value: raw.slice(index + 1) };
+}
+
+function isLikelyFalseLeadValue(row = {}, leadValue = 0) {
+  const lead = Number(leadValue) || 0;
+  if (!lead) return false;
+  const lines = [
+    ...(Array.isArray(row.officialMetricLines) ? row.officialMetricLines : []),
+    ...(Array.isArray(row.apiSignalLines) ? row.apiSignalLines : [])
+  ];
+  if (!lines.length) return false;
+  const hasBlockedMatch = lines.some((line) => {
+    const { name, value } = metricLineParts(line);
+    return isMetricPathBlocked(name, "leads") && parseNumber(value) === lead;
+  });
+  const hasTrustedLeadMatch = lines.some((line) => {
+    const { name, value } = metricLineParts(line);
+    return !isMetricPathBlocked(name, "leads") &&
+      (METRIC_KEY_PATTERNS.leads || []).some((pattern) => pattern.test(name)) &&
+      parseNumber(value) === lead;
+  });
+  return hasBlockedMatch && !hasTrustedLeadMatch;
+}
+
+function sanitizeVideoMetrics(row = {}) {
+  const next = { ...row };
+  if (isLikelyFalseLeadValue(next, next.leads)) next.leads = 0;
+  next.videoDurationSeconds = normalizeDurationSeconds(next.videoDurationSeconds);
+  if (Array.isArray(next.contentTags) && !Number(next.leads || 0) && !Number(next.messages || 0)) {
+    next.contentTags = next.contentTags.filter((tag) => tag !== "咨询线索");
+  }
+  next.dataCompleteness = metricCompleteness(next);
+  return next;
 }
 
 function metricCompleteness(row = {}) {
@@ -2453,7 +2516,7 @@ function mergePayloads(existing, incoming) {
   return {
     accounts: mergeByKey([...(oldState.accounts || []), ...(newState.accounts || [])], (row) => [row.platform, row.name || row.accountName, row.accountType || "自有账号"].join("|")),
     accountAudits: mergeByKey([...(oldState.accountAudits || []), ...(newState.accountAudits || [])], (row) => row.id || [row.platform, row.accountName || row.name, row.capturedAt].join("|")),
-    snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isTrustedSnapshot), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
+    snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isTrustedSnapshot).map(sanitizeVideoMetrics), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
     collectorStatus: newState.collectorStatus || oldState.collectorStatus || null,
     collectionPlan: newState.collectionPlan || oldState.collectionPlan || null,
     analysisStatus: newState.analysisStatus || oldState.analysisStatus || null,
@@ -2526,48 +2589,49 @@ function rate(numerator, denominator) {
 }
 
 function compactVideoForReport(row = {}) {
-  const views = Number(row.views || row.playCount || 0) || 0;
-  const favorites = Number(row.favorites || row.collects || row.collectCount || 0) || 0;
-  const shares = Number(row.shares || row.shareCount || 0) || 0;
-  const leads = Number(row.leads || row.inquiries || 0) || 0;
-  const messages = Number(row.messages || row.privateMessages || 0) || 0;
-  const followersGained = Number(row.followersGained || row.newFollowers || 0) || 0;
+  const cleanRow = sanitizeVideoMetrics(row);
+  const views = Number(cleanRow.views || cleanRow.playCount || 0) || 0;
+  const favorites = Number(cleanRow.favorites || cleanRow.collects || cleanRow.collectCount || 0) || 0;
+  const shares = Number(cleanRow.shares || cleanRow.shareCount || 0) || 0;
+  const leads = Number(cleanRow.leads || cleanRow.inquiries || 0) || 0;
+  const messages = Number(cleanRow.messages || cleanRow.privateMessages || 0) || 0;
+  const followersGained = Number(cleanRow.followersGained || cleanRow.newFollowers || 0) || 0;
   return {
-    platform: row.platform || "",
-    accountType: row.accountType || "",
-    accountName: row.accountName || row.account || "",
-    title: row.title || row.videoTitle || "",
-    topic: row.topic || row.category || "",
-    publishedAt: row.publishedAt || row.publishTime || "",
-    capturedAt: row.capturedAt || row.captureTime || "",
+    platform: cleanRow.platform || "",
+    accountType: cleanRow.accountType || "",
+    accountName: cleanRow.accountName || cleanRow.account || "",
+    title: cleanRow.title || cleanRow.videoTitle || "",
+    topic: cleanRow.topic || cleanRow.category || "",
+    publishedAt: cleanRow.publishedAt || cleanRow.publishTime || "",
+    capturedAt: cleanRow.capturedAt || cleanRow.captureTime || "",
     views,
-    likes: Number(row.likes || row.likeCount || 0) || 0,
-    comments: Number(row.comments || row.commentCount || 0) || 0,
+    likes: Number(cleanRow.likes || cleanRow.likeCount || 0) || 0,
+    comments: Number(cleanRow.comments || cleanRow.commentCount || 0) || 0,
     favorites,
     shares,
-    impressions: Number(row.impressions || row.exposures || row.showCount || 0) || 0,
-    clickThroughRate: Number(row.clickThroughRate || row.ctr || 0) || 0,
-    threeSecondRetention: Number(row.threeSecondRetention || row.retention3s || 0) || 0,
-    fiveSecondRetention: Number(row.fiveSecondRetention || row.retention5s || 0) || 0,
-    completeRate: Number(row.completeRate || row.completionRate || 0) || 0,
-    avgWatchSeconds: Number(row.avgWatchSeconds || row.averageWatchSeconds || 0) || 0,
-    videoDurationSeconds: Number(row.videoDurationSeconds || row.durationSeconds || row.duration || 0) || 0,
-    profileVisits: Number(row.profileVisits || row.homepageVisits || 0) || 0,
+    impressions: Number(cleanRow.impressions || cleanRow.exposures || cleanRow.showCount || 0) || 0,
+    clickThroughRate: Number(cleanRow.clickThroughRate || cleanRow.ctr || 0) || 0,
+    threeSecondRetention: Number(cleanRow.threeSecondRetention || cleanRow.retention3s || 0) || 0,
+    fiveSecondRetention: Number(cleanRow.fiveSecondRetention || cleanRow.retention5s || 0) || 0,
+    completeRate: Number(cleanRow.completeRate || cleanRow.completionRate || 0) || 0,
+    avgWatchSeconds: normalizeDurationSeconds(cleanRow.avgWatchSeconds || cleanRow.averageWatchSeconds || 0),
+    videoDurationSeconds: normalizeDurationSeconds(cleanRow.videoDurationSeconds || cleanRow.durationSeconds || cleanRow.duration || 0),
+    profileVisits: Number(cleanRow.profileVisits || cleanRow.homepageVisits || 0) || 0,
     messages,
     leads,
     followersGained,
     saveSharePerView: rate(favorites + shares, views),
     leadPerView: rate(leads + messages, views),
     followerPerView: rate(followersGained, views),
-    contentTags: textList(row.contentTags || row.tags, 8),
-    platformAdvice: normalizeText(row.platformAdvice || row.advice || ""),
-    trafficSourceLines: textList(row.trafficSourceLines, 4),
-    searchKeywords: textList(row.searchKeywords || row.keywords, 4),
-    dataCompleteness: row.dataCompleteness || null,
-    officialMetricLines: textList(row.officialMetricLines, 4),
-    apiSignalLines: textList(row.apiSignalLines, 4),
-    deepSources: textList(row.deepSources, 3),
-    source: row.source || ""
+    contentTags: textList(cleanRow.contentTags || cleanRow.tags, 8),
+    platformAdvice: normalizeText(cleanRow.platformAdvice || cleanRow.advice || ""),
+    trafficSourceLines: textList(cleanRow.trafficSourceLines, 4),
+    searchKeywords: textList(cleanRow.searchKeywords || cleanRow.keywords, 4),
+    dataCompleteness: cleanRow.dataCompleteness || null,
+    officialMetricLines: textList(cleanRow.officialMetricLines, 4),
+    apiSignalLines: textList(cleanRow.apiSignalLines, 4),
+    deepSources: textList(cleanRow.deepSources, 3),
+    source: cleanRow.source || ""
   };
 }
 
