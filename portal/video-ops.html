@@ -209,9 +209,13 @@
             <span class="tag">数学教培诊断</span>
             <span class="tag">大陆同行公开对比</span>
             <span class="tag">周报复盘</span>
+            <span class="tag" id="videoOpsVersionTag">页面版本 20260704c</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
-          <div class="sync-diagnostic" id="cloudSyncDiagnostic" hidden></div>
+          <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
+            <strong>页面版本 20260704c｜等待同步</strong>
+            <span>如果你能看到这一行，说明短视频页面已经更新到新版；点击“同步云端”后，这里会显示接口状态和云端数据条数。</span>
+          </div>
         </article>
         <aside class="card">
           <p class="eyebrow">机器人逻辑</p>
@@ -352,7 +356,7 @@
             <input id="quickImportJsonFileInput" type="file" accept=".json,application/json" style="display:none;">
             <label class="inline-check"><input id="replaceVideoDataOnImport" type="checkbox" checked>重建数据</label>
             <button class="button secondary" id="copyWeeklyReportButton" type="button">复制本周复盘</button>
-            <button class="button secondary" id="refreshCloudButton" type="button">同步云端</button>
+            <button class="button secondary" id="refreshCloudButton" type="button" onclick="window.__jrcVideoManualSync ? window.__jrcVideoManualSync() : alert('短视频页面脚本没有启动，请强制刷新页面或重新部署。')">同步云端</button>
           </div>
         </div>
         <div class="metrics">
@@ -512,6 +516,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
+      const PAGE_VERSION = "20260704c";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -523,6 +528,26 @@
       let benchmarkLibrary = [];
       let benchmarkLibraryLoaded = false;
       let cloudSyncSeq = 0;
+
+      window.addEventListener("error", (event) => {
+        const panel = document.getElementById("cloudSyncDiagnostic");
+        const message = event?.message || "未知脚本错误";
+        if (panel) {
+          panel.hidden = false;
+          panel.className = "sync-diagnostic failed";
+          panel.innerHTML = `<strong>页面脚本异常｜${PAGE_VERSION}</strong><span>${escapeHtml(message)}</span><span>请把这块截图发给我，我按具体错误继续修。</span>`;
+        }
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        const panel = document.getElementById("cloudSyncDiagnostic");
+        const reason = event?.reason?.message || event?.reason || "未知异步错误";
+        if (panel) {
+          panel.hidden = false;
+          panel.className = "sync-diagnostic failed";
+          panel.innerHTML = `<strong>页面异步异常｜${PAGE_VERSION}</strong><span>${escapeHtml(reason)}</span><span>请把这块截图发给我，我按具体错误继续修。</span>`;
+        }
+      });
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1178,6 +1203,7 @@
           }
         }
       }
+      window.__jrcVideoManualSync = () => hydrateCloud({ manual: true });
 
       function videoKey(row) {
         return [row.platform, row.accountName, row.videoId || row.url || row.title].map(normalizeText).join("|");
@@ -2750,7 +2776,6 @@
           await navigator.clipboard?.writeText(buildWeeklyReport());
           byId("videoOpsMessage").textContent = "已复制本周短视频运营复盘。";
         });
-        byId("refreshCloudButton").addEventListener("click", () => hydrateCloud({ manual: true }));
       }
 
       bindEvents();
