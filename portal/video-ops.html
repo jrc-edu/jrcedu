@@ -372,7 +372,7 @@
           </div>
           <span class="badge" id="analysisClosureBadge">等待采集</span>
         </div>
-        <p id="analysisClosureSummary" style="margin-top:8px;">今晚采集完成后，Mac mini 会自动把数据写入短视频系统，并自动生成 MiniMax 专家报告。明早打开这里应当能直接看结论和行动清单。</p>
+        <p id="analysisClosureSummary" style="margin-top:8px;">今晚采集完成后，Mac mini 会自动把数据写入短视频系统，并自动生成 DeepSeek 专家报告。明早打开这里应当能直接看结论和行动清单。</p>
         <div class="focus-grid" id="analysisClosureGrid"></div>
         <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
         <div class="decision-list" id="aiActionCards"></div>
@@ -2793,7 +2793,7 @@
       function aiReportDisplayText(report = state.aiReport) {
         const row = normalizeAiReport(report || {});
         return [
-          row.title || "MiniMax 短视频专家报告",
+          row.title || "DeepSeek 短视频专家报告",
           row.summary ? `摘要：${row.summary}` : "",
           row.riskLevel ? `风险等级：${row.riskLevel}` : "",
           "",
@@ -2874,7 +2874,7 @@
         badge.textContent = running ? "正在采集" : ready ? "明早可直接看" : imported ? "数据已入库" : failed ? "需要检查" : "等待采集";
         badge.className = `badge ${ready ? "good" : failed ? "danger" : imported || running ? "warn" : ""}`;
         summary.textContent = ready
-          ? "数据已经自动导入，MiniMax 专家报告也已经回写到短视频系统。你明天打开页面可以直接看账号判断、复拍方向和下周拍摄清单。"
+          ? "数据已经自动导入，DeepSeek 专家报告也已经回写到短视频系统。你明天打开页面可以直接看账号判断、复拍方向和下周拍摄清单。"
           : running
             ? "Mac mini 正在采集。采集完成后会自动推送云端，并继续自动生成专家报告。"
             : imported
@@ -2891,7 +2891,7 @@
             tone: hasReport ? "good" : imported ? "warn" : "danger",
             label: "AI 专家报告",
             value: hasReport ? "已生成" : "等待",
-            note: hasReport ? `${report.provider || analysis.provider || "MiniMax"}${report.generatedAt ? `｜${shortDate(report.generatedAt)}` : ""}` : "数据到位后自动生成"
+            note: hasReport ? `${report.provider || analysis.provider || "DeepSeek"}${report.generatedAt ? `｜${shortDate(report.generatedAt)}` : ""}` : "数据到位后自动生成"
           },
           {
             tone: collector.status === "success" || collector.status === "warning" ? "good" : running ? "warn" : failed ? "danger" : "",
@@ -2968,8 +2968,8 @@
           return false;
         }
         if (button) button.disabled = true;
-        status.textContent = auto ? "采集结果已更新，正在自动生成 MiniMax 专家报告..." : "正在调用 MiniMax 生成短视频专家报告...";
-        box.textContent = "MiniMax 正在读取当前账号、视频、平台建议和数据完整度，请稍等。";
+        status.textContent = auto ? "采集结果已更新，正在自动生成 DeepSeek 专家报告..." : "正在调用 DeepSeek 生成短视频专家报告...";
+        box.textContent = "DeepSeek 正在读取当前账号、视频、平台建议和数据完整度，请稍等。";
         try {
           const result = await window.JRC_CLOUD.aiAssistant({
             mode: "videoOpsReport",
@@ -2981,18 +2981,18 @@
             operatorRole: videoOpsCurrentEmployee.role || ""
           });
           if (!result?.ok || !result.data?.result) {
-            throw new Error(result?.data?.message || result?.data?.error || "MiniMax 没有返回专家报告。");
+            throw new Error(result?.data?.message || result?.data?.error || "DeepSeek 没有返回专家报告。");
           }
           const ai = result.data.result || {};
           state.aiReport = normalizeAiReport({
             generatedAt: new Date().toISOString(),
-            title: ai.title || "MiniMax 短视频专家报告",
+            title: ai.title || "DeepSeek 短视频专家报告",
             summary: ai.summary || "",
             polishedText: ai.polishedText || ai.parentMessage || ai.internalNote || "",
             riskLevel: ai.riskLevel || "",
             todoItems: Array.isArray(ai.todoItems) ? ai.todoItems : [],
             structuredData: ai.structuredData || {},
-            provider: result.data.provider || "minimax",
+            provider: result.data.provider || "deepseek",
             model: result.data.model || ""
           });
           state.analysisStatus = normalizeAnalysisStatus({
@@ -3014,7 +3014,7 @@
           });
           saveState(auto ? "数据已更新，但 AI 专家报告自动生成失败。" : "AI 专家报告生成失败。");
           status.textContent = `${auto ? "自动生成" : "AI 专家报告生成"}失败：${error?.message || error || "未知错误"}`;
-          box.textContent = "本次没有生成报告。请确认 MiniMax Key、额度和服务器网络正常，稍后再试。";
+          box.textContent = "本次没有生成报告。请确认 DeepSeek Key、额度和服务器网络正常，稍后再试。";
           return false;
         } finally {
           if (button) button.disabled = false;

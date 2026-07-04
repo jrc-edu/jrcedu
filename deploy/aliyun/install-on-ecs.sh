@@ -144,10 +144,9 @@ JRC_DB_POOL_MAX=5
 JRC_UPLOAD_DIR=/opt/jrcedu-uploads
 JRC_UPLOAD_MAX_BYTES=31457280
 JRC_JSON_MAX_BYTES=75497472
-JRC_MINIMAX_API_KEY=${JRC_MINIMAX_API_KEY:-}
-JRC_MINIMAX_API_URL=${JRC_MINIMAX_API_URL:-https://api.minimaxi.com/v1/chat/completions}
-JRC_MINIMAX_MODEL=${JRC_MINIMAX_MODEL:-MiniMax-M3}
-JRC_MINIMAX_GROUP_ID=${JRC_MINIMAX_GROUP_ID:-}
+JRC_DEEPSEEK_API_KEY=${JRC_DEEPSEEK_API_KEY:-}
+JRC_DEEPSEEK_API_URL=${JRC_DEEPSEEK_API_URL:-https://api.deepseek.com/chat/completions}
+JRC_DEEPSEEK_MODEL=${JRC_DEEPSEEK_MODEL:-deepseek-chat}
 EOF
 chmod 600 "${ENV_FILE}"
 mkdir -p /opt/jrcedu-uploads/curriculum /opt/jrcedu-backups/curriculum

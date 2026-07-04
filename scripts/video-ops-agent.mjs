@@ -2196,13 +2196,13 @@ function normalizeAiReportFromResult(result = {}) {
   const ai = result?.result || result?.data?.result || {};
   return {
     generatedAt: nowIso(),
-    title: ai.title || "MiniMax 短视频专家报告",
+    title: ai.title || "DeepSeek 短视频专家报告",
     summary: ai.summary || "",
     polishedText: ai.polishedText || ai.parentMessage || ai.internalNote || "",
     riskLevel: ai.riskLevel || "",
     todoItems: Array.isArray(ai.todoItems) ? ai.todoItems : [],
     structuredData: ai.structuredData || {},
-    provider: result.provider || result?.data?.provider || "minimax",
+    provider: result.provider || result?.data?.provider || "deepseek",
     model: result.model || result?.data?.model || ""
   };
 }
@@ -2217,7 +2217,7 @@ async function generateAndPushAiReport(config, basePayload = {}) {
   if (snapshots.length < 20 && accountAudits.length < 1) {
     return { skipped: true, reason: "视频样本不足，暂不自动生成 AI 专家报告。" };
   }
-  console.log("正在自动生成 MiniMax 短视频专家报告...");
+  console.log("正在自动生成 DeepSeek 短视频专家报告...");
   const result = await requestAiAssistant(config, token, {
     mode: "videoOpsReport",
     modeLabel: "短视频运营专家报告",
@@ -2234,7 +2234,7 @@ async function generateAndPushAiReport(config, basePayload = {}) {
     generatedAt: aiReport.generatedAt,
     provider: aiReport.provider,
     model: aiReport.model,
-    message: "采集数据已自动导入网站，MiniMax 专家报告已自动生成。"
+    message: "采集数据已自动导入网站，DeepSeek 专家报告已自动生成。"
   };
   const nextStatus = {
     ...(existing?.collectorStatus || basePayload.collectorStatus || {}),

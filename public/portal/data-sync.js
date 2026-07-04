@@ -19,6 +19,7 @@
     { key: "jrc-student-service-v2", label: "学生服务", shape: "array" },
     { key: "jrc-curriculum-products-v2", label: "教研课程", shape: "array" },
     { key: "jrc-hr-training-tasks-v2", label: "人事管理", shape: "array" },
+    { key: "jrc-hr-summer-schedule-v1", label: "人事管理·暑假学管排班", shape: "array" },
     { key: "jrc-campus-operations-v2", label: "校区运营", shape: "array" },
     { key: "jrc-business-audit-log-v1", label: "操作日志", shape: "array" },
     { key: "jrc-system-link-events-v1", label: "系统联动日志", shape: "array" },

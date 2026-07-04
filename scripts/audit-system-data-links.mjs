@@ -180,7 +180,7 @@ const checks = [
       && /mobile-unified\.js/.test(readText("public/advice-system/index.html"))
       && /招生管理系统/.test(files.mobile)
       && /advice-system/i.test(files.mobile),
-    detail: "招生页接入全站绿色使用方法 AI 提问助手；本地方法库优先，手动提问才调用 MiniMax，不再放重复页面内面板。"
+    detail: "招生页接入全站绿色使用方法 AI 提问助手；本地方法库优先，手动提问才调用 DeepSeek，不再放重复页面内面板。"
   },
   {
     title: "全站系统使用方法库",
@@ -217,7 +217,7 @@ const checks = [
     detail: "老师确认后归档到学生服务，而不是 AI 自动直接发给家长。"
   },
   {
-    title: "AI课堂反馈由 MiniMax 直写",
+    title: "AI课堂反馈由 DeepSeek 直写",
     pass: /looksLikeJsonText/.test(files.ai)
       && /课堂反馈AI助手/.test(files.ai)
       && /type="hidden" value="classFeedback"/.test(files.ai)
@@ -231,20 +231,20 @@ const checks = [
       && /buildAiWrittenBatchFeedbackResults/.test(files.ai)
       && /structuredData 必须包含 students 数组/.test(files.api)
       && /students\[\]\.parentMessage/.test(files.api)
-      && /max_completion_tokens: 5200/.test(files.api)
+      && /max_tokens: 5200/.test(files.api)
       && !/buildBatchFeedbackResults/.test(files.ai)
       && !/normalizeSharedLesson/.test(files.ai)
       && !/buildClassFeedbackTemplate/.test(files.ai)
       && !/buildClassFeedbackTemplate/.test(files.api),
-    detail: "课堂反馈正文交给 MiniMax 生成；多个关联对象要求 MiniMax 返回 students[].parentMessage，网页端只做展示、保存、归档、格式提醒和串名拦截。"
+    detail: "课堂反馈正文交给 DeepSeek 生成；多个关联对象要求 DeepSeek 返回 students[].parentMessage，网页端只做展示、保存、归档、格式提醒和串名拦截。"
   },
   {
-    title: "MiniMax调用超时重试保护",
-    pass: /minimaxMaxAttempts/.test(files.api)
+    title: "DeepSeek调用超时重试保护",
+    pass: /deepseekMaxAttempts/.test(files.api)
       && /AbortController/.test(files.api)
-      && /isRetryableMinimaxError/.test(files.api)
-      && /extractMinimaxContent/.test(files.api),
-    detail: "MiniMax 临时限流、超时、网络错误和 5xx 会自动短重试，并返回更明确的失败原因。"
+      && /isRetryableAiError/.test(files.api)
+      && /extractAiContent/.test(files.api),
+    detail: "DeepSeek 临时限流、超时、网络错误和 5xx 会自动短重试，并返回更明确的失败原因。"
   },
   {
     title: "全站反馈转任务",

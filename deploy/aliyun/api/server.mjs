@@ -12,12 +12,11 @@ const uploadDir = process.env.JRC_UPLOAD_DIR || "/opt/jrcedu-uploads";
 const curriculumBackupDir = process.env.JRC_CURRICULUM_BACKUP_DIR || "/opt/jrcedu-backups/curriculum";
 const uploadMaxBytes = Number(process.env.JRC_UPLOAD_MAX_BYTES || 30 * 1024 * 1024);
 const jsonMaxBytes = Number(process.env.JRC_JSON_MAX_BYTES || 72 * 1024 * 1024);
-const minimaxApiKey = process.env.JRC_MINIMAX_API_KEY || process.env.MINIMAX_API_KEY || "";
-const minimaxApiUrl = process.env.JRC_MINIMAX_API_URL || "https://api.minimaxi.com/v1/chat/completions";
-const minimaxModel = process.env.JRC_MINIMAX_MODEL || "MiniMax-M3";
-const minimaxGroupId = process.env.JRC_MINIMAX_GROUP_ID || "";
-const minimaxTimeoutMs = Number(process.env.JRC_MINIMAX_TIMEOUT_MS || 45000);
-const minimaxMaxAttempts = Math.max(1, Number(process.env.JRC_MINIMAX_MAX_ATTEMPTS || 3));
+const deepseekApiKey = process.env.JRC_DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY || "";
+const deepseekApiUrl = process.env.JRC_DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
+const deepseekModel = process.env.JRC_DEEPSEEK_MODEL || "deepseek-chat";
+const deepseekTimeoutMs = Number(process.env.JRC_DEEPSEEK_TIMEOUT_MS || 45000);
+const deepseekMaxAttempts = Math.max(1, Number(process.env.JRC_DEEPSEEK_MAX_ATTEMPTS || 3));
 const departedEmployeeUsernames = ["zhangyan", "hejianjun"];
 const moduleOwnerPermissionRules = {
   yanyuhan: ["admissions.access", "admissions.edit", "admissions.import", "admissions.export", "admissions.finance", "studentService.access", "studentService.edit"],
@@ -1404,8 +1403,8 @@ function localAiDraft(body) {
     todoItems: mode === "todo" ? text.split(/[；;。\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
     parentMessage,
     internalNote: mode === "classFeedback"
-      ? "课堂反馈必须由 MiniMax 生成；当前未生成本地兜底正文。"
-      : "MiniMax Key 尚未配置或接口暂不可用，本结果为本地草稿整理。",
+      ? "课堂反馈必须由 AI 模型生成；当前未生成本地兜底正文。"
+      : "DeepSeek Key 尚未配置或接口暂不可用，本结果为本地草稿整理。",
     suggestedAction: ["feedback", "classFeedback"].includes(mode) ? "老师确认后归档学生服务，并复制发给家长。" : "",
     riskLevel: "正常",
     className: "",
@@ -1740,9 +1739,9 @@ function parseAiJson(text, fallback) {
 function requireAiJson(text) {
   const raw = stripThinkingText(text);
   if (!raw) {
-    const error = new Error("MiniMax 返回为空。");
+    const error = new Error("AI模型返回为空。");
     error.statusCode = 502;
-    error.code = "minimax_empty_response";
+    error.code = "ai_empty_response";
     throw error;
   }
   const candidates = [raw];
@@ -1762,11 +1761,11 @@ function requireAiJson(text) {
   }
   return {
     title: "课堂反馈",
-    summary: "MiniMax 已返回内容，系统已按校区统一模板补齐格式。",
+    summary: "AI模型已返回内容，系统已按校区统一模板补齐格式。",
     polishedText: raw,
     parentMessage: raw,
     todoItems: [],
-    internalNote: `MiniMax 返回了非 JSON 内容，系统已保留模型文字并继续套用课堂反馈模板。原始片段：${raw.slice(0, 240)}`,
+    internalNote: `AI模型返回了非 JSON 内容，系统已保留模型文字并继续套用课堂反馈模板。原始片段：${raw.slice(0, 240)}`,
     _rawAiText: raw
   };
 }
@@ -1783,13 +1782,13 @@ function ensureClassFeedbackResult(result, body) {
     return {
       ...result,
       title: result?.title || `批量课堂反馈｜${body.batchStudents.length}人`,
-      summary: result?.summary || "MiniMax 已按同一节课提取公共内容，并拆分每个学生个人表现。",
+      summary: result?.summary || "AI模型已按同一节课提取公共内容，并拆分每个学生个人表现。",
       parentMessage,
       polishedText: aiTextFromValue(result?.polishedText || result?.parentMessage || parentMessage),
       lessonSeason: result?.lessonSeason || body?.lessonSeason || extractFeedbackSeason(body?.text || ""),
       lessonNumber: result?.lessonNumber || body?.lessonNumber || resolveFeedbackLessonNumber(body?.target || "", body?.text || "", body),
       todoItems: Array.isArray(result?.todoItems) ? result.todoItems : [],
-      internalNote: result?.internalNote || "MiniMax 已按一课多生模式返回结构化课堂反馈；系统会保持公共课程内容一致，并按学生拆分个人表现。"
+      internalNote: result?.internalNote || "AI模型已按一课多生模式返回结构化课堂反馈；系统会保持公共课程内容一致，并按学生拆分个人表现。"
     };
   }
   const rawAiText = aiTextFromValue(result?._rawAiText || result?.polishedText || result?.parentMessage || "");
@@ -1800,9 +1799,9 @@ function ensureClassFeedbackResult(result, body) {
     const noteParts = [
       result?.internalNote,
       hasTemplate
-        ? "MiniMax 已主写课堂反馈，系统仅做称呼与段落格式校验。"
-        : "MiniMax 已返回课堂反馈正文，但模板栏目不完整；系统保留模型原文，不再用本地模板覆盖，请老师按黄色提醒补齐后再归档。",
-      rawAiText && rawAiText !== parentMessage ? "MiniMax 原始整理已保留在整理正文中。" : ""
+        ? "AI模型已主写课堂反馈，系统仅做称呼与段落格式校验。"
+        : "AI模型已返回课堂反馈正文，但模板栏目不完整；系统保留模型原文，不再用本地模板覆盖，请老师按黄色提醒补齐后再归档。",
+      rawAiText && rawAiText !== parentMessage ? "AI模型原始整理已保留在整理正文中。" : ""
     ].filter(Boolean);
     return {
       ...result,
@@ -1813,9 +1812,9 @@ function ensureClassFeedbackResult(result, body) {
       internalNote: noteParts.join("\n")
     };
   }
-  const error = new Error("MiniMax 没有返回可用的课堂反馈正文，本次不使用本地知识库硬凑正式反馈。");
+  const error = new Error("AI模型没有返回可用的课堂反馈正文，本次不使用本地知识库硬凑正式反馈。");
   error.statusCode = 502;
-  error.code = "minimax_incomplete_class_feedback";
+  error.code = "ai_incomplete_class_feedback";
   error.retryable = true;
   throw error;
 }
@@ -1837,7 +1836,40 @@ function stringifyAiContent(content) {
   return String(content || "");
 }
 
-function extractMinimaxContent(data) {
+function aiProviders() {
+  return [{
+    key: "deepseek",
+    name: "DeepSeek",
+    apiKey: deepseekApiKey,
+    apiUrl: deepseekApiUrl,
+    model: deepseekModel,
+    timeoutMs: deepseekTimeoutMs,
+    maxAttempts: deepseekMaxAttempts,
+    headers: () => ({
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${deepseekApiKey}`
+    }),
+    payload: (body) => ({
+      model: deepseekModel,
+      messages: [
+        { role: "system", content: aiSystemPrompt() },
+        { role: "user", content: buildAiUserPrompt(body) }
+      ],
+      temperature: 0.25,
+      max_tokens: 5200
+    })
+  }];
+}
+
+function configuredAiProviders() {
+  return aiProviders().filter((provider) => provider.apiKey && provider.apiUrl && provider.model);
+}
+
+function firstConfiguredAiProvider() {
+  return configuredAiProviders()[0] || null;
+}
+
+function extractAiContent(data) {
   const choice = data?.choices?.[0] || {};
   return stringifyAiContent(
     choice.message?.content
@@ -1851,7 +1883,7 @@ function extractMinimaxContent(data) {
   ).trim();
 }
 
-function minimaxStatusMessage(data) {
+function aiStatusMessage(data) {
   if (!data || typeof data === "string") return String(data || "");
   return data?.error?.message
     || data?.message
@@ -1861,7 +1893,7 @@ function minimaxStatusMessage(data) {
     || "";
 }
 
-function isRetryableMinimaxError(error) {
+function isRetryableAiError(error) {
   const status = Number(error?.statusCode || 0);
   const code = String(error?.code || "");
   const message = String(error?.message || "");
@@ -1870,47 +1902,36 @@ function isRetryableMinimaxError(error) {
     || /(timeout|timed out|abort|ECONNRESET|ECONNREFUSED|EAI_AGAIN|fetch failed|network)/i.test(`${code} ${message}`);
 }
 
-function minimaxFriendlyError(error) {
+function aiFriendlyError(error) {
   const status = Number(error?.statusCode || 0);
   const message = String(error?.message || error || "").slice(0, 240);
-  if (error?.code === "minimax_timeout") return `接口超时 ${Math.round(minimaxTimeoutMs / 1000)} 秒`;
+  const provider = error?.providerName || "AI模型";
+  const timeoutMs = error?.timeoutMs || deepseekTimeoutMs;
+  if (/timeout/i.test(String(error?.code || ""))) return `${provider} 接口超时 ${Math.round(timeoutMs / 1000)} 秒`;
   if (status === 429) return "接口限流或额度繁忙";
-  if ([500, 502, 503, 504].includes(status)) return `MiniMax 服务临时异常 HTTP ${status}`;
+  if ([500, 502, 503, 504].includes(status)) return `${provider} 服务临时异常 HTTP ${status}`;
   if (status) return `HTTP ${status}：${message}`;
   return message || "网络或接口返回异常";
 }
 
-async function callMinimaxChatOnce(body) {
-  const requestHeaders = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${minimaxApiKey}`
-  };
-  if (minimaxGroupId) requestHeaders["GroupId"] = minimaxGroupId;
-
+async function callAiProviderOnce(provider, body) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), minimaxTimeoutMs);
+  const timeout = setTimeout(() => controller.abort(), provider.timeoutMs);
   let response;
   try {
-    response = await fetch(minimaxApiUrl, {
+    response = await fetch(provider.apiUrl, {
       method: "POST",
-      headers: requestHeaders,
+      headers: provider.headers(),
       signal: controller.signal,
-      body: JSON.stringify({
-        model: minimaxModel,
-        messages: [
-          { role: "system", content: aiSystemPrompt() },
-          { role: "user", content: buildAiUserPrompt(body) }
-        ],
-        temperature: 0.25,
-        max_completion_tokens: 5200,
-        thinking: { type: "disabled" },
-        reasoning_split: true
-      })
+      body: JSON.stringify(provider.payload(body))
     });
   } catch (error) {
-    const wrapped = new Error(error?.name === "AbortError" ? "MiniMax 请求超时。" : String(error?.message || error));
+    const wrapped = new Error(error?.name === "AbortError" ? `${provider.name} 请求超时。` : String(error?.message || error));
     wrapped.statusCode = error?.name === "AbortError" ? 504 : 502;
-    wrapped.code = error?.name === "AbortError" ? "minimax_timeout" : "minimax_network_error";
+    wrapped.code = error?.name === "AbortError" ? `${provider.key}_timeout` : `${provider.key}_network_error`;
+    wrapped.provider = provider.key;
+    wrapped.providerName = provider.name;
+    wrapped.timeoutMs = provider.timeoutMs;
     wrapped.retryable = true;
     throw wrapped;
   } finally {
@@ -1925,46 +1946,87 @@ async function callMinimaxChatOnce(body) {
     data = text;
   }
   if (!response.ok) {
-    const error = new Error(minimaxStatusMessage(data) || (typeof data === "string" ? data : JSON.stringify(data || {})));
+    const error = new Error(aiStatusMessage(data) || (typeof data === "string" ? data : JSON.stringify(data || {})));
     error.statusCode = response.status;
-    error.retryable = isRetryableMinimaxError(error);
+    error.provider = provider.key;
+    error.providerName = provider.name;
+    error.timeoutMs = provider.timeoutMs;
+    error.retryable = isRetryableAiError(error);
     throw error;
   }
   const baseRespCode = Number(data?.base_resp?.status_code || 0);
   if (baseRespCode) {
-    const error = new Error(minimaxStatusMessage(data) || `MiniMax base_resp status ${baseRespCode}`);
+    const error = new Error(aiStatusMessage(data) || `${provider.name} base_resp status ${baseRespCode}`);
     error.statusCode = baseRespCode;
-    error.code = "minimax_base_resp_error";
-    error.retryable = isRetryableMinimaxError(error);
+    error.code = `${provider.key}_base_resp_error`;
+    error.provider = provider.key;
+    error.providerName = provider.name;
+    error.timeoutMs = provider.timeoutMs;
+    error.retryable = isRetryableAiError(error);
     throw error;
   }
-  const content = extractMinimaxContent(data);
+  const content = extractAiContent(data);
   if (!content) {
-    const error = new Error("MiniMax 返回为空。");
+    const error = new Error(`${provider.name} 返回为空。`);
     error.statusCode = 502;
-    error.code = "minimax_empty_response";
+    error.code = `${provider.key}_empty_response`;
+    error.provider = provider.key;
+    error.providerName = provider.name;
+    error.timeoutMs = provider.timeoutMs;
     error.retryable = true;
     throw error;
   }
   return content;
 }
 
-async function callMinimaxChat(body) {
+async function callAiProvider(provider, body) {
   let lastError = null;
-  for (let attempt = 1; attempt <= minimaxMaxAttempts; attempt += 1) {
+  for (let attempt = 1; attempt <= provider.maxAttempts; attempt += 1) {
     try {
-      return await callMinimaxChatOnce(body);
+      const content = await callAiProviderOnce(provider, body);
+      return { content, provider, attempts: attempt };
     } catch (error) {
       lastError = error;
-      if (!isRetryableMinimaxError(error) || attempt >= minimaxMaxAttempts) break;
+      if (!isRetryableAiError(error) || attempt >= provider.maxAttempts) break;
       await wait(Math.min(3000, 700 * attempt));
     }
   }
-  const wrapped = new Error(`${minimaxFriendlyError(lastError)}；已自动重试 ${minimaxMaxAttempts} 次。`);
+  const wrapped = new Error(`${aiFriendlyError(lastError)}；已自动重试 ${provider.maxAttempts} 次。`);
   wrapped.statusCode = lastError?.statusCode || 502;
-  wrapped.code = lastError?.code || "minimax_failed";
+  wrapped.code = lastError?.code || `${provider.key}_failed`;
+  wrapped.provider = provider.key;
+  wrapped.providerName = provider.name;
+  wrapped.timeoutMs = provider.timeoutMs;
   wrapped.cause = lastError;
-  wrapped.attempts = minimaxMaxAttempts;
+  wrapped.attempts = provider.maxAttempts;
+  throw wrapped;
+}
+
+async function callAiChat(body) {
+  const providers = configuredAiProviders();
+  if (!providers.length) {
+    const error = new Error("DeepSeek Key 尚未配置。");
+    error.statusCode = 503;
+    error.code = "ai_key_missing";
+    throw error;
+  }
+  const errors = [];
+  for (const provider of providers) {
+    try {
+      return await callAiProvider(provider, body);
+    } catch (error) {
+      errors.push(error);
+      if (!isRetryableAiError(error)) break;
+    }
+  }
+  const lastError = errors[errors.length - 1] || new Error("AI 调用失败。");
+  const wrapped = new Error(errors.map((error) => `${error.providerName || "AI模型"}：${aiFriendlyError(error)}`).join("；") || aiFriendlyError(lastError));
+  wrapped.statusCode = lastError?.statusCode || 502;
+  wrapped.code = lastError?.code || "ai_failed";
+  wrapped.provider = lastError?.provider || "";
+  wrapped.providerName = lastError?.providerName || "";
+  wrapped.attempts = errors.reduce((sum, error) => sum + (Number(error?.attempts) || 1), 0);
+  wrapped.cause = lastError;
   throw wrapped;
 }
 
@@ -1973,13 +2035,16 @@ async function handleAiAssistant(req, res, headers, authorization) {
   const text = String(body.text || "").trim();
   const fallback = localAiDraft(body);
   const isClassFeedback = String(body.mode || "") === "classFeedback";
-  const requiresMinimax = ["classFeedback", "videoOpsReport"].includes(String(body.mode || ""));
+  const requiresModel = ["classFeedback", "videoOpsReport"].includes(String(body.mode || ""));
+  const primaryProvider = firstConfiguredAiProvider();
   if (body.mode === "health") {
     send(res, 200, {
       ok: true,
-      provider: minimaxApiKey ? "minimax" : "local",
-      configured: Boolean(minimaxApiKey),
-      model: minimaxApiKey ? minimaxModel : "",
+      provider: primaryProvider ? primaryProvider.key : "local",
+      providerName: primaryProvider ? primaryProvider.name : "本地",
+      configured: Boolean(primaryProvider),
+      model: primaryProvider ? primaryProvider.model : "",
+      availableProviders: configuredAiProviders().map((provider) => ({ provider: provider.key, providerName: provider.name, model: provider.model })),
       result: fallback
     }, headers);
     return;
@@ -1988,15 +2053,15 @@ async function handleAiAssistant(req, res, headers, authorization) {
     send(res, 400, { ok: false, error: "empty_input", message: "请先输入文字或语音转文字内容。" }, headers);
     return;
   }
-  if (!minimaxApiKey) {
+  if (!primaryProvider) {
     const payload = {
       ok: false,
       provider: "none",
       configured: false,
-      error: "minimax_key_missing",
-      message: `${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：MiniMax Key 尚未配置。请先在阿里云服务环境变量中配置 JRC_MINIMAX_API_KEY。`
+      error: "ai_key_missing",
+      message: `${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：DeepSeek Key 尚未配置。请先在阿里云服务环境变量中配置 JRC_DEEPSEEK_API_KEY。`
     };
-    if (!requiresMinimax) {
+    if (!requiresModel) {
       send(res, 200, { ok: true, provider: "local", configured: false, result: fallback, warning: payload.error, message: payload.message }, headers);
       return;
     }
@@ -2004,27 +2069,37 @@ async function handleAiAssistant(req, res, headers, authorization) {
     return;
   }
   try {
-    const content = await callMinimaxChat({
+    const aiResult = await callAiChat({
       ...body,
       operatorName: authorization?.payload?.name || body.operatorName || "-",
       operatorUsername: authorization?.payload?.sub || body.operatorUsername || "-"
     });
+    const content = aiResult.content;
     const parsed = isClassFeedback ? requireAiJson(content) : parseAiJson(content, fallback);
     const result = ensureClassFeedbackResult(parsed, body);
-    send(res, 200, { ok: true, provider: "minimax", configured: true, model: minimaxModel, result }, headers);
+    send(res, 200, {
+      ok: true,
+      provider: aiResult.provider.key,
+      providerName: aiResult.provider.name,
+      configured: true,
+      model: aiResult.provider.model,
+      attempts: aiResult.attempts,
+      result
+    }, headers);
   } catch (error) {
-    console.error("MiniMax assistant failed", error);
+    console.error("AI assistant failed", error);
     const payload = {
       ok: false,
-      provider: "minimax",
+      provider: error?.provider || primaryProvider?.key || "ai",
+      providerName: error?.providerName || primaryProvider?.name || "AI模型",
       configured: true,
-      model: minimaxModel,
-      error: error?.code || "minimax_failed",
+      model: primaryProvider?.model || "",
+      error: error?.code || "ai_failed",
       statusCode: error?.statusCode || 500,
-      attempts: error?.attempts || minimaxMaxAttempts,
-      message: `MiniMax 调用失败，${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：${minimaxFriendlyError(error)}。请稍后再试；如果连续失败，请检查 API Key、额度、模型或服务器到 MiniMax 的网络。`
+      attempts: error?.attempts || primaryProvider?.maxAttempts || 1,
+      message: `${error?.providerName || primaryProvider?.name || "AI模型"} 调用失败，${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：${aiFriendlyError(error)}。请稍后再试；如果连续失败，请检查 DeepSeek API Key、额度、模型或服务器到 DeepSeek 的网络。`
     };
-    if (!requiresMinimax) {
+    if (!requiresModel) {
       send(res, 200, { ok: true, provider: "local", configured: true, warning: payload.error, message: payload.message, result: fallback }, headers);
       return;
     }
