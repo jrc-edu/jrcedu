@@ -56,6 +56,12 @@
       .badge.good { background: rgba(22,163,74,0.12); color: var(--good); }
       .notice { margin-top: 14px; padding: 13px 15px; border-radius: 16px; background: var(--brand-soft); border: 1px solid rgba(13,148,136,0.16); color: var(--muted); line-height: 1.7; }
       .notice.warn { background: rgba(180,83,9,0.08); border-color: rgba(180,83,9,0.16); }
+      .sync-diagnostic { margin-top: 10px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 13px; line-height: 1.65; }
+      .sync-diagnostic strong { display: block; margin-bottom: 4px; color: var(--ink); }
+      .sync-diagnostic span { display: block; color: var(--muted); }
+      .sync-diagnostic.success { border-color: rgba(21,128,61,0.20); background: rgba(22,163,74,0.06); }
+      .sync-diagnostic.warn { border-color: rgba(180,83,9,0.20); background: rgba(180,83,9,0.06); }
+      .sync-diagnostic.failed { border-color: rgba(185,28,28,0.20); background: rgba(185,28,28,0.05); }
       .metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
       .metric { min-height: 106px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: rgba(255,255,255,0.78); }
       .metric span { display: block; color: var(--muted); font-size: 12px; }
@@ -205,6 +211,7 @@
             <span class="tag">周报复盘</span>
           </div>
           <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
+          <div class="sync-diagnostic" id="cloudSyncDiagnostic" hidden></div>
         </article>
         <aside class="card">
           <p class="eyebrow">机器人逻辑</p>
@@ -515,6 +522,7 @@
       let editingAccountId = "";
       let benchmarkLibrary = [];
       let benchmarkLibraryLoaded = false;
+      let cloudSyncSeq = 0;
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1035,12 +1043,70 @@
         }
       }
 
-      async function hydrateCloud() {
+      function rawPayloadCounts(payload = {}) {
+        const source = payload && typeof payload === "object" ? payload : {};
+        return {
+          accounts: Array.isArray(source.accounts) ? source.accounts.length : 0,
+          accountAudits: Array.isArray(source.accountAudits) ? source.accountAudits.length : (Array.isArray(source.accountScans) ? source.accountScans.length : 0),
+          snapshots: Array.isArray(source.snapshots) ? source.snapshots.length : (Array.isArray(source.videos) ? source.videos.length : 0),
+          warnings: Array.isArray(source.warnings) ? source.warnings.length : 0,
+          rebuildMode: Boolean(source.rebuildMode || source.fresh || source.replaceData),
+          updatedAt: normalizeText(source.updatedAt || source.collectorStatus?.updatedAt || source.collectorStatus?.finishedAt)
+        };
+      }
+
+      function showCloudSyncDiagnostic(detail = {}) {
+        const panel = byId("cloudSyncDiagnostic");
+        if (!panel) return;
+        const level = detail.level || "warn";
+        const raw = detail.rawCounts;
+        const normalized = detail.normalizedCounts;
+        panel.hidden = false;
+        panel.className = `sync-diagnostic ${escapeHtml(level)}`;
+        panel.innerHTML = [
+          `<strong>${escapeHtml(detail.title || "云端同步诊断")}</strong>`,
+          detail.message ? `<span>${escapeHtml(detail.message)}</span>` : "",
+          raw ? `<span>云端原始：账号 ${raw.accounts || 0} 个，账号体检 ${raw.accountAudits || 0} 条，视频快照 ${raw.snapshots || 0} 条，异常 ${raw.warnings || 0} 条。</span>` : "",
+          normalized ? `<span>页面入库：账号 ${normalized.accounts || 0} 个，账号体检 ${normalized.accountAudits || 0} 条，有效视频 ${normalized.snapshots || 0} 条，当前显示视频档案 ${normalized.latest || 0} 条。</span>` : "",
+          detail.status ? `<span>接口状态：${escapeHtml(detail.status)}</span>` : "",
+          detail.updatedAt ? `<span>云端更新时间：${escapeHtml(shortDate(detail.updatedAt))}</span>` : "",
+          detail.advice ? `<span>处理建议：${escapeHtml(detail.advice)}</span>` : ""
+        ].filter(Boolean).join("");
+      }
+
+      async function hydrateCloud(options = {}) {
+        const syncId = ++cloudSyncSeq;
+        const button = byId("refreshCloudButton");
+        if (button) {
+          button.disabled = true;
+          button.textContent = options.manual ? "正在同步..." : "自动同步中...";
+        }
+        byId("videoOpsMessage").textContent = options.manual ? "正在同步云端短视频数据，请稍等..." : "正在自动读取云端短视频数据...";
+        showCloudSyncDiagnostic({
+          level: "warn",
+          title: "正在同步云端",
+          message: "已向云端发起读取请求，如果接口、登录或数据过滤有问题，这里会直接显示原因。",
+          rawCounts: {},
+          normalizedCounts: {
+            accounts: state.accounts.length,
+            accountAudits: state.accountAudits.length,
+            snapshots: state.snapshots.length,
+            latest: latestSnapshots().length
+          }
+        });
         renderAll();
         try {
           const result = await window.JRC_CLOUD?.readModuleData?.(STORE_KEY);
+          if (syncId !== cloudSyncSeq) return;
           if (!result) {
             byId("videoOpsMessage").textContent = "云端接口未加载，当前只显示本机缓存。";
+            showCloudSyncDiagnostic({
+              level: "failed",
+              title: "云端接口未加载",
+              message: "页面没有读到 cloud-api.js 或 JRC_CLOUD.readModuleData。",
+              status: "cloud-api-missing",
+              advice: "请刷新页面；如果仍然这样，说明静态文件或缓存没有更新。"
+            });
             return;
           }
           if (!result.ok) {
@@ -1048,19 +1114,68 @@
               ? "云端登录凭证已失效，请退出系统后重新登录，再点“同步云端”。"
               : `云端同步失败：${result.status || result.error || result.reason || "未知错误"}`;
             byId("videoOpsMessage").textContent = detail;
+            showCloudSyncDiagnostic({
+              level: "failed",
+              title: "云端同步失败",
+              message: detail,
+              status: result.status || result.error || result.reason || "unknown",
+              advice: result.status === 401 || result.status === 403
+                ? "先退出工作台重新登录，再进入短视频系统点击同步云端。"
+                : "如果连续出现，请把这条诊断截图发给我。"
+            });
             return;
           }
           if (result?.ok && result.data?.found && result.data.payload) {
             const cloudPayload = result.data.payload;
-            state = cloudPayload?.rebuildMode ? normalizeState(cloudPayload) : mergeState(state, cloudPayload);
+            const rawCounts = rawPayloadCounts(cloudPayload);
+            const normalizedCloud = normalizeState(cloudPayload);
+            state = rawCounts.snapshots || rawCounts.accountAudits || rawCounts.rebuildMode ? normalizedCloud : mergeState(state, cloudPayload);
             localStorage.setItem(STORE_KEY, JSON.stringify(state));
             renderAll();
-            byId("videoOpsMessage").textContent = `已同步云端短视频运营数据：${state.accounts.length} 个账号、${state.accountAudits.length} 条账号体检、${state.snapshots.length} 条有效视频快照。`;
+            const normalizedCounts = {
+              accounts: state.accounts.length,
+              accountAudits: state.accountAudits.length,
+              snapshots: state.snapshots.length,
+              latest: latestSnapshots().length
+            };
+            const message = `已同步云端短视频运营数据：云端原始 ${rawCounts.snapshots} 条视频快照，页面显示 ${normalizedCounts.latest} 条视频档案。`;
+            byId("videoOpsMessage").textContent = message;
+            showCloudSyncDiagnostic({
+              level: normalizedCounts.latest ? "success" : "warn",
+              title: normalizedCounts.latest ? "云端同步成功" : "云端有数据，但页面未显示视频",
+              message,
+              rawCounts,
+              normalizedCounts,
+              status: `HTTP ${result.status || 200}｜found=true`,
+              updatedAt: result.data.updatedAt || rawCounts.updatedAt,
+              advice: normalizedCounts.latest
+                ? "数据已经进入页面，可以继续生成专家报告或查看视频诊断。"
+                : "云端有原始数据但被页面过滤了，请把这条诊断截图发给我，我会按字段继续修过滤规则。"
+            });
           } else {
             byId("videoOpsMessage").textContent = "云端暂未找到短视频系统数据；请确认 Mac mini 已重新采集并推送。";
+            showCloudSyncDiagnostic({
+              level: "warn",
+              title: "云端没有找到短视频数据",
+              message: "接口已连通，但这个 storeKey 下没有 payload。",
+              status: `HTTP ${result.status || 200}｜found=false`,
+              advice: "请在 Mac mini 运行导入；如果导入状态显示成功，说明写入的 storeKey 可能和网页读取的不一致。"
+            });
           }
         } catch (error) {
           byId("videoOpsMessage").textContent = `云端同步异常：${error?.message || error || "未知错误"}`;
+          showCloudSyncDiagnostic({
+            level: "failed",
+            title: "云端同步异常",
+            message: error?.message || String(error || "未知错误"),
+            status: "exception",
+            advice: "请把这条诊断截图发给我；常见原因是接口地址不通、网络异常或浏览器登录状态失效。"
+          });
+        } finally {
+          if (syncId === cloudSyncSeq && button) {
+            button.disabled = false;
+            button.textContent = "同步云端";
+          }
         }
       }
 
@@ -2635,7 +2750,7 @@
           await navigator.clipboard?.writeText(buildWeeklyReport());
           byId("videoOpsMessage").textContent = "已复制本周短视频运营复盘。";
         });
-        byId("refreshCloudButton").addEventListener("click", hydrateCloud);
+        byId("refreshCloudButton").addEventListener("click", () => hydrateCloud({ manual: true }));
       }
 
       bindEvents();
