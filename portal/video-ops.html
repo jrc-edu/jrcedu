@@ -255,7 +255,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260704n</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260704o</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -305,6 +305,19 @@
         <p style="margin-top:8px;">采集器按自有账号优先：最多每个自有账号 500 条，自动打开详情页，自动过滤无效数据，跑完自动写入网站。同行自动挖掘先暂停，避免验证码和滑块风控浪费时间。</p>
         <div class="focus-grid" id="overnightMiningGrid"></div>
         <div class="decision-list" id="overnightMiningActions"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Automation Cadence</p>
+            <h2>自动采集节奏安排</h2>
+          </div>
+          <span class="badge">今晚全量，以后轻量</span>
+        </div>
+        <p style="margin-top:8px;">每天最多新发一个视频，所以今晚全量建档后，日常只需要盯新发、近 7 天变化和少量二次起量老视频；每周再做阶段复盘，每月才做全量校验。</p>
+        <div class="focus-grid" id="automationScheduleGrid"></div>
+        <div class="decision-list" id="automationScheduleActions"></div>
       </section>
 
       <section class="card progress-panel" id="collectorProgressCard">
@@ -362,7 +375,7 @@
             <p class="eyebrow">Deep Mining</p>
             <h2>自有账号深度挖掘任务</h2>
           </div>
-          <button class="button secondary" id="copyShootingTasksButton" type="button">复制深挖任务</button>
+          <button class="button secondary" id="copyShootingTasksButton" type="button" hidden>复制深挖任务</button>
         </div>
         <p style="margin-top:8px;">今天不急着拍摄。这里先把自己的历史视频变成深挖任务：采全数据、找优势、找短板、沉淀长期可复制结构。</p>
         <div class="decision-list" id="shootingTaskList"></div>
@@ -374,7 +387,7 @@
             <p class="eyebrow">Account Advantage</p>
             <h2>账号优势强化</h2>
           </div>
-          <button class="button secondary" id="copyAdvantagePlanButton" type="button">复制优势方案</button>
+          <button class="button secondary" id="copyAdvantagePlanButton" type="button" hidden>复制优势方案</button>
         </div>
         <p style="margin-top:8px;">系统会从自己的历史视频里找出最值得放大的优势：哪个题型、哪个年级、哪种标题、哪种证明力更容易被家长保存和转发。</p>
         <div class="decision-list" id="advantagePlanList"></div>
@@ -386,7 +399,7 @@
             <p class="eyebrow">Next Topics</p>
             <h2>下一轮选题建议</h2>
           </div>
-          <button class="button secondary" id="copyNextTopicPlanButton" type="button">复制选题建议</button>
+          <button class="button secondary" id="copyNextTopicPlanButton" type="button" hidden>复制选题建议</button>
         </div>
         <p style="margin-top:8px;">系统把高播放、高涨粉、高咨询、高收藏转发拆开归因，不平均发力，直接给下一轮应该重点拍哪些方向。</p>
         <div class="decision-list" id="nextTopicPlanList"></div>
@@ -400,7 +413,7 @@
           </div>
           <div class="toolbar">
             <select id="auditAccountSelect"><option value="">选择账号</option></select>
-            <button class="button secondary" id="copyAccountAuditButton" type="button">复制账号体检</button>
+            <button class="button secondary" id="copyAccountAuditButton" type="button" hidden>复制账号体检</button>
           </div>
         </div>
         <p style="margin-top:8px;">适合你这种已有一万多粉丝、368 条历史视频的个人账号：系统会先把自己的账号级官方数据和所有视频表现吃透，再判断哪里强、哪里弱、下一步该怎么发。</p>
@@ -518,6 +531,12 @@
                   <option value="weak">按低分复盘</option>
                   <option value="latest">按最新采集</option>
                 </select>
+                <select id="videoDisplayLimit">
+                  <option value="20">显示前20条</option>
+                  <option value="50">显示前50条</option>
+                  <option value="100">显示前100条</option>
+                  <option value="all">显示全部</option>
+                </select>
               </div>
             </div>
             <div class="signal-ranking-grid" id="signalRankingGrid"></div>
@@ -625,7 +644,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260704n";
+        const pageVersion = "20260704o";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -759,7 +778,8 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704n";
+      const PAGE_VERSION = "20260704o";
+      const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
@@ -773,6 +793,7 @@
       let benchmarkLibraryLoaded = false;
       let cloudSyncSeq = 0;
       let lastCloudHydrateAt = 0;
+      let autoAiReportRunning = false;
 
       window.addEventListener("error", (event) => {
         const panel = document.getElementById("cloudSyncDiagnostic");
@@ -927,17 +948,19 @@
         const target = parseNumber(source.targetPerAccount) || 30;
         const benchmarkAccounts = parseNumber(source.benchmarkAccountsPerRun);
         const benchmarkVideos = parseNumber(source.benchmarkVideosPerAccount);
-        const mode = normalizeText(source.mode) || (target <= 30 ? "日常巡检" : target <= 100 ? "深度体检" : "全量基准扫描");
+        const cadence = normalizeText(source.cadence) || (target <= 50 ? "daily" : target <= 150 ? "weekly" : "monthly");
+        const mode = normalizeText(source.mode) || (cadence === "daily" ? "日常轻量巡检" : cadence === "weekly" ? "每周阶段复盘" : "月度全量校验");
         return {
           mode,
+          cadence,
           targetPerAccount: target,
           benchmarkAccountsPerRun: benchmarkAccounts,
           benchmarkVideosPerAccount: benchmarkVideos,
           deepOwnDetails: source.deepOwnDetails === true || source.deepOwnDetails === "true",
           fullScan: source.fullScan === true || source.fullScan === "true",
           sampleMethod: normalizeText(source.sampleMethod) || "按平台创作者中心作品列表顺序采集，默认优先最近作品，不随机抽样。",
-          purpose: normalizeText(source.purpose) || (target <= 30 ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。" : target <= 100 ? "适合做账号阶段体检，判断题材、留存、互动和转化的大方向。" : "适合首次建档或月度复盘，用更大历史样本建立账号基准。"),
-          conclusionBoundary: normalizeText(source.conclusionBoundary) || (target < 20 ? "样本偏少，只能做方向提示，不能下账号级重结论。" : target < 80 ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。" : "可以做较完整账号体检，但仍受平台后台可见数据限制。"),
+          purpose: normalizeText(source.purpose) || (cadence === "daily" ? "适合每天看新发视频、近 7 天变化和少量二次起量老视频。" : cadence === "weekly" ? "适合每周复盘最近 30 天内容，判断题材、留存、互动和转化的大方向。" : "适合首次建档或月度全量校验，用更大历史样本建立账号基准。"),
+          conclusionBoundary: normalizeText(source.conclusionBoundary) || (target < 20 ? "样本偏少，只能做方向提示，不能下账号级重结论。" : cadence === "daily" ? "可以判断当天和近 7 天变化，不用于重算长期账号定位。" : cadence === "weekly" ? "可以做近期阶段复盘，但长期基准仍以月度全量校验为准。" : "可以做较完整账号体检，但仍受平台后台可见数据限制。"),
           operatorControl: normalizeText(source.operatorControl) || "可以用 --max-videos 指定本轮每个账号最多采多少条。"
         };
       }
@@ -1461,6 +1484,7 @@
                 ? "不需要手动同步，后续采集器写入后页面会继续自动刷新。"
                 : "采集器可能还在整理数据，页面会继续自动刷新。"
             });
+            void maybeAutoGenerateAiReport("cloud-sync");
           } else {
             if (!silent) byId("videoOpsMessage").textContent = "暂未发现新的短视频采集结果。";
             showCloudSyncDiagnostic({
@@ -2147,7 +2171,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "指挥采集：今晚整夜深挖用 npm run video:own-deep 或 npm run video:overnight；小剂量试跑用 npm run video:trial。同行自动挖掘暂缓，只有特殊排查才加 --manual。";
+        byId("collectionCommandHint").textContent = "采集节奏：今晚先做一次全量建档；以后每天轻量巡检，每周阶段复盘，每月全量校验。同行自动挖掘暂缓，只有特殊排查才开启人工模式。";
       }
 
       function dataReadinessProfile() {
@@ -2356,6 +2380,70 @@
         if (withConversion < 20) nextActions.push({ tone: "warn", title: "今晚重点补转化字段", body: "主页访问、私信、线索、涨粉字段越完整，系统越能判断哪类视频真正带来招生机会。" });
         actions.innerHTML = nextActions.slice(0, 4).map((card) => `
           <div class="decision-card ${escapeHtml(card.tone)}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function renderAutomationSchedule() {
+        const grid = byId("automationScheduleGrid");
+        const actions = byId("automationScheduleActions");
+        if (!grid || !actions) return;
+        const rows = ownVideoRows();
+        const status = state.collectorStatus || {};
+        const plan = currentCollectionPlan();
+        const last = [state.snapshots[0]?.capturedAt, state.accountAudits[0]?.capturedAt, status.updatedAt]
+          .filter(Boolean)
+          .sort((left, right) => String(right).localeCompare(String(left)))[0] || "";
+        const cards = [
+          {
+            tone: rows.length >= 300 ? "good" : "warn",
+            label: "今晚一次性建档",
+            value: "最多500条",
+            note: rows.length >= 300 ? "历史库基本成型，后续不用天天全扫" : "先把历史作品挖出来，建立账号基准"
+          },
+          {
+            tone: "good",
+            label: "每天轻量巡检",
+            value: "约40条",
+            note: "看新发视频、近7天变化和少量二次起量老视频"
+          },
+          {
+            tone: "good",
+            label: "每周阶段复盘",
+            value: "约120条",
+            note: "看最近30天题材、留存、互动和转化"
+          },
+          {
+            tone: "warn",
+            label: "每月全量校验",
+            value: "最多500条",
+            note: "只做基准校准，不作为每天任务"
+          }
+        ];
+        grid.innerHTML = cards.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone)}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        const actionCards = [];
+        if (status.status === "running") {
+          actionCards.push({ tone: "good", title: "当前正在采集", body: `${status.stepLabel || "采集器运行中"}。这轮结束后页面会自动更新，不需要手动导入。` });
+        } else if (rows.length < 300) {
+          actionCards.push({ tone: "warn", title: "今晚先做一次全量建档", body: "今晚的目标是把历史视频挖出来。建档完成后，日常任务切换成轻量巡检，不再每天扫500条。" });
+        } else {
+          actionCards.push({ tone: "good", title: "后续切换轻量巡检", body: "历史视频库已经足够支撑账号判断。以后每天只看新视频、近7天变化和二次起量老视频。" });
+        }
+        actionCards.push({
+          tone: plan.cadence === "daily" ? "good" : "",
+          title: `当前采集模式：${plan.mode}`,
+          body: `${plan.purpose}${last ? ` 最近更新时间：${shortDate(last)}。` : ""}`
+        });
+        actions.innerHTML = actionCards.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
             <strong>${escapeHtml(card.title)}</strong>
             <p>${escapeHtml(card.body)}</p>
           </div>
@@ -2584,16 +2672,56 @@
         box.textContent = aiReportDisplayText(report);
       }
 
-      async function generateAiExpertReport() {
+      function aiReportDataSignature() {
+        const latest = latestSnapshots();
+        const audits = latestAccountAudits();
+        const lastVideo = latest.map((row) => row.capturedAt).filter(Boolean).sort().slice(-1)[0] || "";
+        const lastAudit = audits.map((row) => row.capturedAt).filter(Boolean).sort().slice(-1)[0] || "";
+        return hashText([
+          latest.length,
+          audits.length,
+          lastVideo,
+          lastAudit,
+          state.collectorStatus?.runId || "",
+          state.collectorStatus?.finishedAt || ""
+        ].join("|"));
+      }
+
+      function canAutoGenerateAiReport() {
+        if (autoAiReportRunning) return false;
+        if (!window.JRC_CLOUD?.aiAssistant) return false;
+        const status = state.collectorStatus || {};
+        if (status.status === "running" || status.status === "failed") return false;
+        const latest = latestSnapshots();
+        const audits = latestAccountAudits();
+        if (latest.length < 20 && audits.length < 1) return false;
+        const signature = aiReportDataSignature();
+        if (!signature || localStorage.getItem(AUTO_AI_REPORT_KEY) === signature) return false;
+        return true;
+      }
+
+      async function maybeAutoGenerateAiReport(reason = "") {
+        if (!canAutoGenerateAiReport()) return false;
+        const signature = aiReportDataSignature();
+        autoAiReportRunning = true;
+        try {
+          return await generateAiExpertReport({ auto: true, signature, reason });
+        } finally {
+          autoAiReportRunning = false;
+        }
+      }
+
+      async function generateAiExpertReport(options = {}) {
+        const auto = Boolean(options.auto);
         const button = byId("generateAiReportButton");
         const status = byId("aiReportStatus");
         const box = byId("aiExpertReport");
         if (!window.JRC_CLOUD?.aiAssistant) {
           status.textContent = "云端 AI 接口未加载，暂时不能生成专家报告。";
-          return;
+          return false;
         }
-        button.disabled = true;
-        status.textContent = "正在调用 MiniMax 生成短视频专家报告...";
+        if (button) button.disabled = true;
+        status.textContent = auto ? "采集结果已更新，正在自动生成 MiniMax 专家报告..." : "正在调用 MiniMax 生成短视频专家报告...";
         box.textContent = "MiniMax 正在读取当前账号、视频、平台建议和数据完整度，请稍等。";
         try {
           const result = await window.JRC_CLOUD.aiAssistant({
@@ -2620,12 +2748,16 @@
             provider: result.data.provider || "minimax",
             model: result.data.model || ""
           });
-          saveState("AI 短视频专家报告已生成。");
+          if (auto && options.signature) localStorage.setItem(AUTO_AI_REPORT_KEY, options.signature);
+          saveState(auto ? "采集完成，AI 短视频专家报告已自动生成。" : "AI 短视频专家报告已生成。");
+          return true;
         } catch (error) {
-          status.textContent = `AI 专家报告生成失败：${error?.message || error || "未知错误"}`;
+          if (auto && options.signature) localStorage.setItem(AUTO_AI_REPORT_KEY, options.signature);
+          status.textContent = `${auto ? "自动生成" : "AI 专家报告生成"}失败：${error?.message || error || "未知错误"}`;
           box.textContent = "本次没有生成报告。请确认 MiniMax Key、额度和服务器网络正常，稍后再试。";
+          return false;
         } finally {
-          button.disabled = false;
+          if (button) button.disabled = false;
         }
       }
 
@@ -3048,10 +3180,18 @@
         }).join("");
       }
 
+      function currentVideoDisplayLimit(total) {
+        const value = byId("videoDisplayLimit")?.value || "20";
+        if (value === "all") return Math.max(total, 0);
+        const parsed = parseNumber(value) || 20;
+        return Math.max(1, Math.min(parsed, Math.max(total, 1)));
+      }
+
       function renderVideos() {
         const list = byId("videoList");
         const rows = filteredVideos();
-        const displayRows = rows.slice(0, 60);
+        const limit = currentVideoDisplayLimit(rows.length);
+        const displayRows = rows.slice(0, limit);
         list.innerHTML = displayRows.length ? displayRows.map((row, index) => {
           const diagnosis = diagnoseVideo(row);
           const action = videoActionLabel(row, diagnosis);
@@ -3117,7 +3257,7 @@
           `;
         }).join("") : `<div class="empty">${latestAccountAudits().length ? "账号级数据已同步；当前没有有效单条视频快照。下一步需要让采集器进入作品列表/详情页补采播放、点赞、留存等单条视频数据。" : "暂无可显示视频。等 Mac mini 采集器同步数据后，这里会按视频自动生成诊断。"}</div>`;
         if (rows.length > displayRows.length) {
-          list.insertAdjacentHTML("beforeend", `<div class="empty">已显示前 ${displayRows.length} 条。其余 ${rows.length - displayRows.length} 条先收进档案库，请用上方筛选/排序定位重点视频。</div>`);
+          list.insertAdjacentHTML("beforeend", `<div class="empty">已显示前 ${displayRows.length} 条重点视频。其余 ${rows.length - displayRows.length} 条已收进档案库，需要时用上方排序或“显示条数”展开。</div>`);
         }
       }
 
@@ -3657,6 +3797,7 @@
         renderCollectionPlan();
         renderDataReadiness();
         renderOvernightMiningPlan();
+        renderAutomationSchedule();
         renderAiExpertReport();
         renderExpertFramework();
         renderBenchmarkLibrary();
@@ -3973,7 +4114,7 @@
         byId("clearImportButton").addEventListener("click", () => {
           byId("importJsonInput").value = "";
         });
-        ["platformFilter", "accountFilter", "videoTypeFilter", "videoSortFilter"].forEach((id) => {
+        ["platformFilter", "accountFilter", "videoTypeFilter", "videoSortFilter", "videoDisplayLimit"].forEach((id) => {
           byId(id).addEventListener("change", refreshVideoLists);
         });
         byId("auditAccountSelect").addEventListener("change", renderAccountAudit);

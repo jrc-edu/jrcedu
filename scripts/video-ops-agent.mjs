@@ -398,13 +398,15 @@ function applyRuntimeOptions(config, options = {}) {
 
 function collectionPlan(config) {
   const maxVideos = Number(config.limits?.maxVideosPerAccount || 30);
-  const mode = normalizeText(config.scanMode) || (maxVideos <= 30 ? "自动可信采集" : maxVideos <= 100 ? "自动阶段体检" : "自动深度扫描");
+  const mode = normalizeText(config.scanMode) || (maxVideos <= 50 ? "日常轻量巡检" : maxVideos <= 150 ? "每周阶段复盘" : "月度全量校验");
   const publicCollection = config.benchmarks?.publicCollection || {};
   const benchmarkEnabled = publicCollection.enabled !== false;
   const benchmarkAccounts = benchmarkEnabled ? Number(publicCollection.accountsPerRun || 8) : 0;
   const benchmarkVideos = benchmarkEnabled ? Number(publicCollection.videosPerAccount || 8) : 0;
+  const cadence = maxVideos <= 50 ? "daily" : maxVideos <= 150 ? "weekly" : "monthly";
   return {
     mode,
+    cadence,
     targetPerAccount: maxVideos,
     benchmarkAccountsPerRun: benchmarkAccounts,
     benchmarkVideosPerAccount: benchmarkVideos,
@@ -412,18 +414,20 @@ function collectionPlan(config) {
     sampleMethod: benchmarkEnabled
       ? `自有账号自动读取后台并用可信度规则过滤；标杆账号仅在明确开启时采公开视频，本轮计划 ${benchmarkAccounts} 个标杆账号、每个最多 ${benchmarkVideos} 条。`
       : "自动读取自有账号后台；默认只采自有账号，不再自动采标杆公开搜索结果。页面不对、权限没进、字段不可信时自动跳过。",
-    purpose: maxVideos <= 30
-      ? "适合每天看近期发布表现、找马上要复拍和复盘的视频。"
-      : maxVideos <= 100
-        ? "适合做账号阶段体检，判断题材、留存、互动和转化的大方向。"
-        : "适合首次建档或月度复盘，用更大历史样本建立账号基准。",
+    purpose: cadence === "daily"
+      ? "适合每天看新发视频、最近 7 天变化和少量二次起量老视频。"
+      : cadence === "weekly"
+        ? "适合每周复盘最近 30 天内容，判断题材、留存、互动和转化的大方向。"
+        : "适合首次建档或月度全量校验，用更大历史样本建立账号基准。",
     conclusionBoundary: maxVideos < 20
       ? "样本偏少，只能做方向提示，不能下账号级重结论。"
-      : maxVideos < 80
-        ? "可以判断近期趋势，但对长期账号定位仍需更多历史样本。"
-        : "可以做较完整账号体检，但仍受平台后台可见数据限制。",
+      : cadence === "daily"
+        ? "可以判断当天和近 7 天变化，不用于重算长期账号定位。"
+        : cadence === "weekly"
+          ? "可以做近期阶段复盘，但长期基准仍以月度全量校验为准。"
+          : "可以做较完整账号体检，但仍受平台后台可见数据限制。",
     fullScan: maxVideos >= 150,
-    operatorControl: "建议用 --fresh 重建本轮可信数据；用 --max-videos 指定自有账号最多采多少条。需要人工确认时才显式加 --manual。"
+    operatorControl: "今晚首次建档用 video:own-deep；以后每天用 video:daily，每周用 video:weekly，每月用 video:monthly。需要人工确认时才显式加 --manual。"
   };
 }
 
@@ -1873,9 +1877,11 @@ function usage() {
   默认不再自动点详情页，不再自动采标杆公开视频，避免把菜单页、验证码页、搜索噪音当成作品数据。
   无用数据由程序自动判断并跳过；只有需要人工盯页面时才加 --manual。
   小剂量试验建议 npm run video:trial：只采自有账号最多 30 条并深度采集，不采同行。
-  日常重建建议 npm run video:rebuild：只采自有账号，不采标杆。
+  日常轻量建议 npm run video:daily：只采自有账号最多 40 条，用于新发视频和近 7 天变化。
+  每周复盘建议 npm run video:weekly：只采自有账号最多 120 条，用于最近 30 天阶段复盘。
   自有账号深度挖掘建议 npm run video:own-deep：只采自己的账号，最多 500 条，打开详情页，建立历史优势库。
   整夜深挖也可以运行 npm run video:overnight，和 video:own-deep 使用同一套全量策略。
+  月度校验建议 npm run video:monthly：重建全量可信数据，不需要每天执行。
   同行自动挖掘暂缓：遇到手机号验证码、滑块/图形验证等风控时不要硬跑。标杆账号先用于人工学习，等自有账号研究透再恢复。
 `);
 }
