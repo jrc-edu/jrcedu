@@ -255,7 +255,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260704q</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705b</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -665,7 +665,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705a";
+        const pageVersion = "20260705b";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -799,7 +799,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260704q";
+      const PAGE_VERSION = "20260705b";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -1075,6 +1075,38 @@
         };
       }
       state = readLocalState();
+      let analysisCacheToken = "";
+      let latestSnapshotsCache = null;
+      let latestAccountAuditsCache = null;
+      let accountBaselineCache = new Map();
+      let platformBaselineCache = new Map();
+      let topicMomentumCache = new Map();
+      let diagnosisCache = new Map();
+      let videoRankCache = new Map();
+
+      function analysisStateToken() {
+        return [
+          state.updatedAt || "",
+          state.collectorStatus?.updatedAt || "",
+          state.collectorStatus?.finishedAt || "",
+          state.snapshots?.length || 0,
+          state.accountAudits?.length || 0,
+          state.accounts?.length || 0
+        ].join("|");
+      }
+
+      function ensureAnalysisCache() {
+        const token = analysisStateToken();
+        if (token === analysisCacheToken) return;
+        analysisCacheToken = token;
+        latestSnapshotsCache = null;
+        latestAccountAuditsCache = null;
+        accountBaselineCache = new Map();
+        platformBaselineCache = new Map();
+        topicMomentumCache = new Map();
+        diagnosisCache = new Map();
+        videoRankCache = new Map();
+      }
 
       function accountKey(row) {
         return [
@@ -1527,7 +1559,7 @@
                 ? "不需要手动同步，后续采集器写入后页面会继续自动刷新。"
                 : "采集器可能还在整理数据，页面会继续自动刷新。"
             });
-            void maybeAutoGenerateAiReport("cloud-sync");
+            // 自动报告放到后台采集器或手动按钮执行，避免页面首次打开时同时渲染和调用 AI。
           } else {
             if (!silent) byId("videoOpsMessage").textContent = "暂未发现新的短视频采集结果。";
             showCloudSyncDiagnostic({
@@ -1562,6 +1594,8 @@
       }
 
       function latestSnapshots() {
+        ensureAnalysisCache();
+        if (latestSnapshotsCache) return latestSnapshotsCache;
         const map = new Map();
         state.snapshots.forEach((row) => {
           const key = videoKey(row);
@@ -1570,7 +1604,8 @@
             map.set(key, row);
           }
         });
-        return [...map.values()].sort((left, right) => String(right.capturedAt || "").localeCompare(String(left.capturedAt || "")));
+        latestSnapshotsCache = [...map.values()].sort((left, right) => String(right.capturedAt || "").localeCompare(String(left.capturedAt || "")));
+        return latestSnapshotsCache;
       }
 
       function accountIdentity(row) {
@@ -1578,6 +1613,8 @@
       }
 
       function latestAccountAudits() {
+        ensureAnalysisCache();
+        if (latestAccountAuditsCache) return latestAccountAuditsCache;
         const map = new Map();
         state.accountAudits.forEach((row) => {
           const key = accountIdentity(row);
@@ -1586,7 +1623,8 @@
             map.set(key, row);
           }
         });
-        return [...map.values()].sort((left, right) => String(right.capturedAt || "").localeCompare(String(left.capturedAt || "")));
+        latestAccountAuditsCache = [...map.values()].sort((left, right) => String(right.capturedAt || "").localeCompare(String(left.capturedAt || "")));
+        return latestAccountAuditsCache;
       }
 
       function videoHistory(row) {
@@ -1597,9 +1635,16 @@
       }
 
       function accountBaseline(accountName, platform, accountType = "自有账号") {
+        ensureAnalysisCache();
+        const key = [platform, accountType, accountName].map(normalizeText).join("|");
+        if (accountBaselineCache.has(key)) return accountBaselineCache.get(key);
         const rows = latestSnapshots().filter((row) => row.accountName === accountName && row.platform === platform && row.accountType === accountType);
-        if (!rows.length) return { avgViews: 0, avgEngagement: 0, avgConversion: 0, avgRetention: 0, avgCtr: 0, avgSaveShare: 0, avgContentValue: 0, count: 0 };
-        return {
+        if (!rows.length) {
+          const empty = { avgViews: 0, avgEngagement: 0, avgConversion: 0, avgRetention: 0, avgCtr: 0, avgSaveShare: 0, avgContentValue: 0, count: 0 };
+          accountBaselineCache.set(key, empty);
+          return empty;
+        }
+        const baseline = {
           avgViews: average(rows.map((row) => row.views)),
           avgEngagement: average(rows.map((row) => engagementRate(row))),
           avgConversion: average(rows.map((row) => conversionRate(row))),
@@ -1609,12 +1654,21 @@
           avgContentValue: average(rows.map((row) => contentValueRate(row))),
           count: rows.length
         };
+        accountBaselineCache.set(key, baseline);
+        return baseline;
       }
 
       function platformCompetitorBaseline(platform) {
+        ensureAnalysisCache();
+        const key = normalizeText(platform);
+        if (platformBaselineCache.has(key)) return platformBaselineCache.get(key);
         const rows = latestSnapshots().filter((row) => row.platform === platform && row.accountType === "同行账号");
-        if (!rows.length) return { avgViews: 0, avgEngagement: 0, avgRetention: 0, avgSaveShare: 0, avgContentValue: 0, count: 0 };
-        return {
+        if (!rows.length) {
+          const empty = { avgViews: 0, avgEngagement: 0, avgRetention: 0, avgSaveShare: 0, avgContentValue: 0, count: 0 };
+          platformBaselineCache.set(key, empty);
+          return empty;
+        }
+        const baseline = {
           avgViews: average(rows.map((row) => row.views)),
           avgEngagement: average(rows.map((row) => engagementRate(row))),
           avgRetention: average(rows.map((row) => retentionQuality(row))),
@@ -1622,6 +1676,8 @@
           avgContentValue: average(rows.map((row) => contentValueRate(row))),
           count: rows.length
         };
+        platformBaselineCache.set(key, baseline);
+        return baseline;
       }
 
       function average(values) {
@@ -1732,16 +1788,24 @@
       }
 
       function topicMomentum(topic, platform) {
+        ensureAnalysisCache();
+        const cacheKey = [platform, topic].map(normalizeText).join("|");
+        if (topicMomentumCache.has(cacheKey)) return topicMomentumCache.get(cacheKey);
         const rows = latestSnapshots()
           .filter((row) => row.topic === topic && row.platform === platform && row.accountType !== "同行账号");
-        if (rows.length < 2) return 0.35;
+        if (rows.length < 2) {
+          topicMomentumCache.set(cacheKey, 0.35);
+          return 0.35;
+        }
         const viewIndex = average(rows.map((row) => {
           const baseline = accountBaseline(row.accountName, row.platform, row.accountType);
           return baseline.avgViews ? Math.min(1.4, row.views / baseline.avgViews) : 0.6;
         })) / 1.4;
         const retentionIndex = average(rows.map((row) => retentionQuality(row))) || 0.35;
         const conversionIndex = Math.min(1, average(rows.map((row) => conversionRate(row))) / 0.006);
-        return Math.max(0.2, Math.min(1, viewIndex * 0.4 + retentionIndex * 0.35 + conversionIndex * 0.25));
+        const score = Math.max(0.2, Math.min(1, viewIndex * 0.4 + retentionIndex * 0.35 + conversionIndex * 0.25));
+        topicMomentumCache.set(cacheKey, score);
+        return score;
       }
 
       function diagnoseVideoLight(row) {
@@ -1767,6 +1831,9 @@
       }
 
       function diagnoseVideo(row) {
+        ensureAnalysisCache();
+        const cacheKey = row.id || videoKey(row);
+        if (diagnosisCache.has(cacheKey)) return diagnosisCache.get(cacheKey);
         const history = videoHistory(row);
         const baseline = accountBaseline(row.accountName, row.platform, row.accountType);
         const competitorBaseline = platformCompetitorBaseline(row.platform);
@@ -1805,7 +1872,7 @@
         next.push(`五层评分：曝光点击 ${Math.round(breakdown.reach)} / 留存 ${Math.round(breakdown.retention)} / 互动 ${Math.round(breakdown.interaction)} / 转化 ${Math.round(breakdown.conversion)} / 题材复利 ${Math.round(breakdown.iteration)}。`);
         if (!next.length) next.push("继续观察 24-72 小时数据变化，再决定复拍或调整。");
 
-        return {
+        const diagnosis = {
           score,
           tone: score < 55 ? "danger" : score < 72 ? "warn" : "good",
           strengths: strengths.length ? strengths : ["当前数据暂未出现明显优势，继续观察播放和互动变化。"],
@@ -1816,6 +1883,8 @@
           competitorBaseline,
           breakdown
         };
+        diagnosisCache.set(cacheKey, diagnosis);
+        return diagnosis;
       }
 
       function accountPeerRows(row) {
@@ -1825,12 +1894,17 @@
       }
 
       function videoPerformanceRank(row, diagnosis = null) {
+        ensureAnalysisCache();
+        const cacheKey = row.id || videoKey(row);
+        if (videoRankCache.has(cacheKey)) return videoRankCache.get(cacheKey);
         const rows = accountPeerRows(row);
         const scored = rows
           .map((item) => ({ row: item, score: item.id === row.id && diagnosis ? diagnosis.score : scoreVideo(item, accountBaseline(item.accountName, item.platform, item.accountType), platformCompetitorBaseline(item.platform)) }))
           .sort((left, right) => right.score - left.score || (right.row.views || 0) - (left.row.views || 0));
         const index = Math.max(0, scored.findIndex((item) => item.row.id === row.id));
-        return { rank: index + 1, total: scored.length };
+        const rank = { rank: index + 1, total: scored.length };
+        videoRankCache.set(cacheKey, rank);
+        return rank;
       }
 
       function isStrongVideo(row, diagnosis = null) {
