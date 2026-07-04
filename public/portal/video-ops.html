@@ -255,7 +255,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705b</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705c</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -665,7 +665,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705b";
+        const pageVersion = "20260705c";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -799,7 +799,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705b";
+      const PAGE_VERSION = "20260705c";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -960,6 +960,16 @@
           auditsCount: parseNumber(source.auditsCount),
           snapshotsCount: parseNumber(source.snapshotsCount),
           warningsCount: parseNumber(source.warningsCount),
+          loginChecks: Array.isArray(source.loginChecks) ? source.loginChecks.map((row) => ({
+            platform: normalizeText(row.platform),
+            accountName: normalizeText(row.accountName || row.name),
+            accountType: normalizeText(row.accountType || "自有账号"),
+            status: normalizeText(row.status || "unknown"),
+            message: normalizeText(row.message),
+            checkedAt: normalizeText(row.checkedAt),
+            issues: Array.isArray(row.issues) ? row.issues.map(normalizeText).filter(Boolean) : [],
+            screenshot: normalizeText(row.screenshot)
+          })).filter((row) => row.platform || row.accountName) : [],
           message: normalizeText(source.message)
         };
       }
@@ -2237,6 +2247,20 @@
         return "等待采集";
       }
 
+      function loginCheckStatusName(status) {
+        if (status === "ready") return "已登录";
+        if (status === "skipped") return "已跳过";
+        if (status === "login_required") return "需登录";
+        if (status === "blocked") return "未通过";
+        return "待检查";
+      }
+
+      function loginCheckSummary(loginChecks = []) {
+        const rows = Array.isArray(loginChecks) ? loginChecks : [];
+        if (!rows.length) return "";
+        return `登录预检：${rows.map((row) => `${row.platform || ""}｜${row.accountName || ""} ${loginCheckStatusName(row.status)}`).join("；")}`;
+      }
+
       function renderCollectorStatus() {
         const status = state.collectorStatus || normalizeCollectorStatus({});
         const dot = byId("collectorStatusDot");
@@ -2251,6 +2275,7 @@
           status.currentPlatform && status.currentAccount ? `${status.currentPlatform}｜${status.currentAccount}` : "",
           status.currentVideo ? `正在处理：${status.currentVideo}` : "",
           status.totalAccounts ? `账号 ${status.accountsDone || 0}/${status.totalAccounts}` : "",
+          loginCheckSummary(status.loginChecks),
           `账号体检 ${status.auditsCount || latestAccountAudits().length} 条`,
           `视频快照 ${status.snapshotsCount || latestSnapshots().length} 条`,
           status.warningsCount ? `异常 ${status.warningsCount} 条` : ""

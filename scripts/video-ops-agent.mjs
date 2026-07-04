@@ -255,6 +255,7 @@ function defaultConfig() {
       minDelayMs: 900,
       maxDelayMs: 2200,
       manualConfirm: false,
+      loginPreflight: true,
       strictCollection: true,
       autoOpenDetails: false,
       deepOwnDetails: false
@@ -422,6 +423,10 @@ function applyRuntimeOptions(config, options = {}) {
   next.limits.manualConfirm = false;
   if (options.manual || options["manual-confirm"] || process.env.VIDEO_OPS_MANUAL_CONFIRM === "1") {
     next.limits.manualConfirm = true;
+  }
+  next.limits.loginPreflight = true;
+  if (options.noLoginPreflight || options["no-login-preflight"] || process.env.VIDEO_OPS_NO_LOGIN_PREFLIGHT === "1") {
+    next.limits.loginPreflight = false;
   }
   if (options.openDetails || options["open-details"] || process.env.VIDEO_OPS_OPEN_DETAILS === "1") {
     next.limits.autoOpenDetails = true;
@@ -885,6 +890,126 @@ function preflightWarning(account, label, result) {
     `原因：${result.issues.join("；")}`,
     result.screenshot ? `截图：${result.screenshot}` : ""
   ].filter(Boolean).join(" ");
+}
+
+function preflightHasLoginIssue(result = {}) {
+  return (result.issues || []).some((issue) => /登录|扫码|验证码|安全验证/.test(issue));
+}
+
+function loginCheckRow(account, status, message, extra = {}) {
+  return {
+    platform: account.platform || "",
+    accountName: account.name || account.accountName || "",
+    accountType: account.accountType || "自有账号",
+    status,
+    message,
+    checkedAt: nowIso(),
+    ...extra
+  };
+}
+
+function loginCheckLabel(status) {
+  if (status === "ready") return "已登录";
+  if (status === "skipped") return "已跳过";
+  if (status === "login_required") return "需要登录";
+  if (status === "blocked") return "预检未通过";
+  return "未检查";
+}
+
+async function runLoginPreflight(context, config, accounts, onProgress = async () => {}) {
+  const loginChecks = [];
+  const readyAccountKeys = new Set();
+  const warnings = [];
+  if (config.limits?.loginPreflight === false) {
+    accounts.forEach((account) => {
+      readyAccountKeys.add(stableAccountKey(account));
+      loginChecks.push(loginCheckRow(account, "ready", "已跳过登录预检，按配置直接进入采集。"));
+    });
+    return { loginChecks, readyAccountKeys, warnings };
+  }
+
+  const canPrompt = Boolean(config.__readline);
+  console.log("");
+  console.log("采集前登录预检：先确认所有要采集的平台都已登录；全部确认后才开始正式采集。");
+  console.log(canPrompt
+    ? "如果出现扫码/验证码，请在打开的 Chrome 里处理完，再回到终端按 Enter 复检。"
+    : "当前不是交互式终端，未登录账号会自动跳过，避免半夜卡住或采集假数据。");
+
+  for (const account of accounts) {
+    const url = account.dashboardUrl || account.videoListUrl;
+    const page = await context.newPage();
+    let check = null;
+    try {
+      await onProgress(`登录预检 ${account.platform}｜${account.name}`, {
+        currentAccount: account.name,
+        currentPlatform: account.platform,
+        currentVideo: "",
+        increment: false,
+        force: true,
+        loginChecks,
+        message: `正在确认 ${account.platform}｜${account.name} 是否已经登录。`
+      });
+      await gotoSafe(page, url, config);
+      let result = await preflightPage(page, config, account, "登录预检");
+      let attempts = 0;
+      while (!result.ok && preflightHasLoginIssue(result) && canPrompt && attempts < 4) {
+        console.log("");
+        console.log(`需要登录：${account.platform}｜${account.name}`);
+        console.log(`原因：${result.issues.join("；")}`);
+        if (result.screenshot) console.log(`截图：${result.screenshot}`);
+        const answer = await askOperator(config, "请在 Chrome 完成扫码/验证/登录后按 Enter 复检；输入 s 跳过这个账号：");
+        if (/^(s|skip|跳过)$/i.test(answer)) break;
+        attempts += 1;
+        await page.reload({ waitUntil: "domcontentloaded", timeout: Number(config.limits?.navigationTimeoutMs || 60000) }).catch(async () => {
+          await gotoSafe(page, url, config).catch(() => {});
+        });
+        await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
+        await randomDelay(config);
+        result = await preflightPage(page, config, account, "登录预检复检");
+      }
+
+      if (result.ok) {
+        check = loginCheckRow(account, "ready", "已登录，可进入正式采集。", { url: result.url });
+        readyAccountKeys.add(stableAccountKey(account));
+        console.log(`登录预检通过：${account.platform}｜${account.name}`);
+      } else {
+        const loginRequired = preflightHasLoginIssue(result);
+        const status = loginRequired ? "login_required" : "blocked";
+        const message = loginRequired
+          ? "账号未登录或需要扫码/验证码，本轮不采该账号。"
+          : "页面不符合后台数据页特征，本轮不采该账号。";
+        check = loginCheckRow(account, canPrompt ? "skipped" : status, message, {
+          url: result.url,
+          issues: result.issues || [],
+          screenshot: result.screenshot || ""
+        });
+        const warning = [
+          `${account.platform}｜${account.name} 采集前登录预检未通过，本轮已跳过该账号，避免采集假数据。`,
+          `状态：${loginCheckLabel(check.status)}。`,
+          `原因：${(result.issues || []).join("；") || "未知"}`,
+          result.screenshot ? `截图：${result.screenshot}` : ""
+        ].filter(Boolean).join(" ");
+        warnings.push(warning);
+        console.warn(warning);
+      }
+    } catch (error) {
+      check = loginCheckRow(account, "blocked", `登录预检异常：${error.message || error}`, { url });
+      warnings.push(`${account.platform}｜${account.name} 登录预检异常，本轮已跳过：${error.message || error}`);
+    } finally {
+      if (check) loginChecks.push(check);
+      await page.close().catch(() => {});
+      await onProgress(`登录预检完成 ${account.platform}｜${account.name}：${loginCheckLabel(check?.status)}`, {
+        currentAccount: account.name,
+        currentPlatform: account.platform,
+        currentVideo: "",
+        increment: false,
+        force: true,
+        loginChecks,
+        message: `${account.platform}｜${account.name} ${loginCheckLabel(check?.status)}。`
+      });
+    }
+  }
+  return { loginChecks, readyAccountKeys, warnings };
 }
 
 async function clickUsefulControls(page, labels, config, maxClicks = 8) {
@@ -2036,7 +2161,8 @@ async function collect(configPath, runtimeOptions = {}) {
   const config = applyRuntimeOptions(await loadConfig(configPath), runtimeOptions);
   await ensureDir(config.dataDir || DEFAULT_DATA_DIR);
   let rl = null;
-  if (config.limits?.manualConfirm) {
+  const canUseInteractivePrompt = Boolean(input.isTTY && output.isTTY);
+  if (config.limits?.manualConfirm || (config.limits?.loginPreflight !== false && canUseInteractivePrompt)) {
     rl = readline.createInterface({ input, output });
     config.__readline = rl;
   }
@@ -2045,14 +2171,14 @@ async function collect(configPath, runtimeOptions = {}) {
     .filter((account) => account.collectionEnabled !== false)
     .filter((account) => account.dashboardUrl || account.videoListUrl);
   const benchmarkAccounts = publicBenchmarkCollectionAccounts(config);
-  const enabledAccounts = mergeByKey([...authorizedAccounts, ...benchmarkAccounts], accountCollectionKey);
+  let enabledAccounts = mergeByKey([...authorizedAccounts, ...benchmarkAccounts], accountCollectionKey);
   const runKey = collectRunKey(config, enabledAccounts);
   const checkpoint = await loadCollectorCheckpoint(config, runKey);
   const resumeState = createResumeState(checkpoint);
   const runId = `video-run-${Date.now().toString(36)}`;
   const startedAt = nowIso();
   let completedPhases = 0;
-  const totalPhases = Math.max(1, enabledAccounts.length * 6 + 4);
+  let totalPhases = Math.max(1, enabledAccounts.length * 6 + 4);
   const plan = collectionPlan(config);
   const payload = {
     accounts: normalizeAccountsForPayload(config),
@@ -2081,6 +2207,7 @@ async function collect(configPath, runtimeOptions = {}) {
       auditsCount: 0,
       snapshotsCount: 0,
       warningsCount: 0,
+      loginChecks: [],
       message: checkpoint
         ? `检测到同一轮未完成采集，正在断点续跑：已恢复 ${payloadSnapshotCount(checkpoint)} 条视频。`
         : `Mac mini 正在准备采集。本轮为${plan.mode}：自动判断可信度，不可信数据不入库，默认不采标杆公开搜索。`
@@ -2123,6 +2250,7 @@ async function collect(configPath, runtimeOptions = {}) {
       currentAccount: extra.currentAccount ?? payload.collectorStatus.currentAccount,
       currentPlatform: extra.currentPlatform ?? payload.collectorStatus.currentPlatform,
       currentVideo: extra.currentVideo ?? "",
+      loginChecks: extra.loginChecks ?? payload.collectorStatus.loginChecks ?? [],
       message: extra.message || stepLabel
     };
     console.log(`进度 ${payload.collectorStatus.progress}%｜${stepLabel}`);
@@ -2140,6 +2268,22 @@ async function collect(configPath, runtimeOptions = {}) {
     await saveCheckpoint();
     await updateStatus("启动独立 Chrome", { progress: 3, force: true, message: checkpoint ? "正在从上次中断处继续采集。" : "正在打开专门用于采集的 Chrome 档案。" });
     context = await openContext(config);
+    const loginPreflight = await runLoginPreflight(context, config, enabledAccounts, updateStatus);
+    payload.collectorStatus.loginChecks = loginPreflight.loginChecks;
+    payload.warnings.push(...loginPreflight.warnings);
+    enabledAccounts = enabledAccounts.filter((account) => loginPreflight.readyAccountKeys.has(stableAccountKey(account)));
+    totalPhases = Math.max(1, enabledAccounts.length * 6 + 4);
+    payload.collectorStatus.totalAccounts = enabledAccounts.length;
+    await saveCheckpoint({ collectorStatus: payload.collectorStatus, warnings: payload.warnings });
+    if (!enabledAccounts.length) {
+      throw new Error("采集前登录预检未通过：没有已登录且可采集的账号。本轮未开始正式采集，也不会自动覆盖网站数据。请先运行 npm run video:login 或重新执行采集并完成扫码。");
+    }
+    await updateStatus("登录预检全部完成，开始正式采集", {
+      progress: 8,
+      force: true,
+      loginChecks: payload.collectorStatus.loginChecks,
+      message: `登录预检完成：${enabledAccounts.length} 个账号可采集。`
+    });
     for (let accountIndex = 0; accountIndex < enabledAccounts.length; accountIndex += 1) {
       const account = enabledAccounts[accountIndex];
       const accountKey = stableAccountKey(account);
