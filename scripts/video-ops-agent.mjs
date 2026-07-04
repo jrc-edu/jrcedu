@@ -20,6 +20,8 @@ const DEFAULT_BENCHMARK_ACCOUNTS_PATH = path.join(REPO_ROOT, "data", "video_benc
 const LOGIN_HINTS = ["扫码登录", "微信扫码", "登录", "验证码", "安全验证", "请验证", "重新登录"];
 const INVALID_VIDEO_TITLE_RE = /^(内容管理|视频\s*\(\d+\)|了解详情|关于腾讯|微信视频号运营规范|首页|帮助|通知|消息|设置|活动管理|数据中心|创作中心|互动管理|变现中心|发布|反馈|登录|扫码登录|下载抖音精选|用户服务协议|平均播放时长|平均观看时长|人均观看时长|封面点击率|播放点击率|点击率|播放量|点赞量|评论量|收藏量|分享量|转发量|完播率|播放完成率|3秒留存|三秒留存|5秒留存|五秒留存|\d{1,2}:\d{2}|\d+(?:\.\d+)?\s*(?:万|w)?)$/i;
 const INVALID_VIDEO_URL_RE = /^(javascript:|mailto:|tel:|#)|developers\.weixin\.qq\.com|tencent\.com\/?$|weixin\.qq\.com\/cgi-bin\/readtemplate/i;
+const NON_OWN_WORK_API_RE = /creator\/school\/course|creator\/school|creator\/material\/center\/billboard|material\/center\/billboard|course_list/i;
+const NON_OWN_WORK_TEXT_RE = /抖音精选|青年创作者成长计划|创作技巧大揭秘|课程讲授账号做爆|优质文本之道|超级臭豆腐/i;
 const GENERIC_VIDEO_CARD_SELECTOR = [
   "article",
   "li",
@@ -785,6 +787,7 @@ function attachApiCapture(page, label = "") {
   const handler = async (response) => {
     if (records.length >= 160) return;
     const url = response.url();
+    if (isNonOwnWorkSource(url)) return;
     if (!/creator|douyin|aweme|channels|weixin|data|stat|analysis|metric|video|item|post|feed|dashboard/i.test(url)) return;
     const contentType = response.headers()["content-type"] || "";
     if (!/json|javascript|text/i.test(contentType)) return;
@@ -1219,6 +1222,14 @@ function isNavigableHttpUrl(url) {
   return /^https?:\/\//i.test(String(url || "")) && !INVALID_VIDEO_URL_RE.test(String(url || ""));
 }
 
+function isNonOwnWorkSource(value) {
+  return NON_OWN_WORK_API_RE.test(String(value || ""));
+}
+
+function isNonOwnWorkText(value) {
+  return NON_OWN_WORK_TEXT_RE.test(String(value || ""));
+}
+
 function looksLikeVideoUrl(url) {
   const raw = String(url || "");
   if (!isNavigableHttpUrl(raw)) return false;
@@ -1333,6 +1344,10 @@ function snapshotConfidence(snapshot = {}) {
 function isTrustedSnapshot(snapshot = {}) {
   const title = normalizeText(snapshot.title);
   if (!title || INVALID_VIDEO_TITLE_RE.test(title)) return false;
+  if (isNonOwnWorkText(title)) return false;
+  if ((snapshot.deepSources || []).some(isNonOwnWorkSource)) return false;
+  if ((snapshot.apiSignalLines || []).some(isNonOwnWorkText)) return false;
+  if ((snapshot.officialMetricLines || []).some(isNonOwnWorkText)) return false;
   if (!hasSnapshotMetrics(snapshot)) return false;
   if ((snapshot.accountType || "") === "同行账号" && normalizeText(snapshot.source).includes("public-benchmark") && snapshot.benchmarkMatched !== true) return false;
   return snapshotConfidence(snapshot) >= 55;
