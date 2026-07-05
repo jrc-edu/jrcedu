@@ -109,6 +109,10 @@
       .skip-strip strong { display: block; font-size: 13px; }
       .skip-strip span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.55; }
       .skip-strip[hidden] { display: none; }
+      .workbench-nav { position: sticky; top: 10px; z-index: 70; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-top: 18px; padding: 12px 14px; border-radius: 18px; border: 1px solid rgba(13,148,136,0.14); background: rgba(255,255,255,0.94); box-shadow: 0 12px 32px rgba(23,33,50,0.08); backdrop-filter: blur(10px); }
+      .workbench-nav strong { font-size: 13px; }
+      .workbench-nav .toolbar { gap: 6px; }
+      .workbench-nav .button { min-height: 34px; padding: 0 11px; font-size: 12px; }
       .task-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 14px; }
       .task-card { padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
       .task-card span { display: inline-flex; width: fit-content; margin-bottom: 8px; padding: 4px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-size: 11px; font-weight: 900; }
@@ -129,6 +133,14 @@
       .script-card dd { margin: 4px 0 0; color: var(--ink); font-size: 13px; line-height: 1.65; }
       .script-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
       .script-actions .button { min-height: 34px; padding: 0 12px; font-size: 12px; }
+      .plan-grid { display: grid; grid-template-columns: repeat(7, minmax(160px, 1fr)); gap: 10px; margin-top: 14px; overflow-x: auto; padding-bottom: 2px; }
+      .plan-card { min-width: 160px; padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
+      .plan-card span { display: inline-flex; width: fit-content; margin-bottom: 8px; padding: 4px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-size: 11px; font-weight: 900; }
+      .plan-card strong { display: block; font-size: 14px; line-height: 1.4; }
+      .plan-card p { margin-top: 6px; font-size: 12px; line-height: 1.58; }
+      .plan-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.055); }
+      .plan-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.055); }
+      .plan-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.045); }
       .method-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
       .method-list li { padding: 10px 12px; border-radius: 13px; background: rgba(13,148,136,0.07); color: var(--ink); font-size: 13px; line-height: 1.6; }
       .command-panel { margin-top: 18px; border-color: rgba(13,148,136,0.20); background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(235,250,246,0.90)); }
@@ -277,12 +289,16 @@
         .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .plan-grid { grid-template-columns: repeat(7, minmax(190px, 1fr)); }
       }
       @media (max-width: 720px) {
         .page-version-floating { top: 64px; right: 8px; min-height: 28px; padding: 0 9px; font-size: 11px; }
         .topbar { align-items: flex-start; flex-direction: column; }
+        .workbench-nav { position: static; align-items: flex-start; flex-direction: column; }
+        .workbench-nav .toolbar { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
         .strategy-grid, .readiness-grid, .focus-grid, .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: 1fr; }
+        .plan-grid { grid-template-columns: repeat(7, minmax(220px, 1fr)); }
         .command-row { grid-template-columns: 1fr; }
         .video-modal { padding: 12px; }
         .video-modal-head { flex-direction: column; }
@@ -294,7 +310,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705v</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705w</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -331,6 +347,17 @@
           <p style="margin-top:10px;">播放负责本地影响力，涨粉负责账号增长，咨询线索负责招生转化，收藏转发负责干货价值。系统会把这些信号拆开判断，不用老师从一长串后台数据里找重点。</p>
           <div class="notice">日常使用优先看“今日拍摄指挥台”和“运营决策摘要”；采集状态、设备台帐、接口细节都已放到高级入口里。</div>
         </aside>
+      </section>
+
+      <section class="workbench-nav">
+        <strong>今日工作入口</strong>
+        <div class="toolbar">
+          <button class="button secondary" type="button" data-jump-target="todayCommandGrid">总控台</button>
+          <button class="button secondary" type="button" data-jump-target="dailyScriptGrid">今日脚本</button>
+          <button class="button secondary" type="button" data-jump-target="weeklyPlanGrid">7日排期</button>
+          <button class="button secondary" type="button" data-jump-target="remakeBookmarkGrid">复拍收藏</button>
+          <button class="button secondary" type="button" data-jump-target="signalRankingGrid">视频明细</button>
+        </div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -377,6 +404,36 @@
         <p id="dailyScriptSummary" style="margin-top:8px;">把诊断结果直接落成可拍摄的标题、开头、正文结构和结尾承接。</p>
         <div class="script-grid" id="dailyScriptGrid"></div>
         <ul class="method-list" id="dailyMethodList"></ul>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Weekly Plan</p>
+            <h2>7日拍摄排期表</h2>
+          </div>
+          <div class="toolbar">
+            <button class="button secondary" id="copyWeeklyPlanButton" type="button">复制7日排期</button>
+            <span class="badge" id="weeklyPlanBadge">等待数据</span>
+          </div>
+        </div>
+        <p id="weeklyPlanSummary" style="margin-top:8px;">把系统建议排成一周能执行的拍摄节奏：哪天复拍、哪天重剪、哪天补转化、发布后看什么。</p>
+        <div class="plan-grid" id="weeklyPlanGrid"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Remake Favorites</p>
+            <h2>复拍收藏夹</h2>
+          </div>
+          <div class="toolbar">
+            <button class="button secondary" id="copyBookmarkLibraryButton" type="button">复制收藏素材</button>
+            <span class="badge" id="remakeBookmarkBadge">等待收藏</span>
+          </div>
+        </div>
+        <p id="remakeBookmarkSummary" style="margin-top:8px;">老师看到值得复拍的视频可以先收藏，系统后面会优先把它们放进排期、脚本和专家报告。</p>
+        <div class="task-card-grid" id="remakeBookmarkGrid"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -888,7 +945,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705v";
+        const pageVersion = "20260705w";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -1023,7 +1080,7 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705v";
+      const PAGE_VERSION = "20260705w";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
@@ -1307,6 +1364,7 @@
           dualPlatformScripts: reportList(source.dualPlatformScripts || source.platformScripts || source["同一内容双平台脚本"] || source["双平台脚本"]),
           postPublishReviewLoop: reportList(source.postPublishReviewLoop || source.postPublishLoop || source["发布后复盘闭环"] || source["2小时24小时72小时复盘"]),
           platformMaterialLibrary: reportList(source.platformMaterialLibrary || source.crossPlatformMaterialLibrary || source["跨平台素材库"] || source["平台素材库"]),
+          remakeBookmarkLibrary: reportList(source.remakeBookmarkLibrary || source.savedRemakeLibrary || source["复拍收藏夹"] || source["人工收藏素材"]),
           dataTrustTiers: reportList(source.dataTrustTiers || source.dataTrust || source["数据可信度分层"] || source["可信度分层"]),
           stopDoing: reportList(source.stopDoing || source.stopList || source["停止事项"] || source["需要停止或重做的内容"]),
           weeklyShootingPlan: reportList(source.weeklyShootingPlan || source.shootingPlan || source["下周拍摄清单"]),
@@ -1685,6 +1743,35 @@
         });
       }
 
+      function userMarkKeysForRow(row = {}) {
+        return Array.from(new Set([
+          row.id,
+          videoKey(row),
+          row.videoId ? `video:${compactIdentity(row.videoId)}` : "",
+          row.url ? `url:${compactIdentity(row.url)}` : "",
+          row.title ? `title:${compactIdentity([row.platform, row.accountName, row.title].filter(Boolean).join("|"))}` : ""
+        ].map(normalizeText).filter(Boolean)));
+      }
+
+      function applyLocalVideoUserMarks(localState = {}, nextState = {}) {
+        const local = normalizeState(localState);
+        const next = normalizeState(nextState);
+        const savedMarks = new Map();
+        local.snapshots.forEach((row) => {
+          if (!isSavedVideo(row)) return;
+          const mark = { saved: true, savedAt: normalizeText(row.savedAt) || new Date().toISOString() };
+          userMarkKeysForRow(row).forEach((key) => savedMarks.set(key, mark));
+        });
+        if (!savedMarks.size) return next;
+        return normalizeState({
+          ...next,
+          snapshots: next.snapshots.map((row) => {
+            const mark = userMarkKeysForRow(row).map((key) => savedMarks.get(key)).find(Boolean);
+            return mark ? { ...row, ...mark } : row;
+          })
+        });
+      }
+
       function benchmarkAccountsFromState() {
         return state.accounts
           .filter((row) => row.accountType === "同行账号")
@@ -1858,8 +1945,10 @@
             const cloudPayload = result.data.payload;
             const rawCounts = rawPayloadCounts(cloudPayload);
             const normalizedCloud = normalizeState(cloudPayload);
+            const localBeforeCloud = state;
             const localDailySkip = activeDailySkip();
             state = rawCounts.snapshots || rawCounts.accountAudits || rawCounts.rebuildMode ? normalizedCloud : mergeState(state, cloudPayload);
+            state = applyLocalVideoUserMarks(localBeforeCloud, state);
             state.dailySkip = chooseDailySkip(localDailySkip, state.dailySkip);
             writeLocalDailySkip(state.dailySkip);
             localStorage.setItem(STORE_KEY, JSON.stringify(state));
@@ -3824,6 +3913,247 @@
         methods.innerHTML = data.methods.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
       }
 
+      function weeklyPlanDayLabel(offset = 0) {
+        const date = new Date();
+        date.setDate(date.getDate() + offset);
+        const names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+        return `${names[date.getDay()]} ${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+      }
+
+      function firstUnusedRow(rows = [], used = new Set()) {
+        return (rows || []).find((row) => row && !used.has(videoKey(row))) || null;
+      }
+
+      function firstUnusedDiagnostic(items = [], used = new Set()) {
+        const item = (items || []).find((candidate) => candidate?.row && !used.has(videoKey(candidate.row)));
+        return item?.row || null;
+      }
+
+      function weeklyPlanTopicForRow(row = {}, fallback = "数学培优") {
+        return row?.id ? contentIdeaLabelForVideo(row) : fallback;
+      }
+
+      function weeklyPlanCard(row = {}, index = 0, config = {}) {
+        const topic = weeklyPlanTopicForRow(row, config.topic || "数学培优");
+        const hasRow = Boolean(row?.id);
+        const metric = hasRow ? compactVideoMetrics(row) : "等待采集补样本";
+        const baseVideo = hasRow ? `参考「${videoShortTitle(row)}」` : "先按题材方向准备素材";
+        const douyinLine = config.douyin || `抖音版：前 3 秒先抛${topic}的痛点，标题放年级、题型和搜索词。`;
+        const wechatLine = config.wechat || `视频号版：补家长转发理由、本地升学场景和私域咨询入口。`;
+        const reviewLine = config.review || "发布后按 2小时看启动、24小时看收藏转发/涨粉/咨询、72小时归档。";
+        return {
+          day: weeklyPlanDayLabel(index),
+          tone: config.tone || "good",
+          title: config.title || "复拍高价值结构",
+          topic,
+          metric,
+          body: `${baseVideo}｜${config.body || "把真实有效结构换题复拍，不从零想。"}`,
+          douyinLine,
+          wechatLine,
+          reviewLine,
+          videoId: row?.id || ""
+        };
+      }
+
+      function buildWeeklyShootingPlan() {
+        const leaders = commandCenterLeaders();
+        const cross = buildCrossPlatformComparison();
+        const primary = primaryCrossPlatformTopic();
+        const used = new Set();
+        const pick = (row) => {
+          if (!row) return null;
+          used.add(videoKey(row));
+          return row;
+        };
+        const rows = [
+          pick(firstUnusedDiagnostic(leaders.candidates?.remake, used)),
+          pick(firstUnusedRow(leaders.candidates?.growth, used)),
+          pick(firstUnusedRow(leaders.candidates?.conversion, used)),
+          pick(firstUnusedRow(leaders.candidates?.saveShare, used)),
+          pick(firstUnusedRow(leaders.candidates?.retentionWeak, used)),
+          pick(firstUnusedRow(leaders.candidates?.brand, used)),
+          pick(firstUnusedRow(leaders.candidates?.latest, used))
+        ];
+        const fallbackTopics = cross.comparisons.map((item) => item.label);
+        const configs = [
+          {
+            tone: "good",
+            title: "复拍最强结构",
+            body: "保留已经被数据验证过的标题结构、题型入口和讲解节奏。",
+            douyin: "抖音版：开头直接说错法或结论，标题突出年级+题型+避坑。",
+            wechat: "视频号版：加家长转发理由，让家长知道为什么要给孩子看。"
+          },
+          {
+            tone: "good",
+            title: "做涨粉/C粉内容",
+            body: "重点让陌生家长知道后续还值得关注，而不是只讲完一道题。",
+            douyin: "抖音版：前3秒给关注理由，比如后面会连续拆同类题。",
+            wechat: "视频号版：用可保存的方法论，让家长愿意留在微信生态继续看。"
+          },
+          {
+            tone: "warn",
+            title: "补招生转化承接",
+            body: "同一题材必须检查主页置顶、评论关键词、私信入口和结尾口播。",
+            douyin: "抖音版：结尾明确评论年级/发错题/看主页置顶。",
+            wechat: "视频号版：结尾强调可把孩子错题发来，先判断补弱还是培优。"
+          },
+          {
+            tone: "",
+            title: "做收藏转发题型库",
+            body: "把家长愿意保存、愿意转给孩子看的结构做成系列。",
+            douyin: "抖音版：标题写“收藏”“这类题不要硬算”“入口方法”。",
+            wechat: "视频号版：正文给可转发的一句话总结，方便家长转给孩子。"
+          },
+          {
+            tone: "danger",
+            title: "重剪低留存样本",
+            body: "不急着重拍整条，先把第一句话、前3秒和冗余铺垫砍掉。",
+            douyin: "抖音版：第一句话直接给冲突，不讲背景。",
+            wechat: "视频号版：第一句话直接说孩子为什么会错，少铺垫。"
+          },
+          {
+            tone: "good",
+            title: "放大本地品牌影响",
+            body: "高播放内容即使咨询少，也能增加本地认知，不能简单否定。",
+            douyin: "抖音版：强化宁波本地、年级节点和可搜索关键词。",
+            wechat: "视频号版：强化本地家长信任和升学节点。"
+          },
+          {
+            tone: "warn",
+            title: "周复盘和下周选题",
+            body: "不新增拍摄任务，集中看2h/24h/72h数据，把结果归档到复拍、重剪、失败或观察。",
+            douyin: "抖音版：看推荐流、搜索流、涨粉和主页访问。",
+            wechat: "视频号版：看转发、评论质量、收藏和私域咨询。"
+          }
+        ];
+        const plan = configs.map((config, index) => weeklyPlanCard(rows[index], index, {
+          ...config,
+          topic: fallbackTopics[index] || primary?.label || config.title
+        }));
+        return {
+          badge: leaders.rows?.length ? "可执行" : "等待数据",
+          tone: leaders.rows?.length ? "good" : "warn",
+          summary: leaders.rows?.length
+            ? `已按 ${leaders.rows.length} 条自有作品生成一周拍摄节奏：复拍、涨粉、转化、收藏、重剪、品牌曝光和周复盘分开执行。`
+            : "还没有自有账号作品数据，先完成采集后再排一周计划。",
+          plan
+        };
+      }
+
+      function weeklyPlanText() {
+        const data = buildWeeklyShootingPlan();
+        return [
+          "短视频7日拍摄排期",
+          "",
+          data.summary,
+          "",
+          ...data.plan.map((item, index) => [
+            `${index + 1}. ${item.day}｜${item.title}｜${item.topic}`,
+            item.body,
+            item.douyinLine,
+            item.wechatLine,
+            `复盘：${item.reviewLine}`
+          ].join("\n"))
+        ].join("\n\n");
+      }
+
+      function renderWeeklyShootingPlan() {
+        const badge = byId("weeklyPlanBadge");
+        const summary = byId("weeklyPlanSummary");
+        const grid = byId("weeklyPlanGrid");
+        if (!badge || !summary || !grid) return;
+        const data = buildWeeklyShootingPlan();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.plan.map((item) => `
+          <article class="plan-card ${escapeHtml(item.tone || "")}">
+            <span>${escapeHtml(item.day)}</span>
+            <strong>${escapeHtml(item.title)}</strong>
+            <p>${escapeHtml(item.topic)}｜${escapeHtml(item.metric)}</p>
+            <p>${escapeHtml(item.body)}</p>
+            <p>${escapeHtml(item.douyinLine)}</p>
+            <p>${escapeHtml(item.wechatLine)}</p>
+            <p>${escapeHtml(item.reviewLine)}</p>
+            ${item.videoId ? `
+              <div class="script-actions">
+                <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(item.videoId)}">看原视频</button>
+                <button class="button secondary" type="button" data-video-action="toggle-save" data-video-id="${escapeHtml(item.videoId)}">${isSavedVideo(state.snapshots.find((row) => row.id === item.videoId) || {}) ? "取消收藏" : "收藏"}</button>
+              </div>
+            ` : ""}
+          </article>
+        `).join("");
+      }
+
+      function buildRemakeBookmarkLibrary() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const saved = rows.filter(isSavedVideo).sort((a, b) => priorityScore(b) - priorityScore(a)).slice(0, 8);
+        const candidates = rows
+          .filter((row) => !isSavedVideo(row))
+          .map((row) => ({ row, diagnosis: diagnoseVideo(row) }))
+          .filter((item) => isStrongVideo(item.row, item.diagnosis) || isBrandReachVideo(item.row) || publishOutcomeForVideo(item.row, item.diagnosis).key === "remake")
+          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))
+          .map((item) => item.row)
+          .slice(0, 6);
+        return {
+          badge: saved.length ? `${saved.length}条收藏` : candidates.length ? "可先收藏" : "等待素材",
+          tone: saved.length ? "good" : candidates.length ? "warn" : "danger",
+          summary: saved.length
+            ? `已收藏 ${saved.length} 条复拍素材。后续排期、脚本和 AI 报告会优先参考这些人工确认的视频。`
+            : candidates.length
+              ? "还没有人工收藏。下面先列出系统建议收藏的复拍候选，老师可以一键加入收藏。"
+              : "还没有可收藏的复拍素材，先等待更多真实视频数据。",
+          saved,
+          candidates
+        };
+      }
+
+      function bookmarkLibraryText() {
+        const data = buildRemakeBookmarkLibrary();
+        const rows = data.saved.length ? data.saved : data.candidates;
+        if (!rows.length) return "暂无复拍收藏素材。";
+        return [
+          data.saved.length ? "短视频复拍收藏夹" : "短视频建议收藏候选",
+          "",
+          data.summary,
+          "",
+          ...rows.map((row, index) => {
+            const diagnosis = diagnoseVideo(row);
+            const plan = remakePlan(row, diagnosis);
+            return `${index + 1}. ${row.platform}｜${videoShortTitle(row)}\n${compactVideoMetrics(row)}｜诊断分 ${diagnosis.score}｜${plan.label}\n${plan.detail}\n${priorityReason(row, diagnosis)}`;
+          })
+        ].join("\n");
+      }
+
+      function renderRemakeBookmarkLibrary() {
+        const badge = byId("remakeBookmarkBadge");
+        const summary = byId("remakeBookmarkSummary");
+        const grid = byId("remakeBookmarkGrid");
+        if (!badge || !summary || !grid) return;
+        const data = buildRemakeBookmarkLibrary();
+        const rows = data.saved.length ? data.saved : data.candidates;
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = rows.length ? rows.map((row) => {
+          const diagnosis = diagnoseVideo(row);
+          const plan = remakePlan(row, diagnosis);
+          return `
+            <div class="task-card ${escapeHtml(isSavedVideo(row) ? "good" : plan.tone || "")}">
+              <span>${escapeHtml(isSavedVideo(row) ? "已收藏" : "建议收藏")}</span>
+              <strong>${escapeHtml(videoShortTitle(row))}</strong>
+              <p>${escapeHtml(row.platform)}｜${escapeHtml(compactVideoMetrics(row))}｜诊断分 ${diagnosis.score}</p>
+              <p>${escapeHtml(plan.label)}：${escapeHtml(plan.detail)}</p>
+              <div class="script-actions">
+                <button class="button secondary" type="button" data-video-action="toggle-save" data-video-id="${escapeHtml(row.id)}">${isSavedVideo(row) ? "取消收藏" : "加入收藏"}</button>
+                <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(row.id)}">看原视频</button>
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(row.id)}">看详情</button>
+              </div>
+            </div>
+          `;
+        }).join("") : `<div class="empty">暂无复拍收藏素材。采集到更多真实作品后，这里会自动给出可收藏候选。</div>`;
+      }
+
       function buildExecutionLoop() {
         const leaders = commandCenterLeaders();
         const scriptData = buildDailyScriptWorkbench();
@@ -5528,7 +5858,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705v",
+          version: "20260705w",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5682,16 +6012,18 @@
         const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 platformDiagnosis、crossPlatformComparison、dualPlatformScripts、postPublishReviewLoop、platformMaterialLibrary、dataTrustTiers 和 videoRankings，不要只看混合样本。高播放视频代表本地影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接，并且同一个选题必须给抖音版和视频号版两套表达。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 todayCommandCenter、weeklyShootingPlan、remakeBookmarkLibrary、platformDiagnosis、crossPlatformComparison、dualPlatformScripts、postPublishReviewLoop、platformMaterialLibrary、dataTrustTiers 和 videoRankings，不要只看混合样本；remakeBookmarkLibrary 是老师人工确认的复拍素材，优先级高于普通候选。高播放视频代表本地影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接，并且同一个选题必须给抖音版和视频号版两套表达。",
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
           platformDiagnosis: buildPlatformDiagnosis(),
           todayCommandCenter: buildTodayCommandCenter(),
+          weeklyShootingPlan: buildWeeklyShootingPlan(),
           crossPlatformComparison: crossPlatformComparisonForAi(),
           dualPlatformScripts: buildDualPlatformScripts(),
           postPublishReviewLoop: buildPostPublishReviewLoop(),
           publishOutcomeBoard: buildPublishOutcomeBoard(),
           todayCommandBrief: todayCommandBriefText(),
+          remakeBookmarkLibrary: buildRemakeBookmarkLibrary(),
           platformMaterialLibrary: platformMaterialLibraryForAi(),
           dataTrustTiers: dataTrustTiersForAi(),
           accounts: state.accounts,
@@ -5709,6 +6041,8 @@
             todayCommandCenter: buildTodayCommandCenter(),
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
+            weeklyShootingPlan: buildWeeklyShootingPlan(),
+            remakeBookmarkLibrary: buildRemakeBookmarkLibrary(),
             executionLoop: buildExecutionLoop(),
             crossPlatformComparison: crossPlatformComparisonForAi(),
             dualPlatformScripts: buildDualPlatformScripts(),
@@ -5808,6 +6142,7 @@
           reportTaskCardsHtml("拍摄执行闭环", data.executionLoop, "good", "闭环"),
           reportTaskCardsHtml("发布后复盘闭环", data.postPublishReviewLoop, "good", "复盘"),
           reportTaskCardsHtml("跨平台素材库", data.platformMaterialLibrary, "good", "素材"),
+          reportTaskCardsHtml("复拍收藏夹", data.remakeBookmarkLibrary, "good", "收藏"),
           reportTaskCardsHtml("数据可信度分层", data.dataTrustTiers, "warn", "可信度"),
           reportTaskCardsHtml("下周拍摄任务卡", data.weeklyShootingPlan, "good", "排期"),
           reportTaskCardsHtml("复拍素材库", data.remakeDirections, "good", "复拍"),
@@ -7275,6 +7610,8 @@
         renderDataTrustDashboard();
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
+        renderWeeklyShootingPlan();
+        renderRemakeBookmarkLibrary();
         renderExecutionLoop();
         renderCollectionPrep();
         renderMethodLibrary();
@@ -7401,6 +7738,8 @@
         renderDataTrustDashboard();
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
+        renderWeeklyShootingPlan();
+        renderRemakeBookmarkLibrary();
         renderExecutionLoop();
         renderCollectionPrep();
         renderSignalRankings();
@@ -7688,7 +8027,7 @@
             return;
           }
           const globalVideoAction = event.target.closest("button[data-video-action]");
-          if (globalVideoAction && event.target.closest("#originalVideoModal")) {
+          if (globalVideoAction) {
             await handleVideoAction(event);
             return;
           }
@@ -7796,6 +8135,14 @@
         byId("copyDualPlatformScriptsButton")?.addEventListener("click", async () => {
           await navigator.clipboard?.writeText(dualPlatformScriptsText());
           byId("videoOpsMessage").textContent = "已复制双平台脚本。";
+        });
+        byId("copyWeeklyPlanButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(weeklyPlanText());
+          byId("videoOpsMessage").textContent = "已复制7日拍摄排期。";
+        });
+        byId("copyBookmarkLibraryButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(bookmarkLibraryText());
+          byId("videoOpsMessage").textContent = "已复制复拍收藏素材。";
         });
         byId("scrollToVideosButton")?.addEventListener("click", () => {
           byId("signalRankingGrid")?.scrollIntoView({ behavior: "smooth", block: "start" });

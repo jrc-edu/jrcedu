@@ -1657,7 +1657,8 @@ function buildAiUserPrompt(body) {
     mode === "videoOpsReport" ? [
       "你现在是中国大陆一到九年级数学教培短视频运营顾问，服务对象是校外数学培训机构。",
       "请只基于原始内容里的账号数据、视频数据、平台建议、同行公开样本和数据完整度做诊断；数据不足的地方要明确说明，不要假装已经知道。",
-      "如果原始内容里包含 todayCommandCenter，必须先读取它作为今日执行主线；如果包含 videoRankings 或 dataQualitySummary，必须继续读取这些榜单：播放榜代表本地影响力，涨粉/C粉榜代表账号增长，咨询线索榜代表招生转化，收藏转发榜代表家长保存和干货价值，recommendedRemakes 代表复拍清单，weakToReview 代表复盘清单。",
+      "如果原始内容里包含 todayCommandCenter，必须先读取它作为今日执行主线；如果包含 weeklyShootingPlan 或 remakeBookmarkLibrary，也要优先读取：weeklyShootingPlan 是系统生成的一周排期，remakeBookmarkLibrary 是老师人工确认的复拍素材，优先级高于普通候选。",
+      "如果包含 videoRankings 或 dataQualitySummary，必须继续读取这些榜单：播放榜代表本地影响力，涨粉/C粉榜代表账号增长，咨询线索榜代表招生转化，收藏转发榜代表家长保存和干货价值，recommendedRemakes 代表复拍清单，weakToReview 代表复盘清单。",
       "不要把高播放低咨询的视频简单判定为差；这类视频可能负责品牌曝光和本地认知，除非有留存、完播、评论或承接字段证明问题。",
       "诊断口径必须结合官方和成熟方法：用户互动、完播/复看、关注、评论、分享、标题/关键词/声音/话题等视频信息会影响推荐；前 3 秒负责留存，标题封面负责点击，收藏转发代表干货价值，主页访问/私信/线索代表招生转化。",
       "抖音和视频号必须分开判断：抖音按推荐流、搜索流、留存、涨粉、主页访问和线索判断；视频号按转发分享、评论质量、收藏、本地信任、微信私域承接和熟人圈传播判断。",
@@ -1665,7 +1666,7 @@ function buildAiUserPrompt(body) {
       "重点不是泛娱乐短视频，而是数学培优、奥数、补弱、小升初、中考、暑假预习复习、家长焦虑、咨询转化、私域承接和教培合规表达。",
       "输出要给校长和运营老师看，语言直接、具体、可执行，不要空话。",
       "不要只写长篇诊断报告，必须把结论落成今天可以执行的拍摄闭环：今天拍什么、怎么拍、发布前怎么承接、2小时/24小时/72小时看什么数据。",
-      "必须包含：1）一句话总判断；2）当前数据能不能下结论；3）账号优势；4）播放/涨粉/咨询/收藏转发四类榜单结论；5）抖音和视频号同题材对比；6）同一选题的抖音版和视频号版脚本；7）主要问题；8）每个问题的原因和解决动作；9）值得复拍的方向；10）发布后2小时/24小时/72小时复盘闭环；11）跨平台素材库分类；12）需要停止或重做的内容；13）下周拍摄清单；14）采集器还需要补采哪些字段；15）数据可信度分层；16）合规风险提醒。",
+      "必须包含：1）一句话总判断；2）当前数据能不能下结论；3）账号优势；4）播放/涨粉/咨询/收藏转发四类榜单结论；5）抖音和视频号同题材对比；6）同一选题的抖音版和视频号版脚本；7）主要问题；8）每个问题的原因和解决动作；9）值得复拍的方向；10）发布后2小时/24小时/72小时复盘闭环；11）跨平台素材库分类；12）需要停止或重做的内容；13）下周拍摄清单；14）复拍收藏夹如何使用；15）采集器还需要补采哪些字段；16）数据可信度分层；17）合规风险提醒。",
       "每个主要问题都要写成：问题是什么、从哪些数据看出来、为什么会影响推荐或转化、今天怎么改、对应复拍/重剪哪条视频。",
       "可直接拍脚本必须包含：标题范例、前 3 秒开头、正文三步、结尾转化承接、适合年级/场景。",
       "同一内容双平台脚本必须分开写：抖音版突出前3秒刺激、痛点、搜索关键词、关注理由；视频号版突出家长信任、转发价值、本地升学场景、微信私域沟通。",
@@ -1679,8 +1680,8 @@ function buildAiUserPrompt(body) {
       "如果有同行公开作品样本，请指出可以学习的标题、选题、开头、证明力和转化结构；如果只有标杆账号库而没有作品样本，要明确说明只能做账号名单和方向参考，不能下播放表现结论。",
       "如果看到 benchmarkAccounts 里有视频号待匹配字段，不要编造对应视频号，只提醒后续需要人工或平台内确认。",
       "parentMessage 留空；polishedText 写完整专家报告；todoItems 写 5-8 个下一步执行动作；summary 写 80 字以内摘要；riskLevel 写 正常/关注/高风险。",
-      "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, problemSolutions, remakeDirections, executableScripts, crossPlatformComparison, dualPlatformScripts, executionLoop, postPublishReviewLoop, platformMaterialLibrary, dataTrustTiers, stopDoing, weeklyShootingPlan, missingData, complianceRisks。",
-      "其中 strengths、weaknesses、problemSolutions、remakeDirections、executableScripts、crossPlatformComparison、dualPlatformScripts、executionLoop、postPublishReviewLoop、platformMaterialLibrary、dataTrustTiers、stopDoing、weeklyShootingPlan、missingData、complianceRisks 尽量用字符串数组，便于页面直接展示成行动卡片。"
+      "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, problemSolutions, remakeDirections, executableScripts, crossPlatformComparison, dualPlatformScripts, executionLoop, postPublishReviewLoop, platformMaterialLibrary, remakeBookmarkLibrary, dataTrustTiers, stopDoing, weeklyShootingPlan, missingData, complianceRisks。",
+      "其中 strengths、weaknesses、problemSolutions、remakeDirections、executableScripts、crossPlatformComparison、dualPlatformScripts、executionLoop、postPublishReviewLoop、platformMaterialLibrary、remakeBookmarkLibrary、dataTrustTiers、stopDoing、weeklyShootingPlan、missingData、complianceRisks 尽量用字符串数组，便于页面直接展示成行动卡片。"
     ].join("\n") : "",
     mode === "todo" ? "拆成明确待办，尽量包含负责人、截止时间线索和下一步动作。" : "",
     mode === "suggestion" ? "整理成正式管理建议，包含现象、影响、建议方案和预期收益。" : "",
