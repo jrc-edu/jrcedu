@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705p</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705q</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -390,6 +390,19 @@
         <p id="morningDecisionSummary" style="margin-top:8px;">这里不放后台细节，只放最该看的结论：数据是否可信、账号优势、最值得复拍、最该复盘、下一轮拍摄方向。</p>
         <div class="focus-grid" id="morningDecisionGrid"></div>
         <div class="decision-list" id="morningDecisionList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Platform Diagnosis</p>
+            <h2>抖音 / 视频号分平台诊断</h2>
+          </div>
+          <span class="badge" id="platformDiagnosisBadge">等待数据</span>
+        </div>
+        <p id="platformDiagnosisSummary" style="margin-top:8px;">同一个短视频系统里，抖音按曝光、留存、搜索、涨粉和线索判断；视频号按转发、评论质量、信任建立和微信私域承接判断；最后再合并成今天的拍摄动作。</p>
+        <div class="focus-grid" id="platformDiagnosisGrid"></div>
+        <div class="decision-list" id="platformDiagnosisList"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -776,7 +789,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705p";
+        const pageVersion = "20260705q";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -911,7 +924,7 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705p";
+      const PAGE_VERSION = "20260705q";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -2074,6 +2087,45 @@
         return safeRate((row.likes || 0) * 0.5 + (row.comments || 0) * 1.2 + (row.favorites || 0) * 1.25 + (row.shares || 0) * 1.5, row.views || 0);
       }
 
+      function isWechatVideoPlatform(platform) {
+        return /视频号|微信|channels/i.test(normalizeText(platform));
+      }
+
+      function isDouyinPlatform(platform) {
+        return /抖音|douyin/i.test(normalizeText(platform));
+      }
+
+      function platformEvaluationProfile(platform) {
+        if (isWechatVideoPlatform(platform)) {
+          return {
+            key: "wechatChannels",
+            name: "视频号信任私域模型",
+            shortName: "视频号",
+            coreLogic: "重点看家长是否愿意转发、评论是否能形成信任、内容是否适合微信私域继续传播。",
+            primaryMetrics: ["转发/分享", "评论质量", "收藏", "主页访问/私信", "本地升学场景"],
+            weights: { reach: 18, retention: 22, interaction: 24, conversion: 24, iteration: 12 }
+          };
+        }
+        if (isDouyinPlatform(platform)) {
+          return {
+            key: "douyin",
+            name: "抖音曝光增长模型",
+            shortName: "抖音",
+            coreLogic: "重点看推荐流能不能推开、前3秒和完播能不能留住、搜索和涨粉能不能扩大账号池。",
+            primaryMetrics: ["播放", "点击率", "3秒留存", "完播/观看时长", "涨粉/线索"],
+            weights: { reach: 22, retention: 28, interaction: 16, conversion: 22, iteration: 12 }
+          };
+        }
+        return {
+          key: "generic",
+          name: `${normalizeText(platform) || "平台"}通用短视频模型`,
+          shortName: normalizeText(platform) || "平台",
+          coreLogic: "先看播放和留存，再看互动、收藏转发、咨询承接和题材复利。",
+          primaryMetrics: ["播放", "留存", "互动", "收藏转发", "咨询承接"],
+          weights: { reach: 20, retention: 26, interaction: 18, conversion: 22, iteration: 14 }
+        };
+      }
+
       function hasConversionSignals(row) {
         return Boolean((row.profileVisits || 0) || (row.messages || 0) || (row.leads || 0));
       }
@@ -2131,31 +2183,50 @@
       }
 
       function scoreBreakdown(row, baseline, competitorBaseline) {
+        const profile = platformEvaluationProfile(row.platform);
+        const weights = profile.weights;
         const reachBase = baseline.avgViews || competitorBaseline.avgViews || 0;
-        const reach = Math.min(14, reachBase ? (row.views / reachBase) * 10 : Math.min(14, row.views / 500));
+        const reachSignal = reachBase ? (row.views / reachBase) * (weights.reach * 0.56) : Math.min(weights.reach * 0.62, row.views / (profile.key === "wechatChannels" ? 850 : 520));
         const click = row.clickThroughRate
-          ? Math.min(8, (baseline.avgCtr ? row.clickThroughRate / baseline.avgCtr : row.clickThroughRate / 0.045) * 6)
-          : (row.impressions && row.views ? Math.min(8, safeRate(row.views, row.impressions) * 120) : 3);
+          ? Math.min(weights.reach * 0.38, (baseline.avgCtr ? row.clickThroughRate / baseline.avgCtr : row.clickThroughRate / 0.045) * (weights.reach * 0.28))
+          : (row.impressions && row.views ? Math.min(weights.reach * 0.34, safeRate(row.views, row.impressions) * 100) : weights.reach * 0.12);
+        const reach = Math.min(weights.reach, reachSignal + click);
         const retentionSignal = retentionQuality(row);
         const retention = retentionSignal
-          ? Math.min(28, retentionSignal * 28)
-          : Math.min(16, contentValueRate(row) * 260);
-        const interaction = Math.min(18, relativeMetricScore(engagementRate(row), baseline.avgEngagement || 0.025, 18, 0.45));
+          ? Math.min(weights.retention, retentionSignal * weights.retention)
+          : Math.min(weights.retention * (profile.key === "wechatChannels" ? 0.72 : 0.58), contentValueRate(row) * (profile.key === "wechatChannels" ? 420 : 280));
+        const interactionSignal = profile.key === "wechatChannels"
+          ? safeRate((row.likes || 0) * 0.42 + (row.comments || 0) * 1.35 + (row.favorites || 0) * 1.18 + (row.shares || 0) * 2.15, row.views || 0)
+          : engagementRate(row);
+        const interactionBase = profile.key === "wechatChannels"
+          ? (baseline.avgContentValue || competitorBaseline.avgContentValue || 0.018)
+          : (baseline.avgEngagement || 0.025);
+        const interaction = Math.min(weights.interaction, relativeMetricScore(interactionSignal, interactionBase, weights.interaction, profile.key === "wechatChannels" ? 0.50 : 0.45));
         const conversionSignal = hasConversionSignals(row) ? conversionRate(row) : contentValueRate(row);
         const conversionBase = hasConversionSignals(row)
           ? (baseline.avgConversion || 0.004)
-          : (baseline.avgContentValue || competitorBaseline.avgContentValue || 0.018);
-        const conversion = Math.min(22, relativeMetricScore(conversionSignal, conversionBase, 22, 0.42));
+          : (profile.key === "wechatChannels"
+            ? Math.max(0.012, baseline.avgSaveShare || competitorBaseline.avgSaveShare || 0.008)
+            : (baseline.avgContentValue || competitorBaseline.avgContentValue || 0.018));
+        const conversionProxy = hasConversionSignals(row)
+          ? conversionSignal
+          : profile.key === "wechatChannels"
+            ? saveShareRate(row) * 1.6 + safeRate(row.comments || 0, row.views || 0) * 0.6
+            : conversionSignal;
+        const conversion = Math.min(weights.conversion, relativeMetricScore(conversionProxy, conversionBase, weights.conversion, profile.key === "wechatChannels" ? 0.50 : 0.42));
         const topicBonus = row.topic ? Math.min(5, topicMomentum(row.topic, row.platform) * 5) : 1;
         const platformAdvicePenalty = /流失|偏低|不足|下降|较差|未达|优化|建议/i.test(row.platformAdvice || "") ? -4 : 0;
         const competitorBonus = competitorBaseline.avgViews && row.views > competitorBaseline.avgViews ? 4 : 0;
         const saveShareBonus = Math.min(4, relativeMetricScore(saveShareRate(row), baseline.avgSaveShare || competitorBaseline.avgSaveShare || 0.008, 4, 0.35));
+        const platformBonus = profile.key === "wechatChannels"
+          ? (row.shares ? 2 : 0) + (row.comments ? 1 : 0) + (hasLocalTrafficSignal(row) ? 2 : 0)
+          : (row.followersGained ? 2 : 0) + ((row.searchKeywords || []).length ? 2 : 0);
         return {
-          reach: Math.max(0, reach + click),
+          reach: Math.max(0, reach),
           retention,
           interaction,
           conversion,
-          iteration: Math.max(0, topicBonus + competitorBonus + saveShareBonus + platformAdvicePenalty)
+          iteration: Math.max(0, Math.min(weights.iteration, topicBonus + competitorBonus + saveShareBonus + platformBonus + platformAdvicePenalty))
         };
       }
 
@@ -2235,8 +2306,22 @@
         if (row.favorites && safeRate(row.favorites, row.views) > 0.01) strengths.push("收藏率不错，偏干货型内容可做系列化。");
         if (saveShareRate(row) >= Math.max(0.01, baseline.avgSaveShare * 1.15)) strengths.push("收藏和转发信号靠前，说明这条内容有被家长保存或转给孩子看的价值。");
         if (!hasConversionSignals(row)) weaknesses.push("本条暂未采到主页访问、私信或线索字段，转化判断先按收藏/分享信号做阶段参考。");
+        const platformProfile = platformEvaluationProfile(row.platform);
+        if (platformProfile.key === "douyin") {
+          if (hasFollowerSignal(row)) strengths.push("抖音涨粉信号已出现，说明这条内容有扩大账号池的价值。");
+          if ((row.searchKeywords || []).length) strengths.push("采到搜索词，说明内容有机会吃到搜索流量，适合继续做问题型标题。");
+          if (!row.threeSecondRetention && !row.completeRate && !row.avgWatchSeconds) weaknesses.push("抖音缺少 3 秒留存、完播或平均观看时长，开头和节奏判断还不够稳。");
+          if (!hasFollowerSignal(row) && (row.views || 0) >= Math.max(1500, baseline.avgViews || 0)) weaknesses.push("抖音有播放但暂未看到涨粉，建议补强关注理由和系列预告。");
+        } else if (platformProfile.key === "wechatChannels") {
+          if (row.shares || saveShareRate(row) >= Math.max(0.008, baseline.avgSaveShare * 1.1)) strengths.push("视频号分享/收藏信号较好，有家长转发到微信私域的潜力。");
+          if (row.comments) strengths.push("视频号评论信号已出现，后续要重点看评论质量和家长具体问题。");
+          if (hasLocalTrafficSignal(row)) strengths.push("内容带本地或升学场景，更适合视频号建立熟人圈信任。");
+          if (!(row.shares || row.comments || row.favorites)) weaknesses.push("视频号暂未看到分享、评论或收藏信号，信任传播价值还需要验证。");
+          if (!hasConversionSignals(row)) weaknesses.push("视频号还缺私信、主页访问或线索字段，暂时不能判断微信私域承接是否顺畅。");
+        }
         if (competitorBaseline.avgViews && row.views > competitorBaseline.avgViews) strengths.push("已超过同平台同行公开样本均值，可提炼结构继续拍。");
         if (competitorBaseline.avgViews && row.views < competitorBaseline.avgViews * 0.65) weaknesses.push("低于同行公开样本均值，需要对比同行标题、封面和选题表达。");
+        next.push(`平台口径：${platformProfile.name}。${platformProfile.coreLogic}`);
         if (row.platformAdvice) next.push(`平台建议：${row.platformAdvice}`);
         if (isStrongVideo(row, { score })) next.push("建议复拍同类主题，保留标题结构、前 3 秒表达和题目难度定位。");
         if (isReviewVideo(row, { score })) next.push("建议先做一次拆解复盘，再决定是否重剪或换角度重拍。");
@@ -3543,6 +3628,7 @@
         if (cards.length < 3) pushFirstRow(leaders.candidates?.saveShare, "remake", "备选：做收藏系列");
         if (cards.length < 3) pushFirstRow(leaders.candidates?.brand, "growth", "备选：放大品牌影响");
         const methods = [
+          "抖音和视频号不要硬套同一套打法：抖音先看推荐流、留存、搜索、涨粉和线索；视频号先看转发、评论、信任和微信私域承接。",
           "平台推荐先看用户行为信号：看完、复看、点赞、评论、转发、关注，比单纯粉丝数更能说明内容能不能继续扩散。",
           "教培账号不能只追播放：高播放负责本地影响力，收藏转发负责干货价值，涨粉负责长期账号池，咨询/主页访问才负责招生转化。",
           "每条新视频按四段写：3 秒痛点开头、一个核心方法、一个可迁移总结、一个明确咨询/评论承接。",
@@ -3600,6 +3686,187 @@
           leads: rows.slice().filter(hasLeadSignal).sort((a, b) => leadCount(b) - leadCount(a) || leadRate(b) - leadRate(a))[0],
           saveShare: rows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)))[0]
         };
+      }
+
+      function platformAggregate(platform = "") {
+        const allPlatforms = !platform || platform === "全平台";
+        const rows = ownVideoRows().filter((row) => allPlatforms || row.platform === platform);
+        const audits = latestAccountAudits().filter((row) => row.accountType !== "同行账号").filter((row) => allPlatforms || row.platform === platform);
+        const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
+        const topByViews = rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0))[0] || null;
+        const topBySaveShare = rows.slice().sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)))[0] || null;
+        const topByLeads = rows.slice().filter(hasLeadSignal).sort((a, b) => leadCount(b) - leadCount(a) || leadRate(b) - leadRate(a))[0] || null;
+        const topByFans = rows.slice().filter(hasFollowerSignal).sort((a, b) => (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a))[0] || null;
+        const weak = diagnostics.slice().sort((a, b) => a.diagnosis.score - b.diagnosis.score || (a.row.views || 0) - (b.row.views || 0))[0] || null;
+        const saveShare = rows.reduce((sum, row) => sum + (row.favorites || 0) + (row.shares || 0), 0);
+        const comments = rows.reduce((sum, row) => sum + (row.comments || 0), 0);
+        const leads = rows.reduce((sum, row) => sum + leadCount(row), 0);
+        const followers = rows.reduce((sum, row) => sum + (row.followersGained || 0), 0);
+        const totalViews = rows.reduce((sum, row) => sum + (row.views || 0), 0);
+        const withRetention = rows.filter((row) => row.completeRate || row.threeSecondRetention || row.avgWatchSeconds).length;
+        const withConversion = rows.filter((row) => hasConversionSignals(row) || hasLeadSignal(row) || hasFollowerSignal(row)).length;
+        const withTraffic = rows.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length).length;
+        const withLocal = rows.filter(hasLocalTrafficSignal).length;
+        const avgScore = diagnostics.length ? Math.round(average(diagnostics.map((item) => item.diagnosis.score))) : 0;
+        const profile = allPlatforms
+          ? {
+              key: "all",
+              name: "全平台总览",
+              shortName: "全平台",
+              coreLogic: "数据按平台分开判断，最后把可拍内容、复拍清单和承接动作合并给运营执行。",
+              primaryMetrics: ["播放", "留存", "分享", "涨粉", "咨询"],
+              weights: {}
+            }
+          : platformEvaluationProfile(platform);
+        return {
+          platform: allPlatforms ? "全平台" : platform,
+          profile,
+          rows,
+          audits,
+          diagnostics,
+          avgScore,
+          totalViews,
+          saveShare,
+          comments,
+          leads,
+          followers,
+          withRetention,
+          withConversion,
+          withTraffic,
+          withLocal,
+          topByViews,
+          topBySaveShare,
+          topByLeads,
+          topByFans,
+          weak
+        };
+      }
+
+      function platformAggregateTone(item) {
+        if (!item.rows.length && !item.audits.length) return "danger";
+        if (item.rows.length < 8) return "warn";
+        if (item.avgScore >= 72) return "good";
+        if (item.avgScore >= 58) return "warn";
+        return "danger";
+      }
+
+      function platformActionLines(item) {
+        if (!item.rows.length) {
+          return [
+            item.audits.length
+              ? "当前只采到账户概览，还没有可复盘的单条作品数据。"
+              : "这个平台还没有有效作品数据，先确认账号登录和作品列表采集是否正常。",
+            "没有真实单条视频之前，不做拍摄方向重判断。"
+          ];
+        }
+        if (item.profile.key === "douyin") {
+          return [
+            `抖音当前 ${item.rows.length} 条，累计播放 ${formatNumber(item.totalViews)}，平均诊断分 ${item.avgScore || "-"}。`,
+            item.topByViews ? `曝光样本：${videoShortTitle(item.topByViews)}，播放 ${formatNumber(item.topByViews.views)}，先拆标题、封面和前 3 秒。` : "",
+            item.topByFans ? `涨粉样本：${videoShortTitle(item.topByFans)}，涨粉 ${formatNumber(item.topByFans.followersGained)}，适合做系列关注理由。` : "暂未采到明显涨粉样本，新视频要补“为什么关注我”的理由。",
+            item.topByLeads ? `线索样本：${videoShortTitle(item.topByLeads)}，咨询线索 ${formatNumber(leadCount(item.topByLeads))}，复盘结尾口播和主页承接。` : "暂未采到明显线索样本，不能只追播放，要统一加评论关键词、主页置顶和私信入口。",
+            item.withRetention < Math.min(12, item.rows.length) ? `留存字段 ${item.withRetention}/${item.rows.length} 条，后续采集优先补 3 秒留存、完播和平均观看。` : "留存字段已够做开头和节奏判断。",
+            item.withTraffic ? `已有 ${item.withTraffic} 条带搜索/流量来源，可区分推荐流、搜索流和同城曝光。` : "还缺搜索词/流量来源，暂时难判断内容是被推荐推开还是被家长搜索找到。"
+          ].filter(Boolean);
+        }
+        if (item.profile.key === "wechatChannels") {
+          return [
+            `视频号当前 ${item.rows.length} 条，累计播放 ${formatNumber(item.totalViews)}，收藏转发 ${formatNumber(item.saveShare)}，评论 ${formatNumber(item.comments)}。`,
+            item.topBySaveShare ? `私域传播样本：${videoShortTitle(item.topBySaveShare)}，收藏转发 ${formatNumber((item.topBySaveShare.favorites || 0) + (item.topBySaveShare.shares || 0))}，适合拆成家长愿意转发的表达。` : "暂未看到明显转发/收藏样本，标题要更像“家长转给孩子有用”的内容。",
+            item.topByLeads ? `微信承接样本：${videoShortTitle(item.topByLeads)}，线索 ${formatNumber(leadCount(item.topByLeads))}，复盘私信入口和主页承接。` : "还缺私信/主页访问/线索字段，先把微信私域承接链路补齐。",
+            item.withLocal ? `${item.withLocal} 条带本地或升学场景，视频号适合继续强化宁波、年级、小升初/中考等可信场景。` : "视频号建议更多使用本地、年级、升学节点和家长场景，先建立信任再谈转化。",
+            item.withRetention ? `已有 ${item.withRetention} 条留存/观看字段，可辅助判断开头节奏。` : "视频号留存字段暂缺，先用转发、评论和私信承接做阶段判断。"
+          ].filter(Boolean);
+        }
+        return [
+          `${item.platform} 当前 ${item.rows.length} 条，平均诊断分 ${item.avgScore || "-"}。`,
+          item.topByViews ? `播放最高：${videoShortTitle(item.topByViews)}，播放 ${formatNumber(item.topByViews.views)}。` : "",
+          item.weak ? `最该复盘：${videoShortTitle(item.weak.row)}，诊断分 ${item.weak.diagnosis.score}。` : ""
+        ].filter(Boolean);
+      }
+
+      function buildPlatformDiagnosis() {
+        const all = platformAggregate("全平台");
+        const douyin = platformAggregate("抖音");
+        const wechat = platformAggregate("视频号");
+        const platformsWithRows = [douyin, wechat].filter((item) => item.rows.length);
+        const primary = platformsWithRows.slice().sort((a, b) => b.rows.length - a.rows.length || b.totalViews - a.totalViews)[0] || null;
+        const badge = all.rows.length ? "已分平台" : all.audits.length ? "只有概览" : "等待数据";
+        const tone = all.rows.length >= 20 ? "good" : all.rows.length ? "warn" : "danger";
+        const summary = all.rows.length
+          ? `当前自有账号共 ${all.rows.length} 条作品。${primary ? `样本最多的是 ${primary.platform}，先按它的核心指标做主判断；另一平台单独看，不硬套同一套算法。` : "系统会分别判断各平台，再合并成拍摄建议。"}`
+          : "还没有有效单条作品数据，先采集自有账号。";
+        const grid = [
+          {
+            tone,
+            label: "全平台样本",
+            value: `${all.rows.length}条`,
+            note: all.rows.length ? `平均诊断分 ${all.avgScore || "-"}，累计播放 ${formatNumber(all.totalViews)}` : "等待采集"
+          },
+          {
+            tone: platformAggregateTone(douyin),
+            label: "抖音模型",
+            value: `${douyin.rows.length}条`,
+            note: douyin.rows.length ? `重点：曝光、留存、搜索、涨粉、线索` : "待采集抖音作品"
+          },
+          {
+            tone: platformAggregateTone(wechat),
+            label: "视频号模型",
+            value: `${wechat.rows.length}条`,
+            note: wechat.rows.length ? `重点：转发、评论、信任、私域承接` : "待采集视频号作品"
+          },
+          {
+            tone: "good",
+            label: "执行原则",
+            value: "分开判断",
+            note: "数据分开、算法分开、建议汇总"
+          }
+        ];
+        const list = [
+          {
+            tone,
+            title: "全平台总览：先分清每个平台负责什么",
+            body: all.rows.length
+              ? `全平台累计播放 ${formatNumber(all.totalViews)}，收藏转发 ${formatNumber(all.saveShare)}，涨粉 ${formatNumber(all.followers)}，咨询线索 ${formatNumber(all.leads)}。高播放样本用于本地影响力，线索样本用于招生转化，收藏转发样本用于课程内容和题型库。`
+              : "没有作品数据时不做内容方向判断，先保证采集真实、字段可用。"
+          },
+          {
+            tone: platformAggregateTone(douyin),
+            title: "抖音：先解决推荐流和增长",
+            body: platformActionLines(douyin).join("<br>")
+          },
+          {
+            tone: platformAggregateTone(wechat),
+            title: "视频号：先解决信任和私域传播",
+            body: platformActionLines(wechat).join("<br>")
+          }
+        ];
+        return { badge, tone, summary, grid, list, raw: { all, douyin, wechat } };
+      }
+
+      function renderPlatformDiagnosis() {
+        const badge = byId("platformDiagnosisBadge");
+        const summary = byId("platformDiagnosisSummary");
+        const grid = byId("platformDiagnosisGrid");
+        const list = byId("platformDiagnosisList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildPlatformDiagnosis();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.grid.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${String(card.body || "").split("<br>").map((line) => escapeHtml(line)).join("<br>")}</p>
+          </div>
+        `).join("");
       }
 
       function buildNextTopicPlan() {
@@ -3818,7 +4085,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705p",
+          version: "20260705q",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -3849,6 +4116,10 @@
           ],
           categories: [
             {
+              label: "分平台建模",
+              value: "一个短视频系统统一看结果，但抖音和视频号必须分开算：抖音偏曝光增长，视频号偏信任私域。"
+            },
+            {
               label: "推荐信号",
               value: "优先看用户真实行为：完播、复看、点赞、评论、分享、收藏、关注、主页访问和私信线索。"
             },
@@ -3873,7 +4144,28 @@
               value: "高播放保留传播结构，高收藏转发做系列，高涨粉强化关注理由，高咨询补承接链路，低留存先重写前 3 秒。"
             }
           ],
+          platformModels: [
+            {
+              platform: "抖音",
+              model: "曝光增长模型",
+              metrics: ["播放", "点击率", "3秒留存", "完播/观看时长", "搜索词", "涨粉", "主页访问/线索"],
+              guidance: "抖音先判断推荐流和搜索流能不能推开，再判断能不能把路人变成粉丝或咨询。高播放负责本地影响力，不能只按咨询率否定。"
+            },
+            {
+              platform: "视频号",
+              model: "信任私域模型",
+              metrics: ["转发/分享", "评论质量", "收藏", "本地升学场景", "主页访问/私信", "微信私域承接"],
+              guidance: "视频号先判断家长是否愿意在微信生态里转发、评论和继续沟通，重点不是单条爆不爆，而是能不能建立熟人圈信任。"
+            },
+            {
+              platform: "全平台",
+              model: "统一行动层",
+              metrics: ["今日先拍", "复拍清单", "低留存重剪", "转化承接", "下周拍摄任务"],
+              guidance: "平台数据分开判断，最后汇总成老板和老师能直接执行的拍摄任务。"
+            }
+          ],
           evaluationRules: [
+            "平台分层：抖音优先看曝光、留存、搜索、涨粉和线索；视频号优先看转发、评论、信任、本地升学场景和私域承接。",
             "曝光点击：标题、封面、年级和痛点是否一眼清楚；高播放视频单独保留为本地品牌影响力样本。",
             "留存完播：前 3 秒是否直接抛问题或结论；中段是否只讲一个核心突破口，避免铺垫过长。",
             "互动收藏：内容是否有家长愿意保存、转发给孩子或评论提问的价值。",
@@ -3913,6 +4205,10 @@
         `).join("");
         sources.innerHTML = `
           <div class="decision-card good">
+            <strong>平台判断模型</strong>
+            <p>${library.platformModels.map((item) => `${escapeHtml(item.platform)}｜${escapeHtml(item.model)}：${escapeHtml(item.guidance)}<br>核心指标：${escapeHtml(item.metrics.join("、"))}`).join("<br><br>")}</p>
+          </div>
+          <div class="decision-card good">
             <strong>长期跟踪来源</strong>
             <p>${library.sources.map((item) => `${escapeHtml(item.name)}：${escapeHtml(item.use)} ${item.url ? `<br><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.url)}</a>` : ""}`).join("<br><br>")}</p>
           </div>
@@ -3933,9 +4229,10 @@
         const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。请优先读取 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接。structuredData 里必须尽量返回 problemSolutions 和 executableScripts。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 platformDiagnosis 和 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接。structuredData 里必须尽量返回 problemSolutions 和 executableScripts。",
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
+          platformDiagnosis: buildPlatformDiagnosis(),
           accounts: state.accounts,
           benchmarkAccounts: benchmarkAccountsFromState(),
           latestAccountAudits: latestAccountAudits(),
@@ -5490,6 +5787,7 @@
         renderDataReadiness();
         renderOvernightMiningPlan();
         renderMorningDecisions();
+        renderPlatformDiagnosis();
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
         renderMethodLibrary();
@@ -5608,6 +5906,7 @@
       function refreshVideoLists() {
         renderOvernightMiningPlan();
         renderMorningDecisions();
+        renderPlatformDiagnosis();
         renderSignalRankings();
         renderTopicPerformance();
         renderPriorityVideos();
