@@ -290,7 +290,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705k</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705l</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -770,7 +770,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705k";
+        const pageVersion = "20260705l";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -904,7 +904,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705k";
+      const PAGE_VERSION = "20260705l";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -1077,6 +1077,7 @@
             issues: Array.isArray(row.issues) ? row.issues.map(normalizeText).filter(Boolean) : [],
             screenshot: normalizeText(row.screenshot)
           })).filter((row) => row.platform || row.accountName) : [],
+          collectionQuality: normalizeCollectionQuality(source.collectionQuality || {}),
           message: normalizeText(source.message)
         };
       }
@@ -1111,6 +1112,34 @@
           purpose: normalizeText(source.purpose) || (cadence === "daily" ? "适合每天看新发视频、近 7 天变化和少量二次起量老视频。" : cadence === "weekly" ? "适合每周复盘最近 30 天内容，判断题材、留存、互动和转化的大方向。" : "适合首次建档或月度全量校验，用更大历史样本建立账号基准。"),
           conclusionBoundary: normalizeText(source.conclusionBoundary) || (target < 20 ? "样本偏少，只能做方向提示，不能下账号级重结论。" : cadence === "daily" ? "可以判断当天和近 7 天变化，不用于重算长期账号定位。" : cadence === "weekly" ? "可以做近期阶段复盘，但长期基准仍以月度全量校验为准。" : "可以做较完整账号体检，但仍受平台后台可见数据限制。"),
           operatorControl: normalizeText(source.operatorControl) || "可以用 --max-videos 指定本轮每个账号最多采多少条。"
+        };
+      }
+
+      function normalizeCollectionQuality(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        return {
+          level: normalizeText(source.level),
+          score: Math.max(0, Math.min(100, parseNumber(source.score))),
+          analysisReady: source.analysisReady === true || source.analysisReady === "true",
+          ownUsefulVideos: parseNumber(source.ownUsefulVideos),
+          targetPerAccount: parseNumber(source.targetPerAccount),
+          targetRate: parseNumber(source.targetRate),
+          accountAudits: parseNumber(source.accountAudits),
+          warningsCount: parseNumber(source.warningsCount),
+          loginReady: parseNumber(source.loginReady),
+          loginBlocked: parseNumber(source.loginBlocked),
+          videosWithCoreMetrics: parseNumber(source.videosWithCoreMetrics),
+          coreMetricRate: parseNumber(source.coreMetricRate),
+          videosWithOriginalUrl: parseNumber(source.videosWithOriginalUrl),
+          originalUrlRate: parseNumber(source.originalUrlRate),
+          videosWithDeepSignals: parseNumber(source.videosWithDeepSignals),
+          deepSignalRate: parseNumber(source.deepSignalRate),
+          videosWithRetention: parseNumber(source.videosWithRetention),
+          videosWithConversion: parseNumber(source.videosWithConversion),
+          videosWithTraffic: parseNumber(source.videosWithTraffic),
+          blockers: Array.isArray(source.blockers) ? source.blockers.map(normalizeText).filter(Boolean) : [],
+          nextActions: Array.isArray(source.nextActions) ? source.nextActions.map(normalizeText).filter(Boolean) : [],
+          summary: normalizeText(source.summary)
         };
       }
 
@@ -1187,6 +1216,7 @@
           snapshots: normalizeSnapshots(source.snapshots || source.videos || []),
           collectorStatus: normalizeCollectorStatus(source.collectorStatus || {}),
           collectionPlan: normalizeCollectionPlan(source.collectionPlan || {}),
+          collectionQuality: normalizeCollectionQuality(source.collectionQuality || source.collectorStatus?.collectionQuality || {}),
           analysisStatus: normalizeAnalysisStatus(source.analysisStatus || {}),
           aiReport: normalizeAiReport(source.aiReport || {}),
           dailySkip: normalizeDailySkip(source.dailySkip || {}),
@@ -1490,6 +1520,7 @@
         const snapshotMap = new Map();
         let collectorStatus = normalizeCollectorStatus({});
         let collectionPlan = normalizeCollectionPlan({});
+        let collectionQuality = normalizeCollectionQuality({});
         let analysisStatus = normalizeAnalysisStatus({});
         let aiReport = normalizeAiReport({});
         let dailySkip = normalizeDailySkip({});
@@ -1503,6 +1534,7 @@
             collectorStatus = item.collectorStatus;
           }
           if (item.collectionPlan?.mode) collectionPlan = item.collectionPlan;
+          if (item.collectionQuality?.summary || item.collectionQuality?.score) collectionQuality = item.collectionQuality;
           if (item.analysisStatus?.generatedAt && (!analysisStatus.generatedAt || String(item.analysisStatus.generatedAt).localeCompare(String(analysisStatus.generatedAt)) >= 0)) {
             analysisStatus = item.analysisStatus;
           }
@@ -1519,6 +1551,7 @@
           snapshots: [...snapshotMap.values()],
           collectorStatus,
           collectionPlan,
+          collectionQuality,
           analysisStatus,
           aiReport,
           dailySkip,
@@ -2446,6 +2479,7 @@
 
       function renderCollectorStatus() {
         const status = state.collectorStatus || normalizeCollectorStatus({});
+        const quality = state.collectionQuality?.summary ? state.collectionQuality : status.collectionQuality || normalizeCollectionQuality({});
         const dot = byId("collectorStatusDot");
         const progress = status.status === "idle" && !status.updatedAt ? 0 : status.progress || 0;
         byId("collectorProgressFill").style.width = `${Math.max(0, Math.min(100, progress))}%`;
@@ -2459,6 +2493,7 @@
           status.currentVideo ? `正在处理：${status.currentVideo}` : "",
           status.totalAccounts ? `账号 ${status.accountsDone || 0}/${status.totalAccounts}` : "",
           loginCheckSummary(status.loginChecks),
+          quality.summary ? `采集质量 ${quality.score || 0}分：${quality.analysisReady ? "可分析" : "需复核"}` : "",
           `账号体检 ${status.auditsCount || latestAccountAudits().length} 条`,
           `视频快照 ${status.snapshotsCount || latestSnapshots().length} 条`,
           status.warningsCount ? `异常 ${status.warningsCount} 条` : ""
@@ -2794,6 +2829,7 @@
         const rows = ownVideoRows();
         const profile = dataReadinessProfile();
         const status = state.collectorStatus || {};
+        const quality = state.collectionQuality?.summary ? state.collectionQuality : status.collectionQuality || normalizeCollectionQuality({});
         const report = normalizeAiReport(state.aiReport || {});
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row), remake: null }));
         diagnostics.forEach((item) => { item.remake = remakePlan(item.row, item.diagnosis); });
@@ -2811,10 +2847,10 @@
         const hasAi = Boolean(report.polishedText || report.summary);
         const grid = [
           {
-            tone: status.status === "running" ? "warn" : ready ? "good" : profile.ownCount ? "warn" : "danger",
+            tone: status.status === "running" ? "warn" : quality.summary ? (quality.analysisReady ? "good" : "danger") : ready ? "good" : profile.ownCount ? "warn" : "danger",
             label: "数据状态",
-            value: status.status === "running" ? "正在采" : ready ? "可复盘" : `${profile.ownCount}条`,
-            note: status.status === "running" ? status.stepLabel || "采集器运行中" : profile.summary
+            value: status.status === "running" ? "正在采" : quality.summary ? `${quality.score || 0}分` : ready ? "可复盘" : `${profile.ownCount}条`,
+            note: status.status === "running" ? status.stepLabel || "采集器运行中" : quality.summary || profile.summary
           },
           {
             tone: leaders.brand ? "good" : "warn",
@@ -3612,7 +3648,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705k",
+          version: "20260705l",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -3867,6 +3903,7 @@
         if (!badge || !summary || !grid) return;
         const collector = state.collectorStatus || {};
         const analysis = state.analysisStatus || {};
+        const quality = state.collectionQuality?.summary ? state.collectionQuality : collector.collectionQuality || normalizeCollectionQuality({});
         const report = normalizeAiReport(state.aiReport || {});
         const latest = latestSnapshots();
         const audits = latestAccountAudits();
@@ -3902,6 +3939,12 @@
             label: "采集器状态",
             value: collectorStatusName(collector.status),
             note: collector.message || collector.stepLabel || "等待 Mac mini 状态"
+          },
+          {
+            tone: quality.summary ? (quality.analysisReady ? "good" : "danger") : imported ? "warn" : "",
+            label: "采集质量",
+            value: quality.summary ? `${quality.score || 0}分` : "等待",
+            note: quality.summary || "采集完成后自动判断是否适合做AI分析"
           },
           {
             tone: ready ? "good" : imported ? "warn" : "",
@@ -5316,6 +5359,7 @@
             snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : (Array.isArray(parsed.videos) ? parsed.videos : []),
             collectorStatus: parsed.collectorStatus || {},
             collectionPlan: parsed.collectionPlan || {},
+            collectionQuality: parsed.collectionQuality || parsed.collectorStatus?.collectionQuality || {},
             warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
             rebuildMode: Boolean(parsed.rebuildMode || parsed.fresh || parsed.replaceData)
           };
@@ -5403,7 +5447,10 @@
 
       function skipDailyVideo(videoId) {
         const row = state.snapshots.find((item) => item.id === videoId);
-        if (!row) return;
+        if (!row) {
+          byId("videoOpsMessage").textContent = "没有找到这条视频，暂时不能换一个。请刷新页面后再试。";
+          return;
+        }
         const key = videoKey(row);
         const current = activeDailySkip();
         const keys = Array.from(new Set([...current.videoKeys, key])).slice(-120);
@@ -5506,6 +5553,16 @@
           return;
         }
         if (action === "skip-daily") {
+          const row = state.snapshots.find((item) => item.id === videoId);
+          if (!row) {
+            byId("videoOpsMessage").textContent = "没有找到这条视频，暂时不能换一个。请刷新页面后再试。";
+            return;
+          }
+          const confirmed = window.confirm(`确定要换一个吗？\n\n当前这条：${videoShortTitle(row)}\n\n确定后，今天先不推荐这条，系统会自动递补下一条。`);
+          if (!confirmed) {
+            byId("videoOpsMessage").textContent = "已取消换一个。";
+            return;
+          }
           skipDailyVideo(videoId);
           return;
         }
@@ -5722,6 +5779,7 @@
         });
         byId("priorityVideoList").addEventListener("click", handleVideoAction);
         byId("videoList").addEventListener("click", handleVideoAction);
+        byId("morningDecisionList")?.addEventListener("click", handleVideoAction);
         byId("shootingCommandList")?.addEventListener("click", handleVideoAction);
         byId("dailyScriptGrid")?.addEventListener("click", handleVideoAction);
         byId("shootingTaskList")?.addEventListener("click", handleVideoAction);

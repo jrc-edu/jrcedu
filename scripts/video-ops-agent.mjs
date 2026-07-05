@@ -1517,6 +1517,83 @@ function isUsefulSnapshot(snapshot = {}) {
   return hasSnapshotMetrics(snapshot) || looksLikeVideoUrl(url);
 }
 
+function hasOriginalVideoLink(snapshot = {}) {
+  return looksLikeVideoUrl(snapshot.url || snapshot.link || snapshot.videoUrl || snapshot.shareUrl || snapshot.originalUrl || snapshot.originalVideoUrl);
+}
+
+function collectionQualityReport(payload = {}, plan = {}) {
+  const snapshots = Array.isArray(payload.snapshots) ? payload.snapshots.filter(isUsefulSnapshot) : [];
+  const ownRows = snapshots.filter((row) => (row.accountType || "自有账号") !== "同行账号");
+  const accountAudits = Array.isArray(payload.accountAudits) ? payload.accountAudits : [];
+  const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+  const loginChecks = Array.isArray(payload.collectorStatus?.loginChecks) ? payload.collectorStatus.loginChecks : [];
+  const ownTarget = Math.max(Number(plan.targetPerAccount || payload.collectorStatus?.targetPerAccount || 0), 1);
+  const withCoreMetrics = ownRows.filter((row) => row.views || row.likes || row.comments || row.favorites || row.shares || row.impressions);
+  const withRetention = ownRows.filter((row) => row.completeRate || row.threeSecondRetention || row.fiveSecondRetention || row.avgWatchSeconds);
+  const withConversion = ownRows.filter((row) => row.profileVisits || row.messages || row.leads || row.followersGained);
+  const withTraffic = ownRows.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length);
+  const withDeep = ownRows.filter((row) => row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length);
+  const withLinks = ownRows.filter(hasOriginalVideoLink);
+  const readyLogins = loginChecks.filter((row) => row.status === "ready").length;
+  const blockedLogins = loginChecks.filter((row) => row.status && row.status !== "ready").length;
+  const coreRate = ownRows.length ? Math.round((withCoreMetrics.length / ownRows.length) * 100) : 0;
+  const linkRate = ownRows.length ? Math.round((withLinks.length / ownRows.length) * 100) : 0;
+  const deepRate = ownRows.length ? Math.round((withDeep.length / ownRows.length) * 100) : 0;
+  const targetRate = Math.min(100, Math.round((ownRows.length / ownTarget) * 100));
+  let score = 0;
+  if (accountAudits.length) score += 15;
+  score += Math.min(25, Math.round(targetRate * 0.25));
+  score += Math.min(25, Math.round(coreRate * 0.25));
+  score += Math.min(15, Math.round(linkRate * 0.15));
+  score += Math.min(12, Math.round(deepRate * 0.12));
+  if (withRetention.length) score += 5;
+  if (withConversion.length) score += 5;
+  if (withTraffic.length) score += 3;
+  if (blockedLogins) score -= Math.min(20, blockedLogins * 8);
+  if (warnings.length) score -= Math.min(12, warnings.length * 2);
+  score = Math.max(0, Math.min(100, score));
+  const analysisReady = ownRows.length >= 20 && coreRate >= 60 && (readyLogins > 0 || !loginChecks.length);
+  const level = score >= 80 && analysisReady ? "good" : analysisReady ? "usable" : ownRows.length ? "weak" : "failed";
+  const blockers = [
+    ownRows.length < 20 ? `自有视频样本只有 ${ownRows.length} 条，低于自动深度分析最低 20 条。` : "",
+    coreRate < 60 ? `核心指标完整率 ${coreRate}%，低于 60%，不适合直接下账号级重结论。` : "",
+    loginChecks.length && !readyLogins ? "登录预检没有通过账号，可能未扫码或遇到验证。" : ""
+  ].filter(Boolean);
+  const nextActions = [
+    blockedLogins ? "先重新运行 npm run video:login，确认抖音和视频号后台都已登录。" : "",
+    linkRate < 60 ? "下一轮采集重点补原视频链接，方便复拍时回看画面和开头。" : "",
+    withRetention.length < Math.min(20, ownRows.length) ? "下一轮重点补完播、留存、平均观看时长，用于判断开头和节奏。" : "",
+    withConversion.length < Math.min(10, ownRows.length) ? "下一轮重点补主页访问、私信、线索、涨粉，用于判断招生转化。" : "",
+    withTraffic.length < Math.min(10, ownRows.length) ? "下一轮重点补流量来源和搜索词，用于判断推荐流、搜索流和本地曝光。" : ""
+  ].filter(Boolean);
+  return {
+    level,
+    score,
+    analysisReady,
+    ownUsefulVideos: ownRows.length,
+    targetPerAccount: ownTarget,
+    targetRate,
+    accountAudits: accountAudits.length,
+    warningsCount: warnings.length,
+    loginReady: readyLogins,
+    loginBlocked: blockedLogins,
+    videosWithCoreMetrics: withCoreMetrics.length,
+    coreMetricRate: coreRate,
+    videosWithOriginalUrl: withLinks.length,
+    originalUrlRate: linkRate,
+    videosWithDeepSignals: withDeep.length,
+    deepSignalRate: deepRate,
+    videosWithRetention: withRetention.length,
+    videosWithConversion: withConversion.length,
+    videosWithTraffic: withTraffic.length,
+    blockers,
+    nextActions,
+    summary: analysisReady
+      ? `本轮采集可用于分析：自有视频 ${ownRows.length} 条，核心指标完整率 ${coreRate}%，原视频链接率 ${linkRate}%。`
+      : `本轮采集质量不足：自有视频 ${ownRows.length} 条，核心指标完整率 ${coreRate}%。建议先补采或处理登录问题。`
+  };
+}
+
 function snapshotConfidence(snapshot = {}) {
   const title = normalizeText(snapshot.title);
   const url = normalizeText(snapshot.url);
@@ -2465,6 +2542,7 @@ async function collect(configPath, runtimeOptions = {}) {
     source: "mac-mini-playwright-agent",
     rebuildMode: Boolean(config.rebuildMode),
     collectionPlan: plan,
+    collectionQuality: null,
     collectorStatus: {
       status: "running",
       runId,
@@ -2484,6 +2562,7 @@ async function collect(configPath, runtimeOptions = {}) {
       snapshotsCount: 0,
       warningsCount: 0,
       loginChecks: [],
+      collectionQuality: null,
       message: checkpoint
         ? `检测到同一轮未完成采集，正在断点续跑：已恢复 ${payloadSnapshotCount(checkpoint)} 条视频。`
         : `Mac mini 正在准备采集。本轮为${plan.mode}：自动判断可信度，不可信数据不入库，默认不采标杆公开搜索。`
@@ -2523,6 +2602,7 @@ async function collect(configPath, runtimeOptions = {}) {
       targetPerAccount: plan.targetPerAccount,
       scanMode: plan.mode,
       sampleMethod: plan.sampleMethod,
+      collectionQuality: payload.collectionQuality || payload.collectorStatus.collectionQuality || null,
       currentAccount: extra.currentAccount ?? payload.collectorStatus.currentAccount,
       currentPlatform: extra.currentPlatform ?? payload.collectorStatus.currentPlatform,
       currentVideo: extra.currentVideo ?? "",
@@ -2622,20 +2702,29 @@ async function collect(configPath, runtimeOptions = {}) {
 
   const outputFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "latest-video-ops-payload.json");
   const datedFile = path.join(config.dataDir || DEFAULT_DATA_DIR, "history", `video-ops-${new Date().toISOString().slice(0, 10)}-${Date.now()}.json`);
+  payload.collectionQuality = collectionQualityReport(payload, plan);
+  const finalStatus = payload.collectionQuality.analysisReady
+    ? (payload.warnings.length ? "warning" : "success")
+    : "warning";
   payload.collectorStatus = {
     ...payload.collectorStatus,
-    status: payload.warnings.length ? "warning" : "success",
+    status: finalStatus,
     finishedAt: nowIso(),
     updatedAt: nowIso(),
     progress: 100,
-    stepLabel: payload.warnings.length ? "采集完成，有部分内容需要查看" : "采集完成",
+    stepLabel: payload.collectionQuality.analysisReady
+      ? (payload.warnings.length ? "采集完成，有部分内容需要查看" : "采集完成")
+      : "采集完成，但质量不足",
     currentAccount: "",
     currentPlatform: "",
     currentVideo: "",
     auditsCount: payload.accountAudits.length,
     snapshotsCount: payload.snapshots.length,
     warningsCount: payload.warnings.length,
-    message: `可信采集结束：账号体检 ${payload.accountAudits.length} 条，可信视频快照 ${payload.snapshots.length} 条。${payload.warnings.length ? "有部分页面未入库，需人工查看异常提示。" : ""}`
+    collectionQuality: payload.collectionQuality,
+    message: payload.collectionQuality.analysisReady
+      ? `可信采集结束：账号体检 ${payload.accountAudits.length} 条，可信视频快照 ${payload.snapshots.length} 条。${payload.warnings.length ? "有部分页面未入库，需人工查看异常提示。" : ""}`
+      : `采集结束但质量不足，不建议自动下结论：${payload.collectionQuality.blockers.join("；") || payload.collectionQuality.summary}`
   };
   await writeJson(outputFile, payload);
   await writeJson(datedFile, payload);
@@ -2732,6 +2821,7 @@ function mergePayloads(existing, incoming) {
     snapshots: mergeByKey([...(oldState.snapshots || []), ...(oldState.videos || []), ...(newState.snapshots || [])].filter(isTrustedSnapshot).map(sanitizeVideoMetrics), (row) => row.id || [row.platform, row.accountName, row.videoId || row.url || row.title, row.capturedAt].join("|")),
     collectorStatus: newState.collectorStatus || oldState.collectorStatus || null,
     collectionPlan: newState.collectionPlan || oldState.collectionPlan || null,
+    collectionQuality: newState.collectionQuality || newState.collectorStatus?.collectionQuality || oldState.collectionQuality || oldState.collectorStatus?.collectionQuality || null,
     analysisStatus: newState.analysisStatus || oldState.analysisStatus || null,
     aiReport: newState.aiReport || oldState.aiReport || null,
     warnings: [...(oldState.warnings || []), ...(newState.warnings || [])].slice(-40),
@@ -3072,11 +3162,15 @@ async function generateAndPushAiReport(config, basePayload = {}) {
   const token = apiToken(config);
   const snapshots = Array.isArray(basePayload.snapshots) ? basePayload.snapshots : [];
   const accountAudits = Array.isArray(basePayload.accountAudits) ? basePayload.accountAudits : [];
+  const quality = basePayload.collectionQuality || basePayload.collectorStatus?.collectionQuality || collectionQualityReport(basePayload, basePayload.collectionPlan || {});
   if (!config.apiBaseUrl || !token) {
     return { skipped: true, reason: `未设置 ${config.apiTokenEnv || "JRC_API_TOKEN"}，无法自动生成并回写 AI 报告。` };
   }
   if (snapshots.length < 20 && accountAudits.length < 1) {
     return { skipped: true, reason: "视频样本不足，暂不自动生成 AI 专家报告。" };
+  }
+  if (quality && quality.analysisReady === false) {
+    return { skipped: true, reason: `本轮采集质量不足，暂不自动生成 AI 专家报告：${(quality.blockers || []).join("；") || quality.summary || "请先补采有效数据。"}` };
   }
   console.log("正在自动生成 DeepSeek 短视频专家报告...");
   const result = await requestAiAssistant(config, token, {
@@ -3202,6 +3296,14 @@ async function main() {
       const reportResult = await generateAndPushAiReport(collected.config, pushed.remote || pushed.merged || collected.payload);
       if (reportResult.skipped) {
         console.warn(`AI 专家报告未自动生成：${reportResult.reason}`);
+        await publishCollectorStatus(collected.config, {
+          ...(pushed.remote?.collectorStatus || pushed.merged?.collectorStatus || collected.payload.collectorStatus || {}),
+          status: "warning",
+          progress: 100,
+          stepLabel: "数据已导入，AI 自动分析暂缓",
+          message: `数据已经自动导入网站，但 AI 专家报告暂缓：${reportResult.reason}`,
+          updatedAt: nowIso()
+        }).catch(() => {});
       }
     } catch (error) {
       console.warn(`AI 专家报告自动生成未完成：${error.message}`);
