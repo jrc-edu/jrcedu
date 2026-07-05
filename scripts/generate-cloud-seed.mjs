@@ -21,7 +21,8 @@ globalThis.__seed = {
   suggestionAdmins: JRC_SUGGESTION_ADMIN_USERNAMES,
   admissionsAdmins: JRC_ADMISSIONS_ADMIN_USERNAMES,
   curriculumAdmins: JRC_CURRICULUM_ADMIN_USERNAMES,
-  teachingQualityAdmins: JRC_TEACHING_QUALITY_ADMIN_USERNAMES
+  teachingQualityAdmins: JRC_TEACHING_QUALITY_ADMIN_USERNAMES,
+  videoOpsAdmins: JRC_VIDEO_OPS_ADMIN_USERNAMES
 };`, context);
 
 const seed = context.__seed;
@@ -180,6 +181,10 @@ function permissionsForEmployee(employee) {
   if (seed.teachingQualityAdmins.includes(username)) {
     permissions.add("teachingQuality.access");
     permissions.add("teachingQuality.edit");
+  }
+  if (seed.videoOpsAdmins.includes(username)) {
+    permissions.add("videoOps.access");
+    permissions.add("videoOps.edit");
   }
   (employee.permissions || []).forEach((key) => permissions.add(key));
   return Array.from(permissions).sort();

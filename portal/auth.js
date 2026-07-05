@@ -475,6 +475,7 @@ const JRC_CURRICULUM_ADMIN_USERNAMES = ["zhaoxuan", "chengzhihao"];
 const JRC_TEACHING_QUALITY_ADMIN_USERNAMES = ["zhengjiayi", "chengzhihao"];
 const JRC_STUDENT_SERVICE_ADMIN_USERNAMES = ["yanyuhan", "zhoushan", "gaofangyan", "chengzhihao"];
 const JRC_VIDEO_OPS_ADMIN_USERNAMES = ["chengzhihao", "gaofangyan", "chenyuqing"];
+const JRC_VIDEO_OPS_ADMIN_NAMES = ["程志豪", "高芳燕", "高方燕", "陈雨晴"];
 const JRC_DEPARTED_EMPLOYEE_USERNAMES = new Set(["zhangyan", "hejianjun"]);
 const JRC_GRANULAR_MODULES = [
   ["studentService", "学生服务"],
@@ -1238,7 +1239,7 @@ function jrcGetPermissions(subject) {
     permissions.add("studentService.access");
     permissions.add("studentService.edit");
   }
-  if (JRC_VIDEO_OPS_ADMIN_USERNAMES.includes(username)) {
+  if (JRC_VIDEO_OPS_ADMIN_USERNAMES.includes(username) || JRC_VIDEO_OPS_ADMIN_NAMES.includes(jrcNormalizeName(subject.name))) {
     permissions.add("videoOps.access");
     permissions.add("videoOps.edit");
   }

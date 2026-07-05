@@ -18,6 +18,7 @@ const deepseekModel = process.env.JRC_DEEPSEEK_MODEL || "deepseek-chat";
 const deepseekTimeoutMs = Number(process.env.JRC_DEEPSEEK_TIMEOUT_MS || 45000);
 const deepseekMaxAttempts = Math.max(1, Number(process.env.JRC_DEEPSEEK_MAX_ATTEMPTS || 3));
 const departedEmployeeUsernames = ["zhangyan", "hejianjun"];
+const videoOpsManagerPermissions = ["videoOps.access", "videoOps.edit"];
 const moduleOwnerPermissionRules = {
   yanyuhan: ["admissions.access", "admissions.edit", "admissions.import", "admissions.export", "admissions.finance", "studentService.access", "studentService.edit"],
   liudajun: ["finance.access", "finance.edit"],
@@ -32,13 +33,21 @@ const moduleOwnerPermissionRules = {
     "curriculum.reset"
   ],
   zhoushan: ["paike.access", "paike.edit", "studentService.access", "studentService.edit"],
-  gaofangyan: ["studentService.access", "studentService.edit", "videoOps.access", "videoOps.edit"],
+  gaofangyan: ["studentService.access", "studentService.edit", ...videoOpsManagerPermissions],
   yeyuanze: ["suggestions.access", "suggestions.edit"],
-  chengzhihao: ["knowledge.access", "knowledge.edit", "videoOps.access", "videoOps.edit", "admin.access"],
-  chenyuqing: ["hr.access", "hr.edit", "videoOps.access", "videoOps.edit", "admin.access"],
+  chengzhihao: ["knowledge.access", "knowledge.edit", ...videoOpsManagerPermissions, "admin.access"],
+  chenyuqing: ["hr.access", "hr.edit", ...videoOpsManagerPermissions, "admin.access"],
   lishu: ["ai.access"],
   zhengjiayi: ["teachingQuality.access", "teachingQuality.edit"]
 };
+const moduleOwnerPermissionNameRules = {
+  "高芳燕": videoOpsManagerPermissions,
+  "高方燕": videoOpsManagerPermissions
+};
+const runtimePermissionCatalog = [
+  ["videoOps.access", "videoOps", "access", "短视频运营进入"],
+  ["videoOps.edit", "videoOps", "edit", "短视频运营管理"]
+];
 const superAdminUsernames = ["chengzhihao", "czh", "chenyuqing", "haiyingying"];
 const roleDefaultPermissions = {
   管理员: [
@@ -316,16 +325,19 @@ function decodeDataUrl(dataUrl) {
   };
 }
 
-function ownerScopedPermissions(username, permissions = []) {
+function ownerScopedPermissions(username, permissions = [], name = "") {
   const nextPermissions = new Set(permissions);
   (moduleOwnerPermissionRules[String(username || "").trim().toLowerCase()] || []).forEach((permission) => {
+    nextPermissions.add(permission);
+  });
+  (moduleOwnerPermissionNameRules[String(name || "").trim()] || []).forEach((permission) => {
     nextPermissions.add(permission);
   });
   return Array.from(nextPermissions).sort();
 }
 
 function toEmployee(row, permissions = []) {
-  const resolvedPermissions = ownerScopedPermissions(row.username, permissions);
+  const resolvedPermissions = ownerScopedPermissions(row.username, permissions, row.name);
   return {
     id: row.id,
     name: row.name,
@@ -697,15 +709,29 @@ async function applyDepartedEmployeeLocks() {
 }
 
 async function applyModuleOwnerPermissionRules() {
-  const rows = Object.entries(moduleOwnerPermissionRules).flatMap(([username, permissions]) => {
+  const usernameRows = Object.entries(moduleOwnerPermissionRules).flatMap(([username, permissions]) => {
     return permissions.map((permissionKey) => [username, permissionKey]);
   });
-  if (!rows.length) return;
+  const nameRows = Object.entries(moduleOwnerPermissionNameRules).flatMap(([name, permissions]) => {
+    return permissions.map((permissionKey) => [name, permissionKey]);
+  });
+  if (!usernameRows.length && !nameRows.length) return;
   let client = null;
   try {
     client = await pool.connect();
     await client.query("begin");
-    for (const [username, permissionKey] of rows) {
+    for (const [permissionKey, moduleKey, actionKey, displayName] of runtimePermissionCatalog) {
+      await client.query(`
+        insert into permission_catalog (permission_key, module_key, action_key, display_name, description)
+        values ($1, $2, $3, $4, '系统权限')
+        on conflict (permission_key) do update set
+          module_key = excluded.module_key,
+          action_key = excluded.action_key,
+          display_name = excluded.display_name,
+          description = excluded.description
+      `, [permissionKey, moduleKey, actionKey, displayName]);
+    }
+    for (const [username, permissionKey] of usernameRows) {
       await client.query(`
         insert into employee_permissions (employee_id, permission_key, note)
         select employees.id, $2, 'module owner permission'
@@ -715,6 +741,17 @@ async function applyModuleOwnerPermissionRules() {
           and employees.status = 'active'
         on conflict (employee_id, permission_key) do nothing
       `, [username, permissionKey]);
+    }
+    for (const [name, permissionKey] of nameRows) {
+      await client.query(`
+        insert into employee_permissions (employee_id, permission_key, note)
+        select employees.id, $2, 'module owner permission by name'
+        from employees
+        join permission_catalog on permission_catalog.permission_key = $2
+        where employees.name = $1
+          and employees.status = 'active'
+        on conflict (employee_id, permission_key) do nothing
+      `, [name, permissionKey]);
     }
     await client.query("commit");
   } catch (error) {
@@ -766,6 +803,7 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
   const customPermissions = normalizePermissionKeys(body.permissions);
   const permissionSet = new Set([...basePermissions, ...customPermissions]);
   (moduleOwnerPermissionRules[username] || []).forEach((permissionKey) => permissionSet.add(permissionKey));
+  (moduleOwnerPermissionNameRules[name] || []).forEach((permissionKey) => permissionSet.add(permissionKey));
   const commissionRate = numberFromPercent(body.commissionRate);
   const resetPassword = body.resetPassword !== false;
   const client = await pool.connect();
