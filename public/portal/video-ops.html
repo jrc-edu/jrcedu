@@ -105,6 +105,14 @@
       .decision-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.06); }
       .decision-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.06); }
       .decision-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.05); }
+      .task-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 14px; }
+      .task-card { padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
+      .task-card span { display: inline-flex; width: fit-content; margin-bottom: 8px; padding: 4px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-size: 11px; font-weight: 900; }
+      .task-card strong { display: block; font-size: 14px; line-height: 1.45; }
+      .task-card p { margin-top: 6px; font-size: 12px; line-height: 1.6; }
+      .task-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.055); }
+      .task-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.055); }
+      .task-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.045); }
       .script-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
       .script-card { padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: #fff; }
       .script-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.055); }
@@ -282,7 +290,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705j</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705k</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -762,7 +770,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705j";
+        const pageVersion = "20260705k";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -896,7 +904,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705j";
+      const PAGE_VERSION = "20260705k";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -1362,21 +1370,58 @@
         ].join("|");
       }
 
+      function isOriginalHttpUrl(value) {
+        const url = normalizeText(value);
+        return /^https?:\/\//i.test(url) && !/^https?:\/\/(?:about|javascript)/i.test(url) && !/^javascript:|^about:/i.test(url);
+      }
+
+      function firstOriginalUrl(source = {}) {
+        const candidates = [
+          source.url,
+          source.link,
+          source.href,
+          source.videoUrl,
+          source.video_url,
+          source.originalUrl,
+          source.originalVideoUrl,
+          source.shareUrl,
+          source.share_url,
+          source.detailUrl,
+          source.itemUrl,
+          source.workUrl,
+          source.webUrl,
+          source.sourceUrl,
+          source.awemeShareUrl,
+          source.share_info?.share_url,
+          source.shareInfo?.shareUrl,
+          source.shareInfo?.share_url,
+          source["链接"],
+          source["作品链接"],
+          source["视频链接"],
+          source["原视频链接"],
+          source["原链接"],
+          source["分享链接"],
+          source["详情页链接"]
+        ];
+        return candidates.map(normalizeText).find(isOriginalHttpUrl) || "";
+      }
+
       function normalizeSnapshot(row = {}) {
         const title = normalizeText(row.title || row.videoTitle || row["标题"] || row["视频标题"]);
         const accountName = normalizeText(row.accountName || row.account || row["账号"] || row["账号名称"]);
-        if (!title && !normalizeText(row.videoId || row.url)) return null;
+        const resolvedUrl = firstOriginalUrl(row);
+        if (!title && !normalizeText(row.videoId || resolvedUrl)) return null;
         const capturedAt = normalizeText(row.capturedAt || row.captureTime || row.date || row["采集时间"]) || new Date().toISOString();
         const platform = normalizeText(row.platform || row["平台"]) || "抖音";
         const accountType = normalizeText(row.accountType || row.type || row["账号类型"]) || "自有账号";
         const snapshot = {
           id: normalizeText(row.id) || `snapshot-${hashText(snapshotKey({ ...row, title, accountName, capturedAt, platform }))}`,
-          videoId: normalizeText(row.videoId || row.awemeId || row.feedId || row["视频ID"]) || `video-${hashText([platform, accountName, title, row.url].join("|"))}`,
+          videoId: normalizeText(row.videoId || row.awemeId || row.feedId || row["视频ID"]) || `video-${hashText([platform, accountName, title, resolvedUrl].join("|"))}`,
           platform,
           accountType,
           accountName,
           title,
-          url: normalizeText(row.url || row.link || row["链接"]),
+          url: resolvedUrl,
           cover: normalizeText(row.cover || row.coverUrl || row["封面"]),
           owner: normalizeText(row.owner || row.manager || row["负责人"]),
           topic: normalizeText(row.topic || row.category || row["题材"] || row["内容方向"]),
@@ -2468,11 +2513,14 @@
         const withAdvice = latest.filter((row) => row.platformAdvice);
         const withDeepSources = latest.filter((row) => Array.isArray(row.deepSources) && row.deepSources.length);
         const withOfficialSignals = latest.filter((row) => (row.officialMetricLines?.length || row.apiSignalLines?.length));
+        const ownWithOriginalUrl = ownRows.filter(hasOriginalVideoUrl);
+        const withOriginalUrl = latest.filter(hasOriginalVideoUrl);
         const avgCompleteness = average(latest.map((row) => row.dataCompleteness?.score || 0));
         const status = state.collectorStatus || {};
         const total = latest.length;
         const ownCount = ownRows.length;
         const peerCount = peerRows.length;
+        const originalUrlRate = ownCount ? Math.round((ownWithOriginalUrl.length / ownCount) * 100) : 0;
         let level = 0;
         if (audits.length) level = Math.max(level, 1);
         if (ownCount || total) level = Math.max(level, 2);
@@ -2494,6 +2542,7 @@
         if (!audits.length) gaps.push("缺账号级数据：粉丝、主页访问、搜索词、平台账号建议。");
         if (ownCount < 20) gaps.push(`自有视频样本只有 ${ownCount} 条，建议先补到 20 条以上再定账号方向。`);
         if (ownCount && withDeepSources.length < Math.min(10, ownCount)) gaps.push("详情页/创作者中心深采来源偏少，建议让 Mac mini 采集器继续补官方后台深层数据。");
+        if (ownCount && ownWithOriginalUrl.length < Math.min(ownCount, 20)) gaps.push(`可回看原视频链接只有 ${ownWithOriginalUrl.length}/${ownCount} 条；今日推荐会优先使用有链接的视频，其余建议下一轮补采原链接后再深度复盘。`);
         if (withRetention.length < Math.min(8, Math.max(ownCount, 1))) gaps.push("留存/完播数据偏少，暂时难判断开头和节奏。");
         if (withConversion.length < Math.min(5, Math.max(ownCount, 1))) gaps.push("主页访问、私信、线索数据偏少，暂时难判断播放是否能带来咨询。");
         if (ownCount >= 20 && withTrafficSource.length < 8) gaps.push("流量来源/搜索词偏少，暂时难判断视频是靠推荐、搜索、本地同城还是粉丝流量起来的。");
@@ -2525,6 +2574,10 @@
           withAdvice: withAdvice.length,
           withDeepSources: withDeepSources.length,
           withOfficialSignals: withOfficialSignals.length,
+          withOriginalUrl: withOriginalUrl.length,
+          ownWithOriginalUrl: ownWithOriginalUrl.length,
+          missingOriginalUrl: Math.max(ownCount - ownWithOriginalUrl.length, 0),
+          originalUrlRate,
           avgCompleteness,
           gaps,
           commands
@@ -2543,6 +2596,12 @@
             label: "自有视频样本",
             value: `${profile.ownCount} 条`,
             note: profile.ownCount >= 20 ? "可以做近期复盘" : "先补够 20 条再定方向"
+          },
+          {
+            tone: profile.originalUrlRate >= 80 ? "good" : profile.ownWithOriginalUrl ? "warn" : "danger",
+            label: "可回看原视频",
+            value: `${profile.ownWithOriginalUrl} 条`,
+            note: profile.ownCount ? `${profile.originalUrlRate}% 有链接，今日推荐优先选可打开样本` : "等待作品链接"
           },
           {
             tone: profile.withRetention >= 8 ? "good" : profile.withRetention ? "warn" : "danger",
@@ -2885,6 +2944,14 @@
         return safeRate(visitConversionCount(row), row.views || 0);
       }
 
+      function compareTraceableRows(left = {}, right = {}) {
+        return Number(hasOriginalVideoUrl(right)) - Number(hasOriginalVideoUrl(left));
+      }
+
+      function compareTraceableDiagnostics(left = {}, right = {}) {
+        return compareTraceableRows(left.row || {}, right.row || {});
+      }
+
       function commandCenterLeaders() {
         const rows = ownVideoRows().filter(isUsefulSnapshot);
         const skippedKeys = dailySkipKeys();
@@ -2894,25 +2961,27 @@
         const activeDiagnostics = diagnostics.filter((item) => !skippedKeys.has(videoKey(item.row)));
         const remakeCandidates = activeDiagnostics
           .filter((item) => ["sameStructure", "titleUpgrade", "series"].includes(item.remake.key))
-          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis));
+          .sort((a, b) => compareTraceableDiagnostics(a, b) || priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis));
         const growthCandidates = activeRows.slice()
           .filter((row) => Number(row.followersGained || 0) > 0)
-          .sort((a, b) => (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a));
+          .sort((a, b) => compareTraceableRows(a, b) || (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a));
         const conversionCandidates = activeRows.slice()
           .filter((row) => visitConversionCount(row) > 0)
-          .sort((a, b) => visitConversionCount(b) - visitConversionCount(a) || visitConversionRate(b) - visitConversionRate(a));
+          .sort((a, b) => compareTraceableRows(a, b) || visitConversionCount(b) - visitConversionCount(a) || visitConversionRate(b) - visitConversionRate(a));
         const saveShareCandidates = activeRows.slice()
           .filter((row) => (row.favorites || 0) + (row.shares || 0) > 0)
-          .sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)) || saveShareRate(b) - saveShareRate(a));
+          .sort((a, b) => compareTraceableRows(a, b) || ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)) || saveShareRate(b) - saveShareRate(a));
         const retentionWeakCandidates = activeRows.slice()
           .filter((row) => Number(row.completeRate || 0) > 0 || Number(row.avgWatchSeconds || 0) > 0)
           .sort((a, b) => {
+            const traceable = compareTraceableRows(a, b);
+            if (traceable) return traceable;
             const leftRatio = averageWatchRatio(a) || Number(a.completeRate || 0) || 1;
             const rightRatio = averageWatchRatio(b) || Number(b.completeRate || 0) || 1;
             return leftRatio - rightRatio || (b.views || 0) - (a.views || 0);
           });
-        const brandCandidates = activeRows.slice().sort((a, b) => (b.views || 0) - (a.views || 0));
-        const latestCandidates = activeRows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")));
+        const brandCandidates = activeRows.slice().sort((a, b) => compareTraceableRows(a, b) || (b.views || 0) - (a.views || 0));
+        const latestCandidates = activeRows.slice().sort((a, b) => compareTraceableRows(a, b) || String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")));
         return {
           rows,
           activeRows,
@@ -3115,12 +3184,30 @@
             <p>${escapeHtml(card.note)}</p>
           </div>
         `).join("");
-        list.innerHTML = data.list.map((card) => `
-          <div class="decision-card ${escapeHtml(card.tone || "")}">
-            <strong>${escapeHtml(card.title)}</strong>
-            <p>${escapeHtml(card.body)}</p>
-          </div>
-        `).join("");
+        list.innerHTML = data.list.map((card) => {
+          const row = card.videoId ? state.snapshots.find((item) => item.id === card.videoId) : null;
+          const linkNote = row
+            ? `<div class="video-meta">${hasOriginalVideoUrl(row) ? "可回看原视频，适合直接复盘结构。" : "暂缺原视频链接，下一轮采集会优先补链接。"}</div>`
+            : "";
+          return `
+            <div class="decision-card ${escapeHtml(card.tone || "")}">
+              <strong>${escapeHtml(card.title)}</strong>
+              <p>${escapeHtml(card.body)}</p>
+              ${linkNote}
+              ${card.videoId ? `
+                <div class="decision-actions">
+                  <button class="button" type="button" data-video-action="skip-daily" data-video-id="${escapeHtml(card.videoId)}">换一个</button>
+                  <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
+                </div>
+              ` : ""}
+              ${card.resetAction ? `
+                <div class="decision-actions">
+                  <button class="button secondary" type="button" data-video-action="reset-daily-skips">恢复跳过</button>
+                </div>
+              ` : ""}
+            </div>
+          `;
+        }).join("");
       }
 
       function scriptTopicFromVideo(row = {}, fallback = "数学培优") {
@@ -3197,7 +3284,7 @@
           lead,
           body,
           closing,
-          reason: `${plan.label}。依据：播放 ${formatNumber(row.views)}，收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}，诊断分 ${diagnosis.score}。`
+          reason: `${plan.label}。依据：播放 ${formatNumber(row.views)}，收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}，诊断分 ${diagnosis.score}。${hasOriginalVideoUrl(row) ? "这条可打开原视频复盘。" : "这条暂缺原视频链接，建议先看采集详情或等下一轮补采。"}`
         };
       }
 
@@ -3412,6 +3499,7 @@
           platformAdvice: row.platformAdvice,
           trafficSourceLines: (row.trafficSourceLines || []).slice(0, 5),
           searchKeywords: (row.searchKeywords || []).slice(0, 5),
+          originalVideoUrlAvailable: hasOriginalVideoUrl(row),
           dataCompleteness: row.dataCompleteness,
           officialMetricLines: (row.officialMetricLines || []).slice(0, 6),
           apiSignalLines: (row.apiSignalLines || []).slice(0, 6),
@@ -3469,6 +3557,7 @@
           .sort((a, b) => (b.views || 0) - (a.views || 0));
         const latestOwnVideos = rows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")));
         const savedVideos = rows.filter(isSavedVideo).sort((a, b) => priorityScore(b) - priorityScore(a));
+        const videosWithOriginalUrl = rows.filter(hasOriginalVideoUrl);
         const dataQuality = {
           ownUsefulVideos: rows.length,
           videosWithCoreMetrics: rows.filter(snapshotHasMetrics).length,
@@ -3476,7 +3565,11 @@
           videosWithConversion: rows.filter((row) => row.profileVisits || row.messages || row.leads || row.followersGained).length,
           videosWithTrafficSource: rows.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length).length,
           videosWithOfficialDeepData: rows.filter((row) => row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length).length,
+          videosWithOriginalUrl: videosWithOriginalUrl.length,
+          videosMissingOriginalUrl: Math.max(rows.length - videosWithOriginalUrl.length, 0),
+          originalUrlRate: rows.length ? Math.round((videosWithOriginalUrl.length / rows.length) * 100) : 0,
           missingFieldGuidance: [
+            rows.some(hasOriginalVideoUrl) ? "" : "缺原视频链接，暂时无法直接回看视频画面，复拍建议只能基于标题和后台数据。",
             rows.some((row) => row.completeRate || row.threeSecondRetention || row.avgWatchSeconds) ? "" : "缺留存/完播/平均观看时长，暂时不能稳定判断开头和节奏。",
             rows.some((row) => row.profileVisits || row.messages || row.leads) ? "" : "缺主页访问、私信或线索字段，暂时不能稳定判断招生转化。",
             rows.some((row) => row.trafficSourceLines?.length || row.searchKeywords?.length) ? "" : "缺流量来源或搜索词，暂时不能判断推荐流、搜索流、本地同城和粉丝流量。"
@@ -3519,7 +3612,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705j",
+          version: "20260705k",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -3634,7 +3727,7 @@
         const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。请优先读取 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接。structuredData 里必须尽量返回 problemSolutions 和 executableScripts。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。请优先读取 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接。structuredData 里必须尽量返回 problemSolutions 和 executableScripts。",
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
           accounts: state.accounts,
@@ -3652,6 +3745,7 @@
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
             shootingTasks: buildShootingTasks(),
+            remakeMaterialLibrary: buildRemakeMaterialLibrary(),
             nextTopicPlan: buildNextTopicPlan(),
             advantagePlan: buildAdvantagePlan()
           },
@@ -3683,6 +3777,44 @@
         `;
       }
 
+      function splitReportTaskText(item) {
+        const text = normalizeText(item);
+        const parts = text.split(/：|:/);
+        if (parts.length >= 2 && parts[0].length <= 28) {
+          return {
+            title: parts.shift().trim(),
+            body: parts.join("：").trim()
+          };
+        }
+        const sentence = text.split(/。|；|;/).filter(Boolean);
+        return {
+          title: sentence[0]?.slice(0, 30) || "执行任务",
+          body: sentence.slice(1).join("。") || text
+        };
+      }
+
+      function reportTaskCardsHtml(title, items, tone = "good", badge = "任务") {
+        const rows = Array.isArray(items) ? items.filter(Boolean).slice(0, 4) : [];
+        if (!rows.length) return "";
+        return `
+          <div class="decision-card ${escapeHtml(tone)}">
+            <strong>${escapeHtml(title)}</strong>
+            <div class="task-card-grid">
+              ${rows.map((item, index) => {
+                const task = splitReportTaskText(item);
+                return `
+                  <div class="task-card ${escapeHtml(tone)}">
+                    <span>${escapeHtml(badge)} ${index + 1}</span>
+                    <strong>${escapeHtml(task.title)}</strong>
+                    <p>${escapeHtml(task.body)}</p>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        `;
+      }
+
       function renderAiActionCards(report = state.aiReport) {
         const box = byId("aiActionCards");
         if (!box) return;
@@ -3695,10 +3827,10 @@
               <p>${escapeHtml([data.accountVerdict, data.dataReadiness].filter(Boolean).join("；"))}</p>
             </div>
           ` : "",
-          reportCardHtml("问题到解决方案", data.problemSolutions, "good"),
-          reportCardHtml("可直接拍摄脚本", data.executableScripts, "good"),
-          reportCardHtml("下周拍摄清单", data.weeklyShootingPlan, "good"),
-          reportCardHtml("值得复拍的方向", data.remakeDirections, "good"),
+          reportTaskCardsHtml("问题到解决任务卡", data.problemSolutions, "good", "整改"),
+          reportTaskCardsHtml("可直接拍摄脚本卡", data.executableScripts, "good", "拍摄"),
+          reportTaskCardsHtml("下周拍摄任务卡", data.weeklyShootingPlan, "good", "排期"),
+          reportTaskCardsHtml("复拍素材库", data.remakeDirections, "good", "复拍"),
           reportCardHtml("主要问题", data.weaknesses, "warn"),
           reportCardHtml("需要停止或重做", data.stopDoing, "danger"),
           reportCardHtml("还要补采的数据", data.missingData, "warn"),
@@ -4624,6 +4756,27 @@
         return videoShortTitle(row).replace(/[，。！？!?,、]/g, " ").split(/\s+/).filter(Boolean).slice(0, 4).join("、") || "当前题材";
       }
 
+      function buildRemakeMaterialLibrary() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const planned = rows
+          .map((row) => {
+            const diagnosis = diagnoseVideo(row);
+            return { row, diagnosis, remake: remakePlan(row, diagnosis) };
+          })
+          .filter((item) => ["sameStructure", "titleUpgrade", "series", "conversion"].includes(item.remake.key) || isStrongVideo(item.row, item.diagnosis))
+          .sort((a, b) => compareTraceableDiagnostics(a, b) || priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis));
+        return planned.slice(0, 6).map((item, index) => {
+          const row = item.row;
+          const saveShare = (row.favorites || 0) + (row.shares || 0);
+          return {
+            tone: hasOriginalVideoUrl(row) ? "good" : "warn",
+            title: `复拍素材 ${index + 1}：${videoShortTitle(row)}`,
+            body: `复用点：${item.remake.label}。播放 ${formatNumber(row.views)}、收藏转发 ${formatNumber(saveShare)}、涨粉 ${formatNumber(row.followersGained || 0)}。${item.remake.detail} ${hasOriginalVideoUrl(row) ? "可直接打开原视频拆镜头和开头。" : "暂缺原视频链接，先记录为待补采素材。"}`,
+            videoId: row.id
+          };
+        });
+      }
+
       function buildShootingTasks() {
         const rows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
         const warnings = warningBuckets();
@@ -4708,12 +4861,31 @@
         const box = byId("shootingTaskList");
         if (!box) return;
         const tasks = buildShootingTasks();
+        const materials = buildRemakeMaterialLibrary();
         box.innerHTML = tasks.map((task) => `
           <div class="decision-card ${escapeHtml(task.tone || "")}">
             <strong>${escapeHtml(task.title)}</strong>
             <p>${escapeHtml(task.body)}</p>
           </div>
-        `).join("");
+        `).join("") + (materials.length ? `
+          <div class="decision-card good">
+            <strong>复拍素材库</strong>
+            <p>这里沉淀能反复使用的老视频结构。优先看有原视频链接的素材，能直接拆开头、标题和题型包装。</p>
+            <div class="task-card-grid">
+              ${materials.map((item) => `
+                <div class="task-card ${escapeHtml(item.tone || "")}">
+                  <span>${hasOriginalVideoUrl(state.snapshots.find((row) => row.id === item.videoId) || {}) ? "可回看" : "待补链"}</span>
+                  <strong>${escapeHtml(item.title)}</strong>
+                  <p>${escapeHtml(item.body)}</p>
+                  <div class="decision-actions">
+                    <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(item.videoId)}">看原视频</button>
+                    <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(item.videoId)}">看详情</button>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        ` : "");
       }
 
       function keywordGroups(rows = []) {
@@ -5245,8 +5417,11 @@
       }
 
       function originalVideoUrl(row = {}) {
-        const url = normalizeText(row.url || row.link || row.videoUrl || row.shareUrl || row["链接"] || row["原视频链接"]);
-        return /^https?:\/\//i.test(url) ? url : "";
+        return firstOriginalUrl(row);
+      }
+
+      function hasOriginalVideoUrl(row = {}) {
+        return Boolean(originalVideoUrl(row));
       }
 
       function closeOriginalVideoModal() {
@@ -5281,7 +5456,7 @@
         } else {
           body.innerHTML = `
             <div class="video-modal-fallback">
-              这条采集数据里还没有原视频链接，所以暂时不能直接弹出播放。后面采集器需要把作品链接一并采回来。
+              这条采集数据里还没有原视频链接，所以暂时不能直接打开平台视频。下一轮采集会优先补作品链接。
               <div class="video-modal-actions">
                 <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(row.id)}">看采集详情</button>
               </div>
@@ -5549,6 +5724,7 @@
         byId("videoList").addEventListener("click", handleVideoAction);
         byId("shootingCommandList")?.addEventListener("click", handleVideoAction);
         byId("dailyScriptGrid")?.addEventListener("click", handleVideoAction);
+        byId("shootingTaskList")?.addEventListener("click", handleVideoAction);
         byId("copyShootingTasksButton").addEventListener("click", async () => {
           await navigator.clipboard?.writeText(shootingTasksText());
           byId("videoOpsMessage").textContent = "已复制自有账号深度挖掘任务。";
