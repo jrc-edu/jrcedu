@@ -169,6 +169,16 @@
       .video-card[open] summary { border-bottom: 1px solid var(--line); background: rgba(13,148,136,0.035); }
       .video-card-body { padding: 15px; }
       .video-card-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+      .video-modal { position: fixed; inset: 0; z-index: 120; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(15,23,42,0.62); backdrop-filter: blur(7px); }
+      .video-modal[aria-hidden="false"] { display: flex; }
+      .video-modal-panel { width: min(920px, calc(100vw - 28px)); max-height: calc(100vh - 36px); overflow: auto; border-radius: 22px; border: 1px solid rgba(255,255,255,0.72); background: #fff; box-shadow: 0 28px 80px rgba(15,23,42,0.28); }
+      .video-modal-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 18px 18px 12px; border-bottom: 1px solid var(--line); }
+      .video-modal-head strong { display: block; font-size: 18px; line-height: 1.35; }
+      .video-modal-head span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+      .video-modal-body { padding: 16px 18px 18px; }
+      .video-modal-frame { width: 100%; aspect-ratio: 9 / 12; min-height: 520px; border: 1px solid var(--line); border-radius: 16px; background: #0f172a; }
+      .video-modal-fallback { padding: 18px; border-radius: 16px; border: 1px dashed rgba(100,116,139,0.35); background: rgba(13,148,136,0.06); color: var(--muted); line-height: 1.7; }
+      .video-modal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
       .rank-badge { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 900; font-size: 14px; }
       .video-summary-line { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
       .video-summary-main { min-width: 0; flex: 1; }
@@ -254,6 +264,7 @@
         .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .focus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .video-modal-frame { min-height: 440px; }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
@@ -263,6 +274,9 @@
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
         .strategy-grid, .readiness-grid, .focus-grid, .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: 1fr; }
         .command-row { grid-template-columns: 1fr; }
+        .video-modal { padding: 12px; }
+        .video-modal-head { flex-direction: column; }
+        .video-modal-frame { min-height: 360px; }
         .span-3 { grid-column: auto; }
         .button, .nav-link { width: 100%; min-height: 46px; }
         .video-card-head { flex-direction: column; }
@@ -271,7 +285,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705h</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705i</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -735,10 +749,23 @@
       </section>
     </main>
 
+    <div class="video-modal" id="originalVideoModal" aria-hidden="true">
+      <div class="video-modal-panel" role="dialog" aria-modal="true" aria-labelledby="originalVideoTitle">
+        <div class="video-modal-head">
+          <div>
+            <strong id="originalVideoTitle">原视频</strong>
+            <span id="originalVideoMeta">等待视频信息。</span>
+          </div>
+          <button class="button secondary" type="button" data-video-modal-close>关闭</button>
+        </div>
+        <div class="video-modal-body" id="originalVideoBody"></div>
+      </div>
+    </div>
+
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705h";
+        const pageVersion = "20260705i";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -872,7 +899,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705h";
+      const PAGE_VERSION = "20260705i";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -2841,7 +2868,7 @@
             ${card.videoId ? `
               <div class="decision-actions">
                 <button class="button" type="button" data-video-action="skip-daily" data-video-id="${escapeHtml(card.videoId)}">换一个</button>
-                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
+                <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
               </div>
             ` : ""}
             ${card.resetAction ? `
@@ -3264,7 +3291,7 @@
             ${card.videoId ? `
               <div class="script-actions">
                 <button class="button" type="button" data-video-action="skip-daily" data-video-id="${escapeHtml(card.videoId)}">换一个</button>
-                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
+                <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
               </div>
             ` : ""}
           </article>
@@ -3495,7 +3522,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705h",
+          version: "20260705i",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5220,18 +5247,80 @@
         saveState("已恢复今日跳过，拍摄指挥台和脚本已重新按强弱排序。");
       }
 
+      function originalVideoUrl(row = {}) {
+        const url = normalizeText(row.url || row.link || row.videoUrl || row.shareUrl || row["链接"] || row["原视频链接"]);
+        return /^https?:\/\//i.test(url) ? url : "";
+      }
+
+      function closeOriginalVideoModal() {
+        const modal = byId("originalVideoModal");
+        const body = byId("originalVideoBody");
+        if (!modal || !body) return;
+        modal.setAttribute("aria-hidden", "true");
+        body.innerHTML = "";
+      }
+
+      function openOriginalVideo(videoId) {
+        const row = state.snapshots.find((item) => item.id === videoId);
+        if (!row) return;
+        const modal = byId("originalVideoModal");
+        const title = byId("originalVideoTitle");
+        const meta = byId("originalVideoMeta");
+        const body = byId("originalVideoBody");
+        if (!modal || !title || !meta || !body) return;
+        const url = originalVideoUrl(row);
+        title.textContent = videoShortTitle(row) || "原视频";
+        meta.textContent = `${row.platform || "视频平台"}｜${row.accountName || "账号"}｜${compactVideoMetrics(row)}`;
+        if (url) {
+          body.innerHTML = `
+            <iframe class="video-modal-frame" src="${escapeHtml(url)}" title="${escapeHtml(row.title || "原视频")}" loading="lazy" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            <div class="video-modal-fallback">
+              如果平台不允许在系统里直接播放，请点下面按钮打开原平台视频。抖音、视频号经常会限制内嵌播放，这是平台规则，不是系统卡顿。
+              <div class="video-modal-actions">
+                <a class="button" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">打开原平台视频</a>
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(row.id)}">看采集详情</button>
+              </div>
+            </div>
+          `;
+        } else {
+          body.innerHTML = `
+            <div class="video-modal-fallback">
+              这条采集数据里还没有原视频链接，所以暂时不能直接弹出播放。后面采集器需要把作品链接一并采回来。
+              <div class="video-modal-actions">
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(row.id)}">看采集详情</button>
+              </div>
+            </div>
+          `;
+        }
+        modal.setAttribute("aria-hidden", "false");
+        byId("videoOpsMessage").textContent = url ? "已打开原视频弹窗；如平台限制内嵌播放，请点“打开原平台视频”。" : "这条视频缺少原视频链接，已显示采集详情入口。";
+      }
+
       function focusVideo(videoId) {
-        const rows = filteredVideos();
-        const index = rows.findIndex((row) => row.id === videoId);
-        if (index >= 60) {
-          byId("videoOpsMessage").textContent = "这条视频不在当前前 60 条显示范围内，请先调整排序或筛选。";
+        const sourceRow = state.snapshots.find((item) => item.id === videoId);
+        if (!sourceRow) return;
+        const latestRow = latestSnapshots().find((item) => videoKey(item) === videoKey(sourceRow)) || sourceRow;
+        [
+          ["platformFilter", ""],
+          ["accountFilter", ""],
+          ["videoTypeFilter", ""],
+          ["videoSortFilter", "priority"],
+          ["videoDisplayLimit", "all"]
+        ].forEach(([id, value]) => {
+          const control = byId(id);
+          if (control) control.value = value;
+        });
+        renderPriorityVideos();
+        renderVideos();
+        const cards = [...document.querySelectorAll("[data-video-card-id]")];
+        const card = cards.find((item) => item.getAttribute("data-video-card-id") === latestRow.id);
+        if (!card) {
+          byId("videoOpsMessage").textContent = "已经切到全部视频，但没有找到这条视频的详情卡。";
           return;
         }
-        const cards = [...document.querySelectorAll("[data-video-card-id]")];
-        const card = cards.find((item) => item.getAttribute("data-video-card-id") === videoId);
-        if (!card) return;
         card.open = true;
         card.scrollIntoView({ behavior: "smooth", block: "start" });
+        byId("videoOpsMessage").textContent = "已展开这条视频的采集详情。";
       }
 
       async function handleVideoAction(event) {
@@ -5253,7 +5342,12 @@
           resetDailySkips();
           return;
         }
+        if (action === "open-original") {
+          openOriginalVideo(videoId);
+          return;
+        }
         if (action === "focus") {
+          closeOriginalVideoModal();
           focusVideo(videoId);
           return;
         }
@@ -5359,6 +5453,16 @@
       function bindEvents() {
         byId("accountForm").addEventListener("submit", handleAccountSubmit);
         document.addEventListener("click", async (event) => {
+          const modal = byId("originalVideoModal");
+          if (event.target.closest("[data-video-modal-close]") || (modal && event.target === modal)) {
+            closeOriginalVideoModal();
+            return;
+          }
+          const globalVideoAction = event.target.closest("button[data-video-action]");
+          if (globalVideoAction && event.target.closest("#originalVideoModal")) {
+            await handleVideoAction(event);
+            return;
+          }
           const signalButton = event.target.closest("[data-signal-sort]");
           if (signalButton) {
             const sortKey = signalButton.dataset.signalSort || "priority";
@@ -5382,6 +5486,9 @@
             await navigator.clipboard?.writeText(benchmarkLibraryText());
             byId("videoOpsMessage").textContent = "已复制完整标杆账号清单。";
           }
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") closeOriginalVideoModal();
         });
         byId("resetAccountFormButton").addEventListener("click", () => {
           editingAccountId = "";
