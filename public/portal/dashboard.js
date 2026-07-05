@@ -1323,7 +1323,7 @@
         ["财务月结", "按老师工资单核对月结", "./finance.html", "finance.access"],
         ["学生服务", "点名、课消、反馈归档", "./student-service.html", "studentService.access"],
         ["短视频系统", "自有账号复盘、视频诊断和选题建议", "./video-ops.html?v=20260705f", "videoOps.access"],
-        ["AI能力中心", "查看各系统AI建设边界和优先级", "./ai-capabilities.html", ""]
+        ["AI管理中心", "检测DeepSeek和AI启用状态", "./ai-capabilities.html", "admin.access"]
       ];
     }
     if (role.includes("财务")) {
@@ -1338,7 +1338,6 @@
       return [
         ["学生服务", "点名、缺勤、家长沟通", "./student-service.html", "studentService.access"],
         ["招生跟进", "线索、试听、报名交接", "/jrcedu/advice-system/index.html", "admissions.access"],
-        ["AI能力中心", "查看学生服务和招生AI能做什么", "./ai-capabilities.html", ""],
         ["短视频系统", "查看自有账号数据和拍摄建议", "./video-ops.html?v=20260705f", "videoOps.access"],
         ["课堂反馈AI", "整理老师课堂反馈草稿", "./ai-assistant.html", "ai.access"],
         ["我的反馈", "查看问题处理进展", "./trial-feedback.html", "suggestions.access"]

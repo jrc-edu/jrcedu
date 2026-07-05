@@ -716,22 +716,22 @@
           </div>
         </article>
 
-        <article class="card" data-system-card="aiCapabilities">
+        <article class="card" data-system-card="aiCapabilities" data-requires-permission-card="admin.access">
           <div class="card-head">
             <div>
               <p class="eyebrow">AI Center</p>
-              <h2>AI智能能力中心</h2>
+              <h2>AI管理中心</h2>
             </div>
-            <span class="badge">建设蓝图</span>
+            <span class="badge">管理员</span>
           </div>
-          <p>统一查看各系统能接入哪些 AI 能力、哪些已经上线、哪些只能给建议不能直接执行。</p>
+          <p>管理员查看 DeepSeek 接口状态、AI 启用情况和高风险业务边界。</p>
           <ul class="list">
-            <li>课堂反馈、短视频报告已接入 DeepSeek</li>
-            <li>招生跟进、学生服务预警、教研资料归档优先建设</li>
-            <li>财务、排课、人事只做建议和复核提醒，不让 AI 自动改关键数据</li>
+            <li>检测 DeepSeek 是否接通</li>
+            <li>验证课堂反馈和短视频 AI</li>
+            <li>确认财务、排课、人事不被 AI 自动直改</li>
           </ul>
           <div class="actions">
-            <a class="button" href="./ai-capabilities.html">查看AI能力中心</a>
+            <a class="button" data-requires-permission="admin.access" href="./ai-capabilities.html">查看AI管理中心</a>
           </div>
         </article>
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>匠人程工作台｜AI智能能力中心</title>
+    <title>匠人程工作台｜AI管理中心</title>
     <style>
       :root {
         --bg: #f6f3ee;
@@ -238,29 +238,6 @@
         gap: 10px;
         margin-top: 16px;
       }
-      .roadmap-list {
-        display: grid;
-        gap: 10px;
-        margin-top: 16px;
-      }
-      .roadmap-row {
-        display: grid;
-        grid-template-columns: 92px minmax(0, 1fr) auto;
-        gap: 12px;
-        align-items: start;
-        padding: 14px;
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.78);
-      }
-      .roadmap-row strong {
-        display: block;
-      }
-      .roadmap-row p {
-        margin-top: 5px;
-        color: var(--muted);
-        line-height: 1.6;
-      }
       .rule {
         padding: 14px;
         border: 1px solid var(--line);
@@ -286,31 +263,29 @@
         .panel-head {
           display: grid;
         }
-        .roadmap-row {
-          grid-template-columns: 1fr;
-        }
       }
     </style>
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
-  <body>
+  <body data-page-permission="admin.access">
     <main class="shell">
       <section class="hero">
         <div class="topbar">
           <div>
             <p class="eyebrow">AI Center</p>
-            <h1>AI智能能力中心</h1>
+            <h1>AI管理中心</h1>
           </div>
           <div class="actions">
             <a class="button secondary" href="./index.html">返回工作台</a>
             <a class="button" href="./ai-assistant.html">课堂反馈AI</a>
+            <a class="button secondary" href="./video-ops.html">短视频系统</a>
           </div>
         </div>
-        <p class="hero-text">这个页面用于统一管理匠人程工作台的 AI 建设方向：哪些功能已经接入 DeepSeek，哪些功能优先建设，哪些关键业务只能让 AI 给建议、不能直接自动执行。</p>
+        <p class="hero-text">这个页面仅给管理员查看，用来确认 DeepSeek 是否正常、哪些业务已经启用 AI、哪些高风险动作必须人工确认。普通老师不需要看这里，直接进入具体系统使用 AI。</p>
         <div class="summary-grid">
-          <div class="summary-item"><span>已接入</span><strong>3 类</strong></div>
-          <div class="summary-item"><span>优先建设</span><strong>4 类</strong></div>
-          <div class="summary-item"><span>辅助建议</span><strong>3 类</strong></div>
+          <div class="summary-item"><span>接口底座</span><strong>DeepSeek</strong></div>
+          <div class="summary-item"><span>已启用</span><strong>3 类</strong></div>
+          <div class="summary-item"><span>观察中</span><strong>3 类</strong></div>
           <div class="summary-item"><span>高风险禁止直改</span><strong>3 类</strong></div>
         </div>
       </section>
@@ -346,61 +321,28 @@
       <section class="panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Priority</p>
-            <h2>先做最有价值的 AI</h2>
-            <p>不做花架子。先让 AI 进入老师每天真的会用、真的能省时间、真的能减少漏项的流程。</p>
+            <p class="eyebrow">Admin</p>
+            <h2>管理员先看这三件事</h2>
+            <p>这里不再放建设路线图，只保留日常排查和管理真正会用到的判断。</p>
           </div>
-          <span class="badge">第一阶段</span>
+          <span class="badge">管理视角</span>
         </div>
         <div class="priority-grid">
           <article class="priority-item">
             <span>01</span>
-            <strong>课堂反馈继续提质</strong>
-            <p>DeepSeek 主写课堂反馈，网页端只负责保存、归档和串名检查；重点优化自然度、准确度和多学生不串名。</p>
+            <strong>先确认 AI 是否接通</strong>
+            <p>课堂反馈和短视频专家报告依赖同一个 DeepSeek 接口。接口异常时先处理 Key、额度、模型或服务器网络。</p>
           </article>
           <article class="priority-item">
             <span>02</span>
-            <strong>短视频账号深度复盘</strong>
-            <p>结合自有账号历史视频、播放、涨粉、咨询、收藏转发和平台建议，生成可执行的复拍清单和选题方向。</p>
+            <strong>入口放在业务系统里</strong>
+            <p>老师不需要理解“AI中心”。课堂反馈、短视频、招生、学生服务分别在自己的系统里直接使用 AI。</p>
           </article>
           <article class="priority-item">
             <span>03</span>
-            <strong>招生与学生服务预警</strong>
-            <p>根据跟进记录、出门测、缺勤、课堂反馈和家长沟通，提醒下一步动作，生成可编辑的话术草稿。</p>
+            <strong>失败不能造假结果</strong>
+            <p>AI 调用失败时必须明确提示失败，不能用本地模板冒充模型输出，尤其是课堂反馈和专家报告。</p>
           </article>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Roadmap</p>
-            <h2>下一步落地队列</h2>
-            <p>后续优化按这个顺序推进：先做每天高频、低风险、能立刻帮老师省时间的 AI。</p>
-          </div>
-          <span class="badge warn">建议顺序</span>
-        </div>
-        <div class="roadmap-list">
-          <div class="roadmap-row">
-            <span class="badge">第 1 个</span>
-            <div><strong>招生跟进 AI</strong><p>读取线索、试听、报名和跟进记录，生成下一步动作、家长沟通话术和风险提示；不自动改变报名状态。</p></div>
-            <a class="button secondary" href="/jrcedu/advice-system/index.html">去招生</a>
-          </div>
-          <div class="roadmap-row">
-            <span class="badge">第 2 个</span>
-            <div><strong>学生服务 AI 预警</strong><p>结合出门测、缺勤、课堂反馈、作业和家长沟通，判断是否需要联系家长，并生成可编辑说明。</p></div>
-            <a class="button secondary" href="./student-service.html">去学生服务</a>
-          </div>
-          <div class="roadmap-row">
-            <span class="badge">第 3 个</span>
-            <div><strong>教研资料 AI 归档</strong><p>上传资料后自动生成简介、关键词、年级和资料类型建议，让新老师更容易检索和理解。</p></div>
-            <a class="button secondary" href="./curriculum-products.html">去教研</a>
-          </div>
-          <div class="roadmap-row">
-            <span class="badge lock">只辅助</span>
-            <div><strong>排课、财务、人事解释助手</strong><p>只解释数据、总结差异、提醒人工复核，不自动改课表、不自动改账、不自动改权限。</p></div>
-            <a class="button secondary" href="./index.html">看工作台</a>
-          </div>
         </div>
       </section>
 
@@ -408,101 +350,71 @@
         <div class="panel-head">
           <div>
             <p class="eyebrow">Capabilities</p>
-            <h2>各系统 AI 能力清单</h2>
-            <p>每个系统只接最适合的 AI 能力。涉及钱、课表、权限和离职这些关键动作，AI 只解释和建议，最终必须人工确认。</p>
+            <h2>AI 功能状态</h2>
+            <p>这里只看管理状态。老师日常使用时，从对应业务系统进入，不需要先来 AI 管理中心。</p>
           </div>
-          <span class="badge warn">按系统落地</span>
+          <span class="badge warn">管理员查看</span>
         </div>
         <div class="capability-grid">
           <article class="capability-card">
             <div class="card-head"><h3>课堂反馈AI助手</h3><span class="badge">已上线</span></div>
-            <p>老师输入课堂情况，DeepSeek 生成家长可读反馈。</p>
+            <p>老师输入课堂情况，DeepSeek 生成家长可读反馈；失败时不生成假草稿。</p>
             <ul>
-              <li>单学生、多学生课堂反馈生成</li>
-              <li>失败不生成假草稿</li>
-              <li>归档到学生服务历史反馈</li>
+              <li>单学生、多学生反馈</li>
+              <li>串名检查和归档</li>
+              <li>入口：课堂反馈系统</li>
             </ul>
+            <div class="actions"><a class="button secondary" href="./ai-assistant.html">进入验证</a></div>
           </article>
           <article class="capability-card">
             <div class="card-head"><h3>短视频系统</h3><span class="badge">已上线</span></div>
-            <p>采集数据后自动生成短视频专家报告。</p>
+            <p>采集数据后生成短视频专家报告，重点看复拍、重剪、涨粉和招生转化。</p>
             <ul>
-              <li>判断高播放、高涨粉、高咨询、高收藏转发视频</li>
-              <li>沉淀复拍方向和下周行动清单</li>
-              <li>优先分析自有账号，同行数据作为后续参考</li>
+              <li>自有账号优先</li>
+              <li>报告自动回写</li>
+              <li>入口：短视频系统</li>
             </ul>
+            <div class="actions"><a class="button secondary" href="./video-ops.html">进入验证</a></div>
           </article>
           <article class="capability-card">
-            <div class="card-head"><h3>招生管理系统</h3><span class="badge warn">优先建设</span></div>
-            <p>帮助老师判断家长阶段和下一步跟进动作。</p>
+            <div class="card-head"><h3>招生跟进AI</h3><span class="badge warn">下一步接入</span></div>
+            <p>用于生成下一步沟通话术、跟进提醒和风险家长提示，不自动改变报名状态。</p>
             <ul>
-              <li>咨询记录总结和下一句话建议</li>
-              <li>试听后报名推进建议</li>
-              <li>风险家长提示和谨慎续报建议</li>
+              <li>先读线索和试听记录</li>
+              <li>只生成建议和话术</li>
+              <li>报名状态仍由人工确认</li>
             </ul>
+            <div class="actions"><a class="button secondary" href="/jrcedu/advice-system/index.html">看招生系统</a></div>
           </article>
           <article class="capability-card">
-            <div class="card-head"><h3>学生与家长服务系统</h3><span class="badge warn">优先建设</span></div>
-            <p>围绕学生学习变化和家长沟通做预警。</p>
+            <div class="card-head"><h3>学生服务预警AI</h3><span class="badge warn">下一步接入</span></div>
+            <p>围绕出门测、缺勤、课堂反馈和家长沟通，提醒是否需要联系家长。</p>
             <ul>
-              <li>出门测趋势解读和下滑提醒</li>
-              <li>缺勤、作业、课堂反馈合并成家长沟通草稿</li>
-              <li>续费风险和学习状态阶段性总结</li>
+              <li>出门测趋势提醒</li>
+              <li>沟通草稿可编辑</li>
+              <li>不自动给家长发送</li>
             </ul>
+            <div class="actions"><a class="button secondary" href="./student-service.html">看学生服务</a></div>
           </article>
           <article class="capability-card">
-            <div class="card-head"><h3>教研与课程产品系统</h3><span class="badge warn">优先建设</span></div>
-            <p>让资料库更容易被新老师找到和理解。</p>
+            <div class="card-head"><h3>教研资料AI归档</h3><span class="badge warn">观察中</span></div>
+            <p>上传资料后辅助生成简介、关键词和分类建议，让新老师更容易搜索。</p>
             <ul>
-              <li>上传资料自动生成简介和关键词</li>
-              <li>辅助判断年级、季节、资料类型</li>
-              <li>新老师快速读懂某份大纲或讲义用途</li>
+              <li>建议年级和季节</li>
+              <li>建议资料关键词</li>
+              <li>文件仍由老师上传确认</li>
             </ul>
+            <div class="actions"><a class="button secondary" href="./curriculum-products.html">看教研系统</a></div>
           </article>
           <article class="capability-card">
-            <div class="card-head"><h3>使用方法AI提问助手</h3><span class="badge">已上线</span></div>
-            <p>老师不会用系统时，先问右下角绿色按钮。</p>
+            <div class="card-head"><h3>高风险系统</h3><span class="badge lock">只解释建议</span></div>
+            <p>排课、财务、人事涉及钱、课表、员工和权限，AI 只能解释数据、提醒异常、给候选方案。</p>
             <ul>
-              <li>按当前系统回答怎么操作</li>
-              <li>本地方法库优先，必要时调用 DeepSeek</li>
-              <li>后续升级为按步骤带老师操作</li>
+              <li>不自动改课表</li>
+              <li>不自动改账</li>
+              <li>不自动改权限或删人</li>
             </ul>
-          </article>
-          <article class="capability-card">
-            <div class="card-head"><h3>排课系统</h3><span class="badge lock">只做建议</span></div>
-            <p>AI 可以解释冲突和给调课建议，但不能自动乱排课。</p>
-            <ul>
-              <li>解释为什么排不进去</li>
-              <li>提示老师、教室、学生时间冲突</li>
-              <li>给排课负责人候选方案，人工确认后再改</li>
-            </ul>
-          </article>
-          <article class="capability-card">
-            <div class="card-head"><h3>财务系统</h3><span class="badge lock">只做复核</span></div>
-            <p>AI 可以总结异常和解释口径，但不能自动改账或确认发薪。</p>
-            <ul>
-              <li>对账差异总结</li>
-              <li>收入支出月度摘要</li>
-              <li>待财务人工确认后才能入账或结算</li>
-            </ul>
-          </article>
-          <article class="capability-card">
-            <div class="card-head"><h3>校区运营与人事系统</h3><span class="badge lock">只做提醒</span></div>
-            <p>AI 可以整理流程、生成说明和提醒交接项，但不能自动删人、改权限或办理离职。</p>
-            <ul>
-              <li>入职、转正、离职流程说明</li>
-              <li>权限交接清单提醒</li>
-              <li>管理员确认后才改变账号和权限</li>
-            </ul>
-          </article>
-          <article class="capability-card">
-            <div class="card-head"><h3>学管知识库系统</h3><span class="badge warn">后续强化</span></div>
-            <p>在已有问答和课程基础上，让老师更快找到相近答案。</p>
-            <ul>
-              <li>更强的相似问题检索</li>
-              <li>根据场景推荐标准话术</li>
-              <li>新人学习和测试结果复盘</li>
-            </ul>
+            <div class="actions"><a class="button secondary" href="./index.html">回工作台</a></div>
           </article>
         </div>
       </section>
