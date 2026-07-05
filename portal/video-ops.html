@@ -310,7 +310,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705w</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705x</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -353,11 +353,28 @@
         <strong>今日工作入口</strong>
         <div class="toolbar">
           <button class="button secondary" type="button" data-jump-target="todayCommandGrid">总控台</button>
+          <button class="button secondary" type="button" data-jump-target="roleBriefGrid">角色输出</button>
           <button class="button secondary" type="button" data-jump-target="dailyScriptGrid">今日脚本</button>
           <button class="button secondary" type="button" data-jump-target="weeklyPlanGrid">7日排期</button>
           <button class="button secondary" type="button" data-jump-target="remakeBookmarkGrid">复拍收藏</button>
           <button class="button secondary" type="button" data-jump-target="signalRankingGrid">视频明细</button>
         </div>
+      </section>
+
+      <section class="card command-panel" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Role Briefs</p>
+            <h2>校长摘要 / 老师执行单</h2>
+          </div>
+          <div class="toolbar">
+            <button class="button secondary" id="copyBossBriefButton" type="button">复制校长摘要</button>
+            <button class="button secondary" id="copyTeacherBriefButton" type="button">复制老师执行单</button>
+            <span class="badge" id="roleBriefBadge">等待数据</span>
+          </div>
+        </div>
+        <p id="roleBriefSummary" style="margin-top:8px;">同一套数据拆成两个口径：校长看方向和风险，老师看今天怎么拍、怎么发布、怎么复盘。</p>
+        <div class="task-card-grid" id="roleBriefGrid"></div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -945,7 +962,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705w";
+        const pageVersion = "20260705x";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -1080,7 +1097,7 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705w";
+      const PAGE_VERSION = "20260705x";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
@@ -5471,6 +5488,144 @@
         ].join("\n");
       }
 
+      function bossBriefText() {
+        const command = buildTodayCommandCenter();
+        const trust = buildDataTrustDashboard();
+        const weekly = buildWeeklyShootingPlan();
+        const bookmark = buildRemakeBookmarkLibrary();
+        const outcome = buildPublishOutcomeBoard();
+        const ownCount = ownVideoRows().filter(isUsefulSnapshot).length;
+        const trustedCount = trust.buckets.deepReview.length + trust.buckets.backend.length;
+        return [
+          "短视频系统｜校长摘要",
+          "",
+          `一句话判断：${command.summary}`,
+          "",
+          "1. 当前数据能不能信",
+          `自有作品 ${ownCount} 条；可深度复盘/真后台采到 ${trustedCount} 条；只能轻判断 ${trust.buckets.light.length} 条；字段缺失 ${trust.buckets.missing.length} 条。`,
+          "",
+          "2. 今天最重要的动作",
+          ...command.list.slice(0, 4).map((item, index) => `${index + 1}. ${item.title}\n${item.body}`),
+          "",
+          "3. 一周拍摄节奏",
+          ...weekly.plan.slice(0, 7).map((item, index) => `${index + 1}. ${item.day}｜${item.title}｜${item.topic}`),
+          "",
+          "4. 复拍素材",
+          bookmark.summary,
+          "",
+          "5. 发布后归档",
+          ...outcome.map((item, index) => `${index + 1}. ${item.title}\n${item.body}`)
+        ].join("\n");
+      }
+
+      function teacherExecutionSheetText() {
+        const scripts = buildDailyScriptWorkbench();
+        const weekly = buildWeeklyShootingPlan();
+        const post = buildPostPublishReviewLoop();
+        const checklist = buildTodayShootingChecklist();
+        const scriptLines = scripts.cards.length
+          ? scripts.cards.map((card, index) => [
+              `${index + 1}. ${card.label}`,
+              `参考：${card.sourceTitle}｜${card.metric}`,
+              `标题：${card.titles.map((item) => `《${item}》`).join(" / ")}`,
+              `前3秒：${card.lead}`,
+              "正文：",
+              ...card.body.map((item) => `- ${item}`),
+              `结尾：${card.closing}`,
+              "验收：",
+              ...(card.acceptance || []).map((item) => `- ${item}`)
+            ].join("\n"))
+          : ["暂无今日脚本。先补采数据或恢复今日跳过。"];
+        return [
+          "短视频系统｜老师执行单",
+          "",
+          "今天按下面顺序执行，不需要看后台细节。",
+          "",
+          "一、今日拍摄脚本",
+          ...scriptLines,
+          "",
+          "二、开拍前检查",
+          ...checklist.map((item, index) => `${index + 1}. ${item.title}\n${item.body}`),
+          "",
+          "三、7日排期参考",
+          ...weekly.plan.slice(0, 7).map((item, index) => `${index + 1}. ${item.day}｜${item.title}｜${item.topic}\n${item.douyinLine}\n${item.wechatLine}`),
+          "",
+          "四、发布后复盘",
+          ...post.map((item, index) => `${index + 1}. ${item.label}｜${item.title}\n${item.body}`)
+        ].join("\n");
+      }
+
+      function buildRoleBriefs() {
+        const command = buildTodayCommandCenter();
+        const scripts = buildDailyScriptWorkbench();
+        const weekly = buildWeeklyShootingPlan();
+        const bookmark = buildRemakeBookmarkLibrary();
+        const trust = buildDataTrustDashboard();
+        const trustedCount = trust.buckets.deepReview.length + trust.buckets.backend.length;
+        const firstScript = scripts.cards?.[0] || null;
+        const firstWeek = weekly.plan?.[0] || null;
+        const cards = [
+          {
+            tone: command.tone || "good",
+            label: "校长看",
+            title: "今天只盯方向、风险和资源",
+            body: command.summary
+          },
+          {
+            tone: firstScript ? "good" : "warn",
+            label: "老师拍",
+            title: firstScript ? firstScript.label : "等待脚本",
+            body: firstScript
+              ? `先拍「${firstScript.topic || firstScript.sourceTitle}」：${firstScript.lead} 结尾必须接评论、主页或私信。`
+              : "当前没有可直接拍脚本，先补采数据或恢复今日跳过。"
+          },
+          {
+            tone: firstWeek ? "good" : "warn",
+            label: "一周排",
+            title: firstWeek ? `${firstWeek.day}｜${firstWeek.title}` : "等待排期",
+            body: firstWeek ? `${firstWeek.topic}。${firstWeek.reviewLine}` : "数据到位后自动生成7日排期。"
+          },
+          {
+            tone: trustedCount ? "good" : "warn",
+            label: "可信度",
+            title: trustedCount ? `${trustedCount} 条可重判断` : "先轻判断",
+            body: `可深度复盘 ${trust.buckets.deepReview.length} 条，真后台采到 ${trust.buckets.backend.length} 条，只能轻判断 ${trust.buckets.light.length} 条，字段缺失 ${trust.buckets.missing.length} 条。`
+          },
+          {
+            tone: bookmark.saved.length ? "good" : "warn",
+            label: "素材库",
+            title: bookmark.saved.length ? `已收藏 ${bookmark.saved.length} 条` : "先收藏复拍候选",
+            body: bookmark.summary
+          }
+        ];
+        return {
+          badge: scripts.cards?.length ? "可分工" : "待补数据",
+          tone: scripts.cards?.length ? "good" : "warn",
+          summary: scripts.cards?.length
+            ? "已经拆成校长摘要和老师执行单：一个看方向，一个照着拍。"
+            : "当前还缺可直接执行的脚本，先看采集前准备或恢复今日跳过。",
+          cards
+        };
+      }
+
+      function renderRoleBriefs() {
+        const badge = byId("roleBriefBadge");
+        const summary = byId("roleBriefSummary");
+        const grid = byId("roleBriefGrid");
+        if (!badge || !summary || !grid) return;
+        const data = buildRoleBriefs();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.cards.map((card) => `
+          <div class="task-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
       function renderTodayCommandCenter() {
         const badge = byId("todayCommandBadge");
         const summary = byId("todayCommandSummary");
@@ -5858,7 +6013,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705w",
+          version: "20260705x",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -6016,6 +6171,9 @@
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
           platformDiagnosis: buildPlatformDiagnosis(),
+          roleBriefs: buildRoleBriefs(),
+          bossBrief: bossBriefText(),
+          teacherExecutionSheet: teacherExecutionSheetText(),
           todayCommandCenter: buildTodayCommandCenter(),
           weeklyShootingPlan: buildWeeklyShootingPlan(),
           crossPlatformComparison: crossPlatformComparisonForAi(),
@@ -6038,6 +6196,9 @@
           accountReports,
           localActionDrafts: {
             morningDecisions: buildMorningDecisions(),
+            roleBriefs: buildRoleBriefs(),
+            bossBrief: bossBriefText(),
+            teacherExecutionSheet: teacherExecutionSheetText(),
             todayCommandCenter: buildTodayCommandCenter(),
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
@@ -7601,6 +7762,7 @@
         renderCollectionPlan();
         renderDataReadiness();
         renderOvernightMiningPlan();
+        renderRoleBriefs();
         renderTodayCommandCenter();
         renderMorningDecisions();
         renderPlatformDiagnosis();
@@ -7729,6 +7891,7 @@
 
       function refreshVideoLists() {
         renderOvernightMiningPlan();
+        renderRoleBriefs();
         renderTodayCommandCenter();
         renderMorningDecisions();
         renderPlatformDiagnosis();
@@ -8131,6 +8294,14 @@
         byId("copyTodayCommandBriefButton")?.addEventListener("click", async () => {
           await navigator.clipboard?.writeText(todayCommandBriefText());
           byId("videoOpsMessage").textContent = "已复制今日拍摄简报。";
+        });
+        byId("copyBossBriefButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(bossBriefText());
+          byId("videoOpsMessage").textContent = "已复制校长摘要。";
+        });
+        byId("copyTeacherBriefButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(teacherExecutionSheetText());
+          byId("videoOpsMessage").textContent = "已复制老师执行单。";
         });
         byId("copyDualPlatformScriptsButton")?.addEventListener("click", async () => {
           await navigator.clipboard?.writeText(dualPlatformScriptsText());
