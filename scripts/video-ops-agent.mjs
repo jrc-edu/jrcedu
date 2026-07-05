@@ -522,7 +522,24 @@ async function randomDelay(config) {
 }
 
 async function pageText(page) {
-  return normalizeText(await page.locator("body").innerText({ timeout: 8000 }).catch(() => ""));
+  const texts = [];
+  for (const frame of page.frames()) {
+    const locatorText = await frame.locator("body").innerText({ timeout: 3000 }).catch(() => "");
+    if (normalizeText(locatorText)) texts.push(locatorText);
+    const evaluatedText = await frame.evaluate(() => {
+      const body = document.body;
+      if (!body) return "";
+      const primary = body.innerText || body.textContent || "";
+      if (String(primary).trim()) return primary;
+      return Array.from(document.querySelectorAll("button,a,span,div,p,td,th"))
+        .map((node) => node.innerText || node.textContent || "")
+        .filter(Boolean)
+        .slice(0, 800)
+        .join("\n");
+    }).catch(() => "");
+    if (normalizeText(evaluatedText)) texts.push(evaluatedText);
+  }
+  return normalizeText(texts.join("\n"));
 }
 
 function splitSignalLines(text, limit = 24) {
@@ -935,11 +952,19 @@ async function waitForOperatorConfirmation(page, config, label, account, warning
 }
 
 async function preflightPage(page, config, account, label) {
-  const text = await pageText(page);
+  let text = await pageText(page);
+  if (/视频号|channels|weixin/i.test([account.platform, account.dashboardUrl, account.videoListUrl, page.url()].join(" ")) && normalizeText(text).length < 80) {
+    for (let attempt = 0; attempt < 3 && normalizeText(text).length < 80; attempt += 1) {
+      await sleep(1800);
+      text = await pageText(page);
+    }
+  }
   const url = page.url();
   const issues = [];
+  const isWechatChannels = /视频号|channels|weixin/i.test([account.platform, account.dashboardUrl, account.videoListUrl, url].join(" "));
+  const wechatChannelsReady = isWechatChannels && textHasAny(text, [/视频号\s*·?\s*助手|内容管理|最近视频|昨日数据|新增播放|净增关注|发表视频|数据中心|播放|点赞|评论/]);
   if (hasLoginBarrier(text)) issues.push("页面出现登录、扫码、验证码或安全验证提示");
-  if (!normalizeText(text) || normalizeText(text).length < 40) issues.push("页面文字过少，可能为空白页或未加载完成");
+  if ((!normalizeText(text) || normalizeText(text).length < 40) && !wechatChannelsReady) issues.push("页面文字过少，可能为空白页或未加载完成");
   if (label.includes("作品") && !textHasAny(text, [/作品|内容|视频|播放|点赞|评论|发布时间|数据|管理/])) {
     issues.push("作品列表特征不足，暂不采集，避免把菜单页当作品页");
   }
