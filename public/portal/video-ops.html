@@ -255,7 +255,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705c</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705d</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -318,6 +318,19 @@
         <p id="morningDecisionSummary" style="margin-top:8px;">这里不放后台细节，只放明早最该看的结论：数据是否可信、账号优势、最值得复拍、最该复盘、下一轮拍摄方向。</p>
         <div class="focus-grid" id="morningDecisionGrid"></div>
         <div class="decision-list" id="morningDecisionList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Shooting Command</p>
+            <h2>今日拍摄指挥台</h2>
+          </div>
+          <span class="badge" id="shootingCommandBadge">等待数据</span>
+        </div>
+        <p id="shootingCommandSummary" style="margin-top:8px;">这里把 382 条历史视频压缩成今天最该执行的拍摄、复拍、转化和重剪动作。</p>
+        <div class="signal-ranking-grid" id="shootingCommandGrid"></div>
+        <div class="decision-list" id="shootingCommandList"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -665,7 +678,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705c";
+        const pageVersion = "20260705d";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -799,7 +812,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705c";
+      const PAGE_VERSION = "20260705d";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -932,6 +945,8 @@
         const raw = normalizeText(value);
         if (!raw) return "来源待确认";
         if (raw.includes("public-benchmark-search")) return "标杆公开采集";
+        if (raw.includes("creator-center-work-list-api")) return "抖音作品接口";
+        if (raw.includes("creator-center-api-json")) return "创作者中心接口";
         if (raw.includes("+") && raw.includes("playwright-agent") && raw.includes("list")) return "机器人列表+详情";
         if (raw.includes("playwright-agent-list")) return "机器人列表采集";
         if (raw.includes("playwright-agent")) return "机器人详情采集";
@@ -2728,6 +2743,183 @@
         `).join("");
       }
 
+      function visitConversionCount(row = {}) {
+        return leadCount(row) + Number(row.profileVisits || 0);
+      }
+
+      function visitConversionRate(row = {}) {
+        return safeRate(visitConversionCount(row), row.views || 0);
+      }
+
+      function commandCenterLeaders() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row), remake: null }));
+        diagnostics.forEach((item) => { item.remake = remakePlan(item.row, item.diagnosis); });
+        const remake = diagnostics
+          .filter((item) => ["sameStructure", "titleUpgrade", "series"].includes(item.remake.key))
+          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))[0] || null;
+        const growth = rows.slice()
+          .filter((row) => Number(row.followersGained || 0) > 0)
+          .sort((a, b) => (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a))[0] || null;
+        const conversion = rows.slice()
+          .filter((row) => visitConversionCount(row) > 0)
+          .sort((a, b) => visitConversionCount(b) - visitConversionCount(a) || visitConversionRate(b) - visitConversionRate(a))[0] || null;
+        const saveShare = rows.slice()
+          .filter((row) => (row.favorites || 0) + (row.shares || 0) > 0)
+          .sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)) || saveShareRate(b) - saveShareRate(a))[0] || null;
+        const retentionWeak = rows.slice()
+          .filter((row) => Number(row.completeRate || 0) > 0 || Number(row.avgWatchSeconds || 0) > 0)
+          .sort((a, b) => {
+            const leftRatio = averageWatchRatio(a) || Number(a.completeRate || 0) || 1;
+            const rightRatio = averageWatchRatio(b) || Number(b.completeRate || 0) || 1;
+            return leftRatio - rightRatio || (b.views || 0) - (a.views || 0);
+          })[0] || null;
+        const brand = rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0))[0] || null;
+        const latest = rows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")))[0] || null;
+        return { rows, diagnostics, remake, growth, conversion, saveShare, retentionWeak, brand, latest };
+      }
+
+      function commandVideoLine(row = {}, metric = "") {
+        return row ? `${videoShortTitle(row)}｜${metric}` : "等待采集数据";
+      }
+
+      function buildShootingCommandCenter() {
+        const leaders = commandCenterLeaders();
+        const rows = leaders.rows || [];
+        if (!rows.length) {
+          return {
+            badge: "等待数据",
+            tone: "warn",
+            summary: "还没有读到自有账号视频。先跑 Mac mini 采集器，系统会自动入库并生成报告。",
+            grid: [
+              { tone: "warn", label: "视频档案", value: "0条", note: "等待采集" },
+              { tone: "", label: "今日先拍", value: "待定", note: "采到数据后自动判断" },
+              { tone: "", label: "今日先改", value: "待定", note: "采到留存后自动判断" },
+              { tone: "", label: "转化承接", value: "待定", note: "采到主页访问后自动判断" }
+            ],
+            list: [{ tone: "warn", title: "先完成自有账号建档", body: "没有数据时不做拍摄方向判断，先让采集器补齐历史视频。" }]
+          };
+        }
+        const profile = dataReadinessProfile();
+        const enough = rows.length >= 300;
+        const grid = [
+          {
+            tone: enough ? "good" : "warn",
+            label: "账号样本",
+            value: `${rows.length}条`,
+            note: enough ? "可以做账号级判断" : "还能继续补历史样本"
+          },
+          {
+            tone: leaders.remake ? "good" : "warn",
+            label: "今日先复拍",
+            value: leaders.remake ? videoShortTitle(leaders.remake.row).slice(0, 18) : "待观察",
+            note: leaders.remake ? `${leaders.remake.remake.label}｜播放${formatNumber(leaders.remake.row.views)}` : "先找稳定高分视频"
+          },
+          {
+            tone: leaders.conversion ? "good" : "warn",
+            label: "转化承接",
+            value: leaders.conversion ? formatNumber(visitConversionCount(leaders.conversion)) : "待补字段",
+            note: leaders.conversion ? `主页/线索最高：${videoShortTitle(leaders.conversion).slice(0, 18)}` : "缺主页访问/私信/线索"
+          },
+          {
+            tone: leaders.retentionWeak ? "warn" : "good",
+            label: "今日先改",
+            value: leaders.retentionWeak ? "低留存" : "暂无明显",
+            note: leaders.retentionWeak ? videoShortTitle(leaders.retentionWeak).slice(0, 22) : "继续观察最新视频"
+          }
+        ];
+        const list = [];
+        if (leaders.remake) {
+          list.push({
+            tone: "good",
+            title: `今天第一条：复拍「${videoShortTitle(leaders.remake.row)}」`,
+            body: `${leaders.remake.remake.detail} 这条播放 ${formatNumber(leaders.remake.row.views)}、收藏转发 ${formatNumber((leaders.remake.row.favorites || 0) + (leaders.remake.row.shares || 0))}、涨粉 ${formatNumber(leaders.remake.row.followersGained || 0)}，优先拆标题结构和题型包装。`
+          });
+        }
+        if (leaders.growth) {
+          list.push({
+            tone: "good",
+            title: `今天第二条：拆涨粉结构「${videoShortTitle(leaders.growth)}」`,
+            body: `这条涨粉 ${formatNumber(leaders.growth.followersGained)}，每万播放涨粉 ${perWan(followerRate(leaders.growth))}。重点保留人群定位、家长痛点和关注理由。`
+          });
+        }
+        if (leaders.conversion) {
+          list.push({
+            tone: "warn",
+            title: `今天第三件事：补转化承接「${videoShortTitle(leaders.conversion)}」`,
+            body: `这条主页访问/线索合计 ${formatNumber(visitConversionCount(leaders.conversion))}，说明内容能把人带到账号页。今天要检查主页置顶、评论关键词、私信入口和结尾口播。`
+          });
+        } else {
+          list.push({
+            tone: "warn",
+            title: "今天必须补转化承接",
+            body: "当前没有明确咨询线索，不能只追播放。所有新视频统一加评论区关键词、主页置顶说明和结尾口播。"
+          });
+        }
+        if (leaders.saveShare) {
+          list.push({
+            tone: "",
+            title: `做成可收藏题型库「${videoShortTitle(leaders.saveShare)}」`,
+            body: `收藏转发 ${formatNumber((leaders.saveShare.favorites || 0) + (leaders.saveShare.shares || 0))}。这类内容适合做系列，标题要强调“孩子能照着用的方法”。`
+          });
+        }
+        if (leaders.retentionWeak) {
+          list.push({
+            tone: "danger",
+            title: `优先重剪低留存样本「${videoShortTitle(leaders.retentionWeak)}」`,
+            body: `完播/观看占比偏弱，先重写第一句话，把结论或冲突前置，再删掉重复铺垫。`
+          });
+        }
+        if (leaders.brand) {
+          list.push({
+            tone: "good",
+            title: `不要丢掉品牌曝光王「${videoShortTitle(leaders.brand)}」`,
+            body: `播放 ${formatNumber(leaders.brand.views)}。这类对宁波本地影响力很重要，不要因为直接咨询少就否定，要把它和转化型视频分开评价。`
+          });
+        }
+        list.push({
+          tone: "good",
+          title: "明天开始切换日常节奏",
+          body: profile.ownCount >= 300
+            ? "历史库已经成型。以后每天轻量巡检新视频和近 7 天变化，每周阶段复盘，每月全量校验。"
+            : "继续补够历史库后，再切换到每天轻量巡检。"
+        });
+        return {
+          badge: enough ? "可执行" : "初步可用",
+          tone: enough ? "good" : "warn",
+          summary: enough
+            ? "这块直接指导今天怎么拍：先复拍高价值结构，再拆涨粉结构，最后补转化承接和低留存重剪。"
+            : `当前 ${rows.length} 条样本可做初步判断；继续补历史数据后清单会更稳。`,
+          grid,
+          list: list.slice(0, 7)
+        };
+      }
+
+      function renderShootingCommandCenter() {
+        const box = byId("shootingCommandGrid");
+        const list = byId("shootingCommandList");
+        const badge = byId("shootingCommandBadge");
+        const summary = byId("shootingCommandSummary");
+        if (!box || !list || !badge || !summary) return;
+        const data = buildShootingCommandCenter();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        box.innerHTML = data.grid.map((card) => `
+          <div class="signal-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
       function metricLeaderRows() {
         const rows = ownVideoRows();
         return {
@@ -2968,6 +3160,7 @@
           accountReports,
           localActionDrafts: {
             morningDecisions: buildMorningDecisions(),
+            shootingCommandCenter: buildShootingCommandCenter(),
             shootingTasks: buildShootingTasks(),
             nextTopicPlan: buildNextTopicPlan(),
             advantagePlan: buildAdvantagePlan()
@@ -4403,6 +4596,7 @@
         renderDataReadiness();
         renderOvernightMiningPlan();
         renderMorningDecisions();
+        renderShootingCommandCenter();
         renderAutomationSchedule();
         renderAnalysisClosure();
         renderAiExpertReport();
