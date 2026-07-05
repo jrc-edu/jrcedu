@@ -290,7 +290,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705l</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705m</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -770,7 +770,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705l";
+        const pageVersion = "20260705m";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -904,7 +904,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705l";
+      const PAGE_VERSION = "20260705m";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -1541,9 +1541,7 @@
           if (item.aiReport?.generatedAt && (!aiReport.generatedAt || String(item.aiReport.generatedAt).localeCompare(String(aiReport.generatedAt)) >= 0)) {
             aiReport = item.aiReport;
           }
-          if (item.dailySkip?.date && String(item.dailySkip.date).localeCompare(String(dailySkip.date || "")) >= 0) {
-            dailySkip = item.dailySkip;
-          }
+          dailySkip = chooseDailySkip(dailySkip, item.dailySkip);
         });
         return normalizeState({
           accounts: [...accountMap.values()],
@@ -1639,8 +1637,11 @@
         renderAll();
         byId("videoOpsMessage").textContent = message;
         if (window.JRC_CLOUD?.writeModuleData) {
-          window.JRC_CLOUD.writeModuleData(STORE_KEY, MODULE_KEY, state, { replaceMode: "replace" }).catch(() => {});
+          return window.JRC_CLOUD.writeModuleData(STORE_KEY, MODULE_KEY, state, { replaceMode: "replace" })
+            .then(() => true)
+            .catch(() => false);
         }
+        return Promise.resolve(true);
       }
 
       function rawPayloadCounts(payload = {}) {
@@ -1730,7 +1731,9 @@
             const cloudPayload = result.data.payload;
             const rawCounts = rawPayloadCounts(cloudPayload);
             const normalizedCloud = normalizeState(cloudPayload);
+            const localDailySkip = state.dailySkip;
             state = rawCounts.snapshots || rawCounts.accountAudits || rawCounts.rebuildMode ? normalizedCloud : mergeState(state, cloudPayload);
+            state.dailySkip = chooseDailySkip(localDailySkip, state.dailySkip);
             localStorage.setItem(STORE_KEY, JSON.stringify(state));
             renderAll();
             const normalizedCounts = {
@@ -1799,6 +1802,7 @@
         const source = value && typeof value === "object" ? value : {};
         return {
           date: normalizeText(source.date) || todayKey(),
+          updatedAt: normalizeText(source.updatedAt),
           videoKeys: Array.from(new Set((Array.isArray(source.videoKeys) ? source.videoKeys : [])
             .map(normalizeText)
             .filter(Boolean)))
@@ -1806,9 +1810,28 @@
         };
       }
 
+      function dailySkipTimeValue(row = {}) {
+        const time = Date.parse(normalizeText(row.updatedAt));
+        return Number.isFinite(time) ? time : 0;
+      }
+
+      function chooseDailySkip(left = {}, right = {}) {
+        const a = normalizeDailySkip(left);
+        const b = normalizeDailySkip(right);
+        if (!a.videoKeys.length && !a.updatedAt) return b;
+        if (!b.videoKeys.length && !b.updatedAt) return a;
+        if (String(a.date).localeCompare(String(b.date)) !== 0) {
+          return String(a.date).localeCompare(String(b.date)) > 0 ? a : b;
+        }
+        const timeA = dailySkipTimeValue(a);
+        const timeB = dailySkipTimeValue(b);
+        if (timeA !== timeB) return timeA > timeB ? a : b;
+        return a.videoKeys.length >= b.videoKeys.length ? a : b;
+      }
+
       function activeDailySkip() {
         const current = normalizeDailySkip(state.dailySkip || {});
-        return current.date === todayKey() ? current : { date: todayKey(), videoKeys: [] };
+        return current.date === todayKey() ? current : { date: todayKey(), updatedAt: "", videoKeys: [] };
       }
 
       function dailySkipKeys() {
@@ -3648,7 +3671,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705l",
+          version: "20260705m",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5445,7 +5468,7 @@
         saveState(nextSaved ? "已收藏这条视频，后面可以筛选“只看已收藏”。" : "已取消收藏。");
       }
 
-      function skipDailyVideo(videoId) {
+      async function skipDailyVideo(videoId) {
         const row = state.snapshots.find((item) => item.id === videoId);
         if (!row) {
           byId("videoOpsMessage").textContent = "没有找到这条视频，暂时不能换一个。请刷新页面后再试。";
@@ -5454,13 +5477,19 @@
         const key = videoKey(row);
         const current = activeDailySkip();
         const keys = Array.from(new Set([...current.videoKeys, key])).slice(-120);
-        state.dailySkip = { date: todayKey(), videoKeys: keys };
-        saveState(`已换一个：今天先不拍「${videoShortTitle(row)}」，系统已自动递补下一条。`);
+        state.dailySkip = { date: todayKey(), updatedAt: new Date().toISOString(), videoKeys: keys };
+        const saved = await saveState(`正在换一个：今天先不推荐「${videoShortTitle(row)}」，系统正在保存...`);
+        byId("videoOpsMessage").textContent = saved
+          ? `已换一个：今天先不推荐「${videoShortTitle(row)}」，刷新后也会保留。点“恢复跳过”可让它回来。`
+          : `已在本机换一个：今天先不推荐「${videoShortTitle(row)}」。但云端保存暂时失败，刷新前请稍等或重新点一次。`;
       }
 
-      function resetDailySkips() {
-        state.dailySkip = { date: todayKey(), videoKeys: [] };
-        saveState("已恢复今日跳过，拍摄指挥台和脚本已重新按强弱排序。");
+      async function resetDailySkips() {
+        state.dailySkip = { date: todayKey(), updatedAt: new Date().toISOString(), videoKeys: [] };
+        const saved = await saveState("正在恢复今日跳过，系统正在保存...");
+        byId("videoOpsMessage").textContent = saved
+          ? "已恢复今日跳过，今天被换掉的内容会重新参与推荐。"
+          : "已在本机恢复今日跳过，但云端保存暂时失败，刷新前请稍等或重新点一次。";
       }
 
       function originalVideoUrl(row = {}) {
@@ -5563,11 +5592,11 @@
             byId("videoOpsMessage").textContent = "已取消换一个。";
             return;
           }
-          skipDailyVideo(videoId);
+          await skipDailyVideo(videoId);
           return;
         }
         if (action === "reset-daily-skips") {
-          resetDailySkips();
+          await resetDailySkips();
           return;
         }
         if (action === "open-original") {
