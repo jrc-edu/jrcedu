@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705u</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705v</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -344,6 +344,12 @@
         <p id="todayCommandSummary" style="margin-top:8px;">先看今天最重要的四个动作：拍什么、两个平台怎么拆、数据能不能信、发布后怎么复盘。</p>
         <div class="focus-grid" id="todayCommandGrid"></div>
         <div class="decision-list" id="todayCommandList"></div>
+        <div class="task-card-grid" id="todayChecklistGrid"></div>
+        <div class="actions" style="margin-top:12px;">
+          <button class="button" id="copyTodayCommandBriefButton" type="button">复制今日拍摄简报</button>
+          <button class="button secondary" type="button" data-jump-target="dualPlatformScriptGrid">查看双平台脚本</button>
+          <button class="button secondary" type="button" data-jump-target="dataTrustGrid">查看数据可信度</button>
+        </div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -385,6 +391,7 @@
         <div class="focus-grid" id="executionLoopGrid"></div>
         <div class="decision-list" id="executionLoopList"></div>
         <div class="task-card-grid" id="postPublishReviewGrid"></div>
+        <div class="decision-list" id="publishOutcomeList"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -465,7 +472,10 @@
             <p class="eyebrow">Dual Scripts</p>
             <h2>同一内容双平台脚本</h2>
           </div>
-          <span class="badge" id="dualPlatformScriptBadge">等待题材</span>
+          <div class="toolbar">
+            <button class="button secondary" id="copyDualPlatformScriptsButton" type="button">复制双平台脚本</button>
+            <span class="badge" id="dualPlatformScriptBadge">等待题材</span>
+          </div>
         </div>
         <p id="dualPlatformScriptSummary" style="margin-top:8px;">一个选题自动拆成两个版本：抖音版抓前 3 秒、搜索词和关注理由；视频号版抓家长信任、转发价值和私域承接。</p>
         <div class="script-grid" id="dualPlatformScriptGrid"></div>
@@ -878,7 +888,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705u";
+        const pageVersion = "20260705v";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -1013,7 +1023,7 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705u";
+      const PAGE_VERSION = "20260705v";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
@@ -4674,6 +4684,27 @@
         };
       }
 
+      function dualPlatformScriptsText() {
+        const data = buildDualPlatformScripts();
+        if (!data.cards.length) return "暂无双平台脚本。请先采集抖音和视频号作品数据。";
+        return [
+          `双平台脚本｜${data.topic}`,
+          "",
+          ...data.cards.map((card) => [
+            `${card.platform}版`,
+            `参考视频：${card.sourceTitle}｜${card.metric}`,
+            "标题方向：",
+            ...card.titles.map((item) => `- ${item}`),
+            `前3秒：${card.lead}`,
+            "正文三步：",
+            ...card.body.map((item) => `- ${item}`),
+            `结尾承接：${card.closing}`,
+            "发布后验收：",
+            ...card.acceptance.map((item) => `- ${item}`)
+          ].join("\n"))
+        ].join("\n\n");
+      }
+
       function renderDualPlatformScripts() {
         const badge = byId("dualPlatformScriptBadge");
         const summary = byId("dualPlatformScriptSummary");
@@ -5050,11 +5081,72 @@
         };
       }
 
+      function buildTodayShootingChecklist() {
+        const scriptData = buildDualPlatformScripts();
+        const topic = scriptData.topic || primaryCrossPlatformTopic()?.label || "今日主选题";
+        const trust = buildDataTrustDashboard();
+        const trustedCount = trust.buckets.deepReview.length + trust.buckets.backend.length;
+        return [
+          {
+            tone: "good",
+            label: "开拍前",
+            title: "一句话说清年级、题型和痛点",
+            body: `今天围绕「${topic}」拍摄，标题和第一句话必须让家长马上知道是不是自己孩子的问题。`
+          },
+          {
+            tone: "warn",
+            label: "前3秒",
+            title: "先给结论或错误点",
+            body: "不要先铺垫机构介绍。抖音先抛冲突和搜索关键词，视频号先抛家长能转发的判断。"
+          },
+          {
+            tone: "good",
+            label: "承接",
+            title: "评论、主页、私信三处要接住",
+            body: "结尾口播必须告诉家长下一步怎么做：评论年级、发错题、看主页置顶或私信咨询。"
+          },
+          {
+            tone: trustedCount ? "good" : "warn",
+            label: "依据",
+            title: trustedCount ? "优先按可信样本执行" : "今天只做轻量验证",
+            body: trustedCount ? `当前 ${trustedCount} 条可信样本可参考，先复用真实有效结构。` : "可信样本不足时，不做长期定位结论，先验证标题和前3秒。"
+          }
+        ];
+      }
+
+      function todayCommandBriefText() {
+        const command = buildTodayCommandCenter();
+        const scripts = buildDualPlatformScripts();
+        const trust = buildDataTrustDashboard();
+        const post = buildPostPublishReviewLoop();
+        return [
+          "短视频今日拍摄简报",
+          "",
+          `总判断：${command.summary}`,
+          "",
+          "今日关键动作：",
+          ...command.list.map((item, index) => `${index + 1}. ${item.title}\n${item.body}`),
+          "",
+          "双平台脚本：",
+          scripts.cards.length ? dualPlatformScriptsText() : "暂无双平台脚本，先补采数据。",
+          "",
+          "拍摄前检查：",
+          ...buildTodayShootingChecklist().map((item, index) => `${index + 1}. ${item.title}\n${item.body}`),
+          "",
+          "数据可信度：",
+          `可深度复盘 ${trust.buckets.deepReview.length} 条，真后台采到 ${trust.buckets.backend.length} 条，只能轻判断 ${trust.buckets.light.length} 条，字段缺失 ${trust.buckets.missing.length} 条。`,
+          "",
+          "发布后复盘：",
+          ...post.map((item, index) => `${index + 1}. ${item.label}｜${item.title}\n${item.body}`)
+        ].join("\n");
+      }
+
       function renderTodayCommandCenter() {
         const badge = byId("todayCommandBadge");
         const summary = byId("todayCommandSummary");
         const grid = byId("todayCommandGrid");
         const list = byId("todayCommandList");
+        const checklist = byId("todayChecklistGrid");
         if (!badge || !summary || !grid || !list) return;
         const data = buildTodayCommandCenter();
         badge.textContent = data.badge;
@@ -5073,6 +5165,15 @@
             <p>${escapeHtml(card.body)}</p>
           </div>
         `).join("");
+        if (checklist) {
+          checklist.innerHTML = buildTodayShootingChecklist().map((card) => `
+            <div class="task-card ${escapeHtml(card.tone || "")}">
+              <span>${escapeHtml(card.label)}</span>
+              <strong>${escapeHtml(card.title)}</strong>
+              <p>${escapeHtml(card.body)}</p>
+            </div>
+          `).join("");
+        }
       }
 
       function buildPostPublishReviewLoop() {
@@ -5110,16 +5211,90 @@
         ];
       }
 
+      function publishOutcomeForVideo(row = {}, diagnosis = diagnoseVideo(row)) {
+        const trust = dataTrustForVideo(row);
+        const saveShare = (row.favorites || 0) + (row.shares || 0);
+        if (trust.key === "missing") {
+          return { key: "observe", label: "继续观察", tone: "warn", reason: "字段缺失，先不做重结论。" };
+        }
+        if (isStrongVideo(row, diagnosis) || isBrandReachVideo(row) || saveShare >= 20 || hasLeadSignal(row) || hasFollowerSignal(row)) {
+          return { key: "remake", label: "进复拍素材库", tone: "good", reason: "播放、收藏转发、涨粉或咨询信号有价值。" };
+        }
+        if (isReviewVideo(row, diagnosis) && (row.threeSecondRetention || row.completeRate || row.avgWatchSeconds)) {
+          return { key: "recut", label: "进重剪清单", tone: "warn", reason: "题材仍可测，但开头、留存或节奏需要重剪。" };
+        }
+        if (isReviewVideo(row, diagnosis) && trust.score >= 55) {
+          return { key: "fail", label: "进失败样本库", tone: "danger", reason: "播放和互动都弱，先不要继续硬拍同表达。" };
+        }
+        return { key: "observe", label: "继续观察", tone: "warn", reason: "数据还没有形成强结论，等24-72小时变化。" };
+      }
+
+      function buildPublishOutcomeBoard() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const recent = rows.slice()
+          .sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")))
+          .slice(0, 80);
+        const groups = { remake: [], recut: [], fail: [], observe: [] };
+        recent.forEach((row) => {
+          const diagnosis = diagnoseVideo(row);
+          const outcome = publishOutcomeForVideo(row, diagnosis);
+          groups[outcome.key].push({ row, diagnosis, outcome });
+        });
+        const pick = (key) => groups[key].slice()
+          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))
+          .slice(0, 3);
+        return [
+          {
+            tone: "good",
+            title: `复拍素材库 ${groups.remake.length} 条`,
+            body: pick("remake").length
+              ? pick("remake").map((item, index) => `${index + 1}. ${videoShortTitle(item.row)}｜${item.outcome.reason}`).join("；")
+              : "暂无明确复拍素材。"
+          },
+          {
+            tone: "warn",
+            title: `重剪清单 ${groups.recut.length} 条`,
+            body: pick("recut").length
+              ? pick("recut").map((item, index) => `${index + 1}. ${videoShortTitle(item.row)}｜${item.outcome.reason}`).join("；")
+              : "暂无明确重剪样本。"
+          },
+          {
+            tone: "danger",
+            title: `失败样本库 ${groups.fail.length} 条`,
+            body: pick("fail").length
+              ? pick("fail").map((item, index) => `${index + 1}. ${videoShortTitle(item.row)}｜${item.outcome.reason}`).join("；")
+              : "暂无需要放弃的表达。"
+          },
+          {
+            tone: "warn",
+            title: `继续观察 ${groups.observe.length} 条`,
+            body: pick("observe").length
+              ? pick("observe").map((item, index) => `${index + 1}. ${videoShortTitle(item.row)}｜${item.outcome.reason}`).join("；")
+              : "暂无观察样本。"
+          }
+        ];
+      }
+
       function renderPostPublishReviewLoop() {
         const box = byId("postPublishReviewGrid");
-        if (!box) return;
-        box.innerHTML = buildPostPublishReviewLoop().map((card) => `
-          <div class="task-card ${escapeHtml(card.tone || "")}">
-            <span>${escapeHtml(card.label)}</span>
-            <strong>${escapeHtml(card.title)}</strong>
-            <p>${escapeHtml(card.body)}</p>
-          </div>
-        `).join("");
+        const outcomeList = byId("publishOutcomeList");
+        if (box) {
+          box.innerHTML = buildPostPublishReviewLoop().map((card) => `
+            <div class="task-card ${escapeHtml(card.tone || "")}">
+              <span>${escapeHtml(card.label)}</span>
+              <strong>${escapeHtml(card.title)}</strong>
+              <p>${escapeHtml(card.body)}</p>
+            </div>
+          `).join("");
+        }
+        if (outcomeList) {
+          outcomeList.innerHTML = buildPublishOutcomeBoard().map((card) => `
+            <div class="decision-card ${escapeHtml(card.tone || "")}">
+              <strong>${escapeHtml(card.title)}</strong>
+              <p>${escapeHtml(card.body)}</p>
+            </div>
+          `).join("");
+        }
       }
 
       function buildNextTopicPlan() {
@@ -5353,7 +5528,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705u",
+          version: "20260705v",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5515,6 +5690,8 @@
           crossPlatformComparison: crossPlatformComparisonForAi(),
           dualPlatformScripts: buildDualPlatformScripts(),
           postPublishReviewLoop: buildPostPublishReviewLoop(),
+          publishOutcomeBoard: buildPublishOutcomeBoard(),
+          todayCommandBrief: todayCommandBriefText(),
           platformMaterialLibrary: platformMaterialLibraryForAi(),
           dataTrustTiers: dataTrustTiersForAi(),
           accounts: state.accounts,
@@ -5536,6 +5713,8 @@
             crossPlatformComparison: crossPlatformComparisonForAi(),
             dualPlatformScripts: buildDualPlatformScripts(),
             postPublishReviewLoop: buildPostPublishReviewLoop(),
+            publishOutcomeBoard: buildPublishOutcomeBoard(),
+            todayCommandBrief: todayCommandBriefText(),
             platformMaterialLibrary: platformMaterialLibraryForAi(),
             dataTrustTiers: dataTrustTiersForAi(),
             collectionPrep: buildCollectionPrep(),
@@ -7546,6 +7725,14 @@
             await navigator.clipboard?.writeText(benchmarkLibraryText());
             byId("videoOpsMessage").textContent = "已复制完整标杆账号清单。";
           }
+          const jumpButton = event.target.closest("[data-jump-target]");
+          if (jumpButton) {
+            const target = byId(jumpButton.dataset.jumpTarget || "");
+            if (target) {
+              target.scrollIntoView({ behavior: "smooth", block: "start" });
+              byId("videoOpsMessage").textContent = "已跳转到对应模块。";
+            }
+          }
         });
         document.addEventListener("keydown", (event) => {
           if (event.key === "Escape") closeOriginalVideoModal();
@@ -7601,6 +7788,14 @@
               : command.includes("own-deep")
                 ? "已复制自有账号整夜深挖命令。"
                 : "已复制日常轻量巡检命令。";
+        });
+        byId("copyTodayCommandBriefButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(todayCommandBriefText());
+          byId("videoOpsMessage").textContent = "已复制今日拍摄简报。";
+        });
+        byId("copyDualPlatformScriptsButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(dualPlatformScriptsText());
+          byId("videoOpsMessage").textContent = "已复制双平台脚本。";
         });
         byId("scrollToVideosButton")?.addEventListener("click", () => {
           byId("signalRankingGrid")?.scrollIntoView({ behavior: "smooth", block: "start" });
