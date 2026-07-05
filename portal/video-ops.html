@@ -171,13 +171,12 @@
       .video-card-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
       .video-modal { position: fixed; inset: 0; z-index: 120; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(15,23,42,0.62); backdrop-filter: blur(7px); }
       .video-modal[aria-hidden="false"] { display: flex; }
-      .video-modal-panel { width: min(920px, calc(100vw - 28px)); max-height: calc(100vh - 36px); overflow: auto; border-radius: 22px; border: 1px solid rgba(255,255,255,0.72); background: #fff; box-shadow: 0 28px 80px rgba(15,23,42,0.28); }
+      .video-modal-panel { width: min(440px, calc(100vw - 28px)); max-height: calc(100vh - 36px); overflow: auto; border-radius: 22px; border: 1px solid rgba(255,255,255,0.72); background: #fff; box-shadow: 0 28px 80px rgba(15,23,42,0.28); }
       .video-modal-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 18px 18px 12px; border-bottom: 1px solid var(--line); }
       .video-modal-head strong { display: block; font-size: 18px; line-height: 1.35; }
       .video-modal-head span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.55; }
       .video-modal-body { padding: 16px 18px 18px; }
-      .video-modal-frame { width: 100%; aspect-ratio: 9 / 12; min-height: 520px; border: 1px solid var(--line); border-radius: 16px; background: #0f172a; }
-      .video-modal-fallback { padding: 18px; border-radius: 16px; border: 1px dashed rgba(100,116,139,0.35); background: rgba(13,148,136,0.06); color: var(--muted); line-height: 1.7; }
+      .video-modal-fallback { padding: 16px; border-radius: 16px; border: 1px dashed rgba(100,116,139,0.35); background: rgba(13,148,136,0.06); color: var(--muted); line-height: 1.7; }
       .video-modal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
       .rank-badge { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 900; font-size: 14px; }
       .video-summary-line { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
@@ -264,7 +263,6 @@
         .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .focus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .video-modal-frame { min-height: 440px; }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
@@ -276,7 +274,6 @@
         .command-row { grid-template-columns: 1fr; }
         .video-modal { padding: 12px; }
         .video-modal-head { flex-direction: column; }
-        .video-modal-frame { min-height: 360px; }
         .span-3 { grid-column: auto; }
         .button, .nav-link { width: 100%; min-height: 46px; }
         .video-card-head { flex-direction: column; }
@@ -285,7 +282,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705i</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705j</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -765,7 +762,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705i";
+        const pageVersion = "20260705j";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -899,7 +896,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705i";
+      const PAGE_VERSION = "20260705j";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -3522,7 +3519,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705i",
+          version: "20260705j",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5273,9 +5270,8 @@
         meta.textContent = `${row.platform || "视频平台"}｜${row.accountName || "账号"}｜${compactVideoMetrics(row)}`;
         if (url) {
           body.innerHTML = `
-            <iframe class="video-modal-frame" src="${escapeHtml(url)}" title="${escapeHtml(row.title || "原视频")}" loading="lazy" referrerpolicy="no-referrer" allowfullscreen></iframe>
             <div class="video-modal-fallback">
-              如果平台不允许在系统里直接播放，请点下面按钮打开原平台视频。抖音、视频号经常会限制内嵌播放，这是平台规则，不是系统卡顿。
+              原平台通常不允许在系统里直接播放。点击下面按钮，会在新窗口打开原视频平台。
               <div class="video-modal-actions">
                 <a class="button" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">打开原平台视频</a>
                 <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(row.id)}">看采集详情</button>
@@ -5293,7 +5289,7 @@
           `;
         }
         modal.setAttribute("aria-hidden", "false");
-        byId("videoOpsMessage").textContent = url ? "已打开原视频弹窗；如平台限制内嵌播放，请点“打开原平台视频”。" : "这条视频缺少原视频链接，已显示采集详情入口。";
+        byId("videoOpsMessage").textContent = url ? "已打开原视频入口，点击“打开原平台视频”即可跳转。" : "这条视频缺少原视频链接，已显示采集详情入口。";
       }
 
       function focusVideo(videoId) {
