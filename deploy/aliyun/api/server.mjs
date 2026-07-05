@@ -1662,16 +1662,18 @@ function buildAiUserPrompt(body) {
       "诊断口径必须结合官方和成熟方法：用户互动、完播/复看、关注、评论、分享、标题/关键词/声音/话题等视频信息会影响推荐；前 3 秒负责留存，标题封面负责点击，收藏转发代表干货价值，主页访问/私信/线索代表招生转化。",
       "重点不是泛娱乐短视频，而是数学培优、奥数、补弱、小升初、中考、暑假预习复习、家长焦虑、咨询转化、私域承接和教培合规表达。",
       "输出要给校长和运营老师看，语言直接、具体、可执行，不要空话。",
+      "不要只写长篇诊断报告，必须把结论落成今天可以执行的拍摄闭环：今天拍什么、怎么拍、发布前怎么承接、2小时/24小时/72小时看什么数据。",
       "必须包含：1）一句话总判断；2）当前数据能不能下结论；3）账号优势；4）播放/涨粉/咨询/收藏转发四类榜单结论；5）主要问题；6）每个问题的原因和解决动作；7）值得复拍的方向；8）需要停止或重做的内容；9）下周拍摄清单；10）可直接照着拍的脚本；11）采集器还需要补采哪些字段；12）合规风险提醒。",
       "每个主要问题都要写成：问题是什么、从哪些数据看出来、为什么会影响推荐或转化、今天怎么改、对应复拍/重剪哪条视频。",
       "可直接拍脚本必须包含：标题范例、前 3 秒开头、正文三步、结尾转化承接、适合年级/场景。",
+      "每个可执行脚本后面都要写验收标准：发布前检查、2小时检查、24小时检查、72小时复盘结论。",
       "下周拍摄清单要尽量具体到标题方向或选题脚本角度，例如“初一暑假数学不补会掉在哪里”“几何不开窍的三个信号”。",
       "下周拍摄清单要分成：品牌曝光型、涨粉/C粉型、招生转化型、收藏干货型；每类尽量给 1-3 个标题方向。",
       "如果有同行公开作品样本，请指出可以学习的标题、选题、开头、证明力和转化结构；如果只有标杆账号库而没有作品样本，要明确说明只能做账号名单和方向参考，不能下播放表现结论。",
       "如果看到 benchmarkAccounts 里有视频号待匹配字段，不要编造对应视频号，只提醒后续需要人工或平台内确认。",
       "parentMessage 留空；polishedText 写完整专家报告；todoItems 写 5-8 个下一步执行动作；summary 写 80 字以内摘要；riskLevel 写 正常/关注/高风险。",
-      "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, problemSolutions, remakeDirections, executableScripts, stopDoing, weeklyShootingPlan, missingData, complianceRisks。",
-      "其中 strengths、weaknesses、problemSolutions、remakeDirections、executableScripts、stopDoing、weeklyShootingPlan、missingData、complianceRisks 尽量用字符串数组，便于页面直接展示成行动卡片。"
+      "structuredData 建议包含 dataReadiness, accountVerdict, strengths, weaknesses, problemSolutions, remakeDirections, executableScripts, executionLoop, stopDoing, weeklyShootingPlan, missingData, complianceRisks。",
+      "其中 strengths、weaknesses、problemSolutions、remakeDirections、executableScripts、executionLoop、stopDoing、weeklyShootingPlan、missingData、complianceRisks 尽量用字符串数组，便于页面直接展示成行动卡片。"
     ].join("\n") : "",
     mode === "todo" ? "拆成明确待办，尽量包含负责人、截止时间线索和下一步动作。" : "",
     mode === "suggestion" ? "整理成正式管理建议，包含现象、影响、建议方案和预期收益。" : "",
@@ -1907,7 +1909,9 @@ function aiProviders() {
       temperature: 0.25,
       max_tokens: String(body?.mode || "") === "classFeedback"
         ? (Array.isArray(body?.batchStudents) && body.batchStudents.length > 1 ? 7800 : 6500)
-        : 5200
+        : String(body?.mode || "") === "videoOpsReport"
+          ? 7600
+          : 5200
     })
   }];
 }

@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705q</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705r</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -358,6 +358,19 @@
         <p id="dailyScriptSummary" style="margin-top:8px;">把诊断结果直接落成可拍摄的标题、开头、正文结构和结尾承接。</p>
         <div class="script-grid" id="dailyScriptGrid"></div>
         <ul class="method-list" id="dailyMethodList"></ul>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Execution Loop</p>
+            <h2>拍摄执行闭环</h2>
+          </div>
+          <span class="badge" id="executionLoopBadge">等待数据</span>
+        </div>
+        <p id="executionLoopSummary" style="margin-top:8px;">把“系统建议”变成今天能执行、明天能复盘的流程：选题、拍摄、发布、复盘。</p>
+        <div class="focus-grid" id="executionLoopGrid"></div>
+        <div class="decision-list" id="executionLoopList"></div>
       </section>
 
       <section class="auxiliary-stack">
@@ -3575,8 +3588,44 @@
           lead,
           body,
           closing,
-          reason: `${plan.label}。依据：播放 ${formatNumber(row.views)}，收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}，诊断分 ${diagnosis.score}。${hasOriginalVideoUrl(row) ? "这条可打开原视频复盘。" : "这条暂缺原视频链接，建议先看采集详情或等下一轮补采。"}`
+          reason: `${plan.label}。依据：播放 ${formatNumber(row.views)}，收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}，诊断分 ${diagnosis.score}。${hasOriginalVideoUrl(row) ? "这条可打开原视频复盘。" : "这条暂缺原视频链接，建议先看采集详情或等下一轮补采。"}`,
+          acceptance: scriptAcceptanceChecklist(row, purpose)
         };
+      }
+
+      function executionBaseline() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const recent = rows.slice()
+          .sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")))
+          .slice(0, 30);
+        const sample = recent.length >= 8 ? recent : rows;
+        return {
+          sampleCount: sample.length,
+          avgViews: Math.round(average(sample.map((row) => row.views || 0))),
+          avgSaveShareRate: average(sample.map((row) => saveShareRate(row))),
+          avgFollowerRate: average(sample.map((row) => followerRate(row))),
+          avgLeadRate: average(sample.map((row) => leadRate(row))),
+          avgRetention: average(sample.map((row) => retentionQuality(row)))
+        };
+      }
+
+      function scriptAcceptanceChecklist(row = {}, purpose = "remake") {
+        const base = executionBaseline();
+        const items = [
+          `发布前：标题必须写清年级/题型/家长痛点，结尾必须有评论、私信或主页承接。`,
+          `2小时：看播放启动和前3秒/完播字段；如果明显低于同账号近期水平，先改标题封面或重剪开头。`,
+          `24小时：播放达到近期均值 ${base.avgViews ? formatNumber(Math.max(1, Math.round(base.avgViews * 0.6))) : "60%"} 以上，或收藏转发率不低于近期平均 ${base.avgSaveShareRate ? formatPercent(base.avgSaveShareRate) : "待采集"}。`
+        ];
+        if (purpose === "conversion") {
+          items.push(`转化验收：主页访问、私信或线索必须出现；如果没有，优先补评论区关键词、主页置顶和结尾口播。`);
+        } else if (purpose === "growth") {
+          items.push(`涨粉验收：关注/涨粉信号要高于近期平均 ${base.avgFollowerRate ? perWan(base.avgFollowerRate) : "待采集"}；没有涨粉就补强“为什么要关注你”。`);
+        } else if (purpose === "retention") {
+          items.push(`留存验收：前3秒、平均观看或完播必须改善；如果仍低，说明开头冲突不够，下一版直接先给结论。`);
+        } else {
+          items.push(`复拍验收：同结构新视频至少要在播放、收藏转发、涨粉或咨询中有一个指标接近原视频表现。`);
+        }
+        return items;
       }
 
       function buildDailyScriptWorkbench() {
@@ -3663,6 +3712,7 @@
               <div><dt>正文结构</dt><dd>${card.body.map((item) => escapeHtml(item)).join("<br>")}</dd></div>
               <div><dt>结尾承接</dt><dd>${escapeHtml(card.closing)}</dd></div>
               <div><dt>为什么拍</dt><dd>${escapeHtml(card.reason)}</dd></div>
+              <div><dt>拍完验收</dt><dd>${(card.acceptance || []).map((item) => escapeHtml(item)).join("<br>")}</dd></div>
             </dl>
             ${card.videoId ? `
               <div class="script-actions">
@@ -3676,6 +3726,124 @@
           ${data.resetAction ? `<div class="script-actions"><button class="button secondary" type="button" data-video-action="reset-daily-skips">恢复跳过</button></div>` : ""}
         </div>`;
         methods.innerHTML = data.methods.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+      }
+
+      function buildExecutionLoop() {
+        const leaders = commandCenterLeaders();
+        const scriptData = buildDailyScriptWorkbench();
+        const cards = scriptData.cards || [];
+        const base = executionBaseline();
+        if (!leaders.rows?.length) {
+          return {
+            badge: "等待数据",
+            tone: "warn",
+            summary: "还没有自有视频样本，暂时不生成拍摄闭环。先采集历史作品，再进入执行节奏。",
+            grid: [
+              { tone: "warn", label: "数据底座", value: "缺少", note: "先采集自有账号" },
+              { tone: "", label: "今日任务", value: "待定", note: "数据到位后自动生成" },
+              { tone: "", label: "复盘节奏", value: "待定", note: "2小时/24小时/72小时" },
+              { tone: "", label: "验收指标", value: "待定", note: "播放、留存、收藏、涨粉、咨询" }
+            ],
+            list: [{ tone: "warn", title: "先把数据采回来", body: "没有真实视频数据时，不做拍摄判断，避免系统给漂亮但没价值的建议。" }]
+          };
+        }
+        const first = cards[0] || {};
+        const second = cards[1] || {};
+        const third = cards[2] || {};
+        const grid = [
+          {
+            tone: cards.length ? "good" : "warn",
+            label: "今日任务",
+            value: cards.length ? `${cards.length}条` : "待选择",
+            note: cards.length ? "按任务卡顺序拍" : "恢复跳过或补采数据"
+          },
+          {
+            tone: "good",
+            label: "基础样本",
+            value: `${leaders.rows.length}条`,
+            note: base.sampleCount ? `近期均播 ${formatNumber(base.avgViews)}` : "等待近期均值"
+          },
+          {
+            tone: "warn",
+            label: "复盘时间",
+            value: "2/24/72h",
+            note: "先看启动，再看留存转化"
+          },
+          {
+            tone: "good",
+            label: "评价方式",
+            value: "分目标",
+            note: "曝光、涨粉、收藏、咨询分开判断"
+          }
+        ];
+        const list = [
+          {
+            tone: "good",
+            title: "第一步：先确定今天主拍目标",
+            body: first.sourceTitle
+              ? `主拍「${first.sourceTitle}」的延展选题。先照任务卡的标题、前3秒和正文三步执行，不要临场又改成泛泛讲题。`
+              : "今天没有明确任务卡时，优先从复拍清单里选一条有原视频链接的高价值视频。"
+          },
+          {
+            tone: "good",
+            title: "第二步：拍摄时只服务一个目标",
+            body: "每条视频只承担一个核心任务：本地曝光、涨粉、收藏干货或咨询转化。不要一条视频同时想讲知识、讲品牌、促咨询、做情绪，容易失焦。"
+          },
+          {
+            tone: "warn",
+            title: "第三步：发布前做承接检查",
+            body: "标题写清年级/题型/痛点，评论区放关键词，主页置顶要能接住家长，结尾口播要告诉家长下一步怎么咨询或评论。"
+          },
+          {
+            tone: "good",
+            title: "第四步：拍完按时间复盘",
+            body: `2小时看播放启动和前3秒，24小时看播放/收藏/转发/涨粉/咨询，72小时决定复拍、重剪或停止。近期均播参考：${base.avgViews ? formatNumber(base.avgViews) : "待采集"}。`
+          }
+        ];
+        [first, second, third].forEach((card, index) => {
+          if (!card?.videoId) return;
+          list[index].videoId = card.videoId;
+        });
+        return {
+          badge: cards.length ? "可执行" : "待选择",
+          tone: cards.length ? "good" : "warn",
+          summary: cards.length
+            ? "今天按“任务卡拍摄 + 发布承接 + 2/24/72小时复盘”执行，避免只看报告不落地。"
+            : "当前没有可执行脚本卡。可以恢复今日跳过，或等待下一轮采集补齐数据。",
+          grid,
+          list
+        };
+      }
+
+      function renderExecutionLoop() {
+        const badge = byId("executionLoopBadge");
+        const summary = byId("executionLoopSummary");
+        const grid = byId("executionLoopGrid");
+        const list = byId("executionLoopList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildExecutionLoop();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.grid.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+            ${card.videoId ? `
+              <div class="decision-actions">
+                <button class="button" type="button" data-video-action="skip-daily" data-video-id="${escapeHtml(card.videoId)}">换一个</button>
+                <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
+              </div>
+            ` : ""}
+          </div>
+        `).join("");
       }
 
       function metricLeaderRows() {
@@ -4085,7 +4253,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705q",
+          version: "20260705r",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -4120,6 +4288,10 @@
               value: "一个短视频系统统一看结果，但抖音和视频号必须分开算：抖音偏曝光增长，视频号偏信任私域。"
             },
             {
+              label: "官方边界",
+              value: "平台不会完整公开推荐算法细节，所以系统不猜黑箱，只把官方后台能看到的数据、公开创作指引和自有账号真实结果结合判断。"
+            },
+            {
               label: "推荐信号",
               value: "优先看用户真实行为：完播、复看、点赞、评论、分享、收藏、关注、主页访问和私信线索。"
             },
@@ -4134,6 +4306,10 @@
             {
               label: "教培转化",
               value: "播放不等于招生。每条视频要分清曝光、涨粉、收藏干货、咨询转化四类目标，并补评论区、主页、私信和试听承接。"
+            },
+            {
+              label: "数学教培成熟口径",
+              value: "优秀数学账号通常不是只讲题，而是把年级节点、典型错法、家长焦虑、老师证明力和试听诊断入口组合起来。"
             },
             {
               label: "本地化",
@@ -4165,13 +4341,15 @@
             }
           ],
           evaluationRules: [
+            "官方边界：不宣称掌握平台黑箱算法，只基于后台字段、公开创作指导、成熟运营经验和自有账号历史结果判断。",
             "平台分层：抖音优先看曝光、留存、搜索、涨粉和线索；视频号优先看转发、评论、信任、本地升学场景和私域承接。",
             "曝光点击：标题、封面、年级和痛点是否一眼清楚；高播放视频单独保留为本地品牌影响力样本。",
             "留存完播：前 3 秒是否直接抛问题或结论；中段是否只讲一个核心突破口，避免铺垫过长。",
             "互动收藏：内容是否有家长愿意保存、转发给孩子或评论提问的价值。",
             "账号增长：视频是否给出关注理由，能不能让家长觉得后续还要继续看。",
             "招生转化：是否有主页置顶、评论关键词、私信入口、试听/诊断口播，不能只有播放没有承接。",
-            "本地适配：宁波本地、年级、学校/升学场景、暑假/中考/小升初节点要具体。"
+            "本地适配：宁波本地、年级、学校/升学场景、暑假/中考/小升初节点要具体。",
+            "执行闭环：每条建议都必须能落到今天怎么拍、发布前怎么承接、2小时/24小时/72小时怎么复盘。"
           ],
           scriptFormula: [
             "3 秒开头：直接说家长痛点、孩子常错点或结果，不先寒暄。",
@@ -4247,6 +4425,7 @@
             morningDecisions: buildMorningDecisions(),
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
+            executionLoop: buildExecutionLoop(),
             shootingTasks: buildShootingTasks(),
             remakeMaterialLibrary: buildRemakeMaterialLibrary(),
             nextTopicPlan: buildNextTopicPlan(),
@@ -4332,6 +4511,7 @@
           ` : "",
           reportTaskCardsHtml("问题到解决任务卡", data.problemSolutions, "good", "整改"),
           reportTaskCardsHtml("可直接拍摄脚本卡", data.executableScripts, "good", "拍摄"),
+          reportTaskCardsHtml("拍摄执行闭环", data.executionLoop, "good", "闭环"),
           reportTaskCardsHtml("下周拍摄任务卡", data.weeklyShootingPlan, "good", "排期"),
           reportTaskCardsHtml("复拍素材库", data.remakeDirections, "good", "复拍"),
           reportCardHtml("主要问题", data.weaknesses, "warn"),
@@ -5790,6 +5970,7 @@
         renderPlatformDiagnosis();
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
+        renderExecutionLoop();
         renderMethodLibrary();
         renderAutomationSchedule();
         renderAnalysisClosure();
@@ -5907,6 +6088,9 @@
         renderOvernightMiningPlan();
         renderMorningDecisions();
         renderPlatformDiagnosis();
+        renderShootingCommandCenter();
+        renderDailyScriptWorkbench();
+        renderExecutionLoop();
         renderSignalRankings();
         renderTopicPerformance();
         renderPriorityVideos();
