@@ -105,6 +105,10 @@
       .decision-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.06); }
       .decision-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.06); }
       .decision-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.05); }
+      .skip-strip { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; padding: 12px 14px; border-radius: 15px; border: 1px solid rgba(13,148,136,0.18); background: rgba(13,148,136,0.07); }
+      .skip-strip strong { display: block; font-size: 13px; }
+      .skip-strip span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+      .skip-strip[hidden] { display: none; }
       .task-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 14px; }
       .task-card { padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
       .task-card span { display: inline-flex; width: fit-content; margin-bottom: 8px; padding: 4px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-size: 11px; font-weight: 900; }
@@ -290,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705m</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705n</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -338,6 +342,7 @@
           <span class="badge" id="shootingCommandBadge">等待数据</span>
         </div>
         <p id="shootingCommandSummary" style="margin-top:8px;">把历史视频数据压缩成今天要拍、要复拍、要重剪、要补转化承接的具体动作。</p>
+        <div class="skip-strip" id="dailySkipStrip" hidden></div>
         <div class="signal-ranking-grid" id="shootingCommandGrid"></div>
         <div class="decision-list" id="shootingCommandList"></div>
       </section>
@@ -655,6 +660,7 @@
             <div class="topic-performance-grid" id="topicPerformanceGrid"></div>
             <div class="quick-rank-list" id="priorityVideoList"></div>
             <div class="compact-count" id="videoListCount"></div>
+            <div class="actions" id="videoMoreActions" style="margin-top:10px;"></div>
             <div class="video-list" id="videoList"></div>
           </article>
 
@@ -770,7 +776,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705m";
+        const pageVersion = "20260705n";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -904,7 +910,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705m";
+      const PAGE_VERSION = "20260705n";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -2848,6 +2854,15 @@
         `).join("");
       }
 
+      function rankedDecisionText(rows = [], metricFn = () => "") {
+        const valid = rows.filter(Boolean).slice(0, 3);
+        if (!valid.length) return "暂无明确样本，先等下一轮采集补齐数据。";
+        return valid.map((row, index) => {
+          const metric = metricFn(row);
+          return `${index + 1}. ${videoShortTitle(row)}${metric ? `｜${metric}` : ""}`;
+        }).join("；");
+      }
+
       function buildMorningDecisions() {
         const rows = ownVideoRows();
         const profile = dataReadinessProfile();
@@ -2857,15 +2872,20 @@
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row), remake: null }));
         diagnostics.forEach((item) => { item.remake = remakePlan(item.row, item.diagnosis); });
         const leaders = metricLeaderRows();
-        const bestPriority = diagnostics.slice().sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))[0];
-        const bestRemake = diagnostics
+        const remakeTop = diagnostics
           .filter((item) => ["sameStructure", "titleUpgrade", "series"].includes(item.remake.key))
-          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))[0];
-        const weakest = diagnostics
+          .sort((a, b) => compareTraceableDiagnostics(a, b) || priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))
+          .map((item) => item.row);
+        const rewriteTop = diagnostics
           .filter((item) => isReviewVideo(item.row, item.diagnosis))
-          .sort((a, b) => a.diagnosis.score - b.diagnosis.score || (a.row.views || 0) - (b.row.views || 0))[0];
-        const topicGroups = topicPerformanceRows(rows);
-        const bestTopic = topicGroups.slice().sort((a, b) => b.views - a.views || b.avgScore - a.avgScore)[0];
+          .sort((a, b) => compareTraceableDiagnostics(a, b) || a.diagnosis.score - b.diagnosis.score || (a.row.views || 0) - (b.row.views || 0))
+          .map((item) => item.row);
+        const conversionTop = rows.slice()
+          .filter((row) => visitConversionCount(row) > 0)
+          .sort((a, b) => compareTraceableRows(a, b) || visitConversionCount(b) - visitConversionCount(a) || visitConversionRate(b) - visitConversionRate(a));
+        const fansTop = rows.slice()
+          .filter((row) => Number(row.followersGained || 0) > 0)
+          .sort((a, b) => compareTraceableRows(a, b) || (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a));
         const ready = profile.ownCount >= 120 || (profile.ownCount >= 50 && profile.withConversion >= 5);
         const hasAi = Boolean(report.polishedText || report.summary);
         const grid = [
@@ -2899,56 +2919,28 @@
           list.push({ tone: "warn", title: "先补采自有账号历史作品", body: "还没有可分析的视频档案。先跑 Mac mini 采集器，系统会自动导入并生成报告。" });
           return { badge: "等待采集", tone: "warn", summary: "还没有自有视频样本。先把自己的历史作品采回来，再看运营结论。", grid, list };
         }
-        if (bestRemake) {
-          list.push({
-            tone: "good",
-            title: `第一优先复拍：${videoShortTitle(bestRemake.row)}`,
-            body: `${bestRemake.remake.label}。${bestRemake.remake.detail} 播放 ${formatNumber(bestRemake.row.views)}，诊断分 ${bestRemake.diagnosis.score}。`
-          });
-        } else if (bestPriority) {
-          list.push({
-            tone: "good",
-            title: `第一优先看：${videoShortTitle(bestPriority.row)}`,
-            body: `${bestPriority.remake.label}。${priorityReason(bestPriority.row, bestPriority.diagnosis)}。`
-          });
-        }
-        if (leaders.brand) {
-          list.push({
-            tone: "good",
-            title: `品牌曝光样本：${videoShortTitle(leaders.brand)}`,
-            body: `播放 ${formatNumber(leaders.brand.views)}。高播放对宁波本地影响力有价值，要拆标题、封面、开头和传播场景，不要只按咨询数评价。`
-          });
-        }
-        if (leaders.leads) {
-          list.push({
-            tone: "warn",
-            title: `招生转化样本：${videoShortTitle(leaders.leads)}`,
-            body: `咨询线索 ${formatNumber(leadCount(leaders.leads))}，每万播放 ${perWan(leadRate(leaders.leads))}。这类要拆评论区关键词、主页承接和结尾口播。`
-          });
-        }
-        if (leaders.fans) {
-          list.push({
-            tone: "good",
-            title: `涨粉/C粉样本：${videoShortTitle(leaders.fans)}`,
-            body: `涨粉 ${formatNumber(leaders.fans.followersGained)}，每万播放 ${perWan(followerRate(leaders.fans))}。这类负责扩大账号长期人群池。`
-          });
-        }
-        if (bestTopic) {
-          list.push({
-            tone: "good",
-            title: `当前优势题材：${bestTopic.label}`,
-            body: `${bestTopic.count} 条样本，累计播放 ${formatNumber(bestTopic.views)}，收藏转发 ${formatNumber(bestTopic.saveShare)}。下一轮优先验证能不能连续稳定。`
-          });
-        }
-        if (weakest) {
-          list.push({
-            tone: "danger",
-            title: `第一优先复盘：${videoShortTitle(weakest.row)}`,
-            body: `诊断分 ${weakest.diagnosis.score}。先查标题是否太泛、年级是否不清、前 3 秒是否没打到家长痛点。`
-          });
-        }
+        list.push({
+          tone: "good",
+          title: "明早先看：最该复拍 3 条",
+          body: rankedDecisionText(remakeTop, (row) => `播放 ${formatNumber(row.views)}，收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}`)
+        });
+        list.push({
+          tone: "danger",
+          title: "明早先看：最该重剪 3 条",
+          body: rankedDecisionText(rewriteTop, (row) => `诊断分 ${diagnoseVideo(row).score}，播放 ${formatNumber(row.views)}`)
+        });
+        list.push({
+          tone: "warn",
+          title: "明早先看：最有招生转化 3 条",
+          body: rankedDecisionText(conversionTop, (row) => `主页/线索 ${formatNumber(visitConversionCount(row))}，每万播放 ${perWan(visitConversionRate(row))}`)
+        });
+        list.push({
+          tone: "good",
+          title: "明早先看：最能涨粉/C粉 3 条",
+          body: rankedDecisionText(fansTop, (row) => `涨粉 ${formatNumber(row.followersGained)}，每万播放 ${perWan(followerRate(row))}`)
+        });
         const summary = ready
-          ? "优先看这几张卡：品牌曝光、招生转化、涨粉/C粉、可复拍结构和需复盘样本。"
+          ? "明早优先看四个榜单：复拍、重剪、招生转化、涨粉/C粉。"
           : `当前自有视频 ${rows.length} 条，能做初步判断；继续补采后结论会更稳。`;
         return {
           badge: status.status === "running" ? "正在采集" : ready ? "可直接看" : "初步可看",
@@ -3231,11 +3223,29 @@
         const list = byId("shootingCommandList");
         const badge = byId("shootingCommandBadge");
         const summary = byId("shootingCommandSummary");
+        const skipStrip = byId("dailySkipStrip");
         if (!box || !list || !badge || !summary) return;
         const data = buildShootingCommandCenter();
         badge.textContent = data.badge;
         badge.className = `badge ${escapeHtml(data.tone || "")}`;
         summary.textContent = data.summary;
+        if (skipStrip) {
+          const skipped = activeDailySkip();
+          const skippedRows = state.snapshots.filter((row) => skipped.videoKeys.includes(videoKey(row)));
+          if (skipped.videoKeys.length) {
+            skipStrip.hidden = false;
+            skipStrip.innerHTML = `
+              <div>
+                <strong>今天已跳过 ${skipped.videoKeys.length} 条</strong>
+                <span>${escapeHtml(skippedRows.slice(0, 3).map(videoShortTitle).join("、") || "这些内容今天先不推荐")}。它们没有删除，点恢复后会回来，明天也会重新参与推荐。</span>
+              </div>
+              <button class="button secondary" type="button" data-video-action="reset-daily-skips">恢复跳过</button>
+            `;
+          } else {
+            skipStrip.hidden = true;
+            skipStrip.innerHTML = "";
+          }
+        }
         box.innerHTML = data.grid.map((card) => `
           <div class="signal-card ${escapeHtml(card.tone || "")}">
             <span>${escapeHtml(card.label)}</span>
@@ -3671,7 +3681,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705m",
+          version: "20260705n",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -4520,11 +4530,28 @@
         return Math.max(1, Math.min(parsed, Math.max(total, 1)));
       }
 
+      function nextVideoDisplayValue(currentValue = "20") {
+        if (currentValue === "20") return "50";
+        if (currentValue === "50") return "100";
+        return "all";
+      }
+
       function renderVideos() {
         const list = byId("videoList");
+        const moreActions = byId("videoMoreActions");
         const rows = filteredVideos();
         const limit = currentVideoDisplayLimit(rows.length);
         const displayRows = rows.slice(0, limit);
+        if (moreActions) {
+          if (rows.length > displayRows.length) {
+            const select = byId("videoDisplayLimit");
+            const nextValue = nextVideoDisplayValue(select?.value || "20");
+            const nextLabel = nextValue === "all" ? "显示全部" : `显示前${nextValue}条`;
+            moreActions.innerHTML = `<button class="button secondary" type="button" data-video-list-action="show-more">${nextLabel}</button><span class="muted">还有 ${rows.length - displayRows.length} 条已收起。</span>`;
+          } else {
+            moreActions.innerHTML = rows.length ? `<span class="muted">当前筛选结果已全部显示。</span>` : "";
+          }
+        }
         list.innerHTML = displayRows.length ? displayRows.map((row, index) => {
           const diagnosis = diagnoseVideo(row);
           const action = videoActionLabel(row, diagnosis);
@@ -4593,7 +4620,7 @@
           `;
         }).join("") : `<div class="empty">${latestAccountAudits().length ? "账号级数据已同步；当前没有有效单条视频快照。下一步需要让采集器进入作品列表/详情页补采播放、点赞、留存等单条视频数据。" : "暂无可显示视频。等 Mac mini 采集器同步数据后，这里会按视频自动生成诊断。"}</div>`;
         if (rows.length > displayRows.length) {
-          list.insertAdjacentHTML("beforeend", `<div class="empty">已显示前 ${displayRows.length} 条重点视频。其余 ${rows.length - displayRows.length} 条已收进档案库，需要时用上方排序或“显示条数”展开。</div>`);
+          list.insertAdjacentHTML("beforeend", `<div class="empty">已显示前 ${displayRows.length} 条重点视频。其余 ${rows.length - displayRows.length} 条已收起，可以点上方“查看更多”继续展开。</div>`);
         }
       }
 
@@ -5720,6 +5747,16 @@
             await handleVideoAction(event);
             return;
           }
+          const videoListAction = event.target.closest("[data-video-list-action='show-more']");
+          if (videoListAction) {
+            const select = byId("videoDisplayLimit");
+            if (select) {
+              select.value = nextVideoDisplayValue(select.value || "20");
+              refreshVideoLists();
+              byId("videoOpsMessage").textContent = select.value === "all" ? "已展开全部视频档案。" : `已展开到前 ${select.value} 条视频。`;
+            }
+            return;
+          }
           const signalButton = event.target.closest("[data-signal-sort]");
           if (signalButton) {
             const sortKey = signalButton.dataset.signalSort || "priority";
@@ -5808,6 +5845,7 @@
         });
         byId("priorityVideoList").addEventListener("click", handleVideoAction);
         byId("videoList").addEventListener("click", handleVideoAction);
+        byId("dailySkipStrip")?.addEventListener("click", handleVideoAction);
         byId("morningDecisionList")?.addEventListener("click", handleVideoAction);
         byId("shootingCommandList")?.addEventListener("click", handleVideoAction);
         byId("dailyScriptGrid")?.addEventListener("click", handleVideoAction);
