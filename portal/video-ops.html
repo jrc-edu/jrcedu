@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705s</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705t</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -371,6 +371,7 @@
         <p id="executionLoopSummary" style="margin-top:8px;">把“系统建议”变成今天能执行、明天能复盘的流程：选题、拍摄、发布、复盘。</p>
         <div class="focus-grid" id="executionLoopGrid"></div>
         <div class="decision-list" id="executionLoopList"></div>
+        <div class="task-card-grid" id="postPublishReviewGrid"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -432,6 +433,52 @@
         <p id="platformDiagnosisSummary" style="margin-top:8px;">同一个短视频系统里，抖音按曝光、留存、搜索、涨粉和线索判断；视频号按转发、评论质量、信任建立和微信私域承接判断；最后再合并成今天的拍摄动作。</p>
         <div class="focus-grid" id="platformDiagnosisGrid"></div>
         <div class="decision-list" id="platformDiagnosisList"></div>
+      </section>
+
+      <section class="card command-panel" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Cross Platform Command</p>
+            <h2>双平台同题材作战台</h2>
+          </div>
+          <span class="badge" id="crossPlatformBadge">等待数据</span>
+        </div>
+        <p id="crossPlatformSummary" style="margin-top:8px;">同一个题材在抖音和视频号会分化：抖音看推荐、搜索、留存和增长，视频号看转发、评论、收藏和微信私域信任。</p>
+        <div class="focus-grid" id="crossPlatformGrid"></div>
+        <div class="decision-list" id="crossPlatformList"></div>
+
+        <div class="toolbar" style="justify-content:space-between; margin-top:20px;">
+          <div>
+            <p class="eyebrow">Dual Scripts</p>
+            <h2>同一内容双平台脚本</h2>
+          </div>
+          <span class="badge" id="dualPlatformScriptBadge">等待题材</span>
+        </div>
+        <p id="dualPlatformScriptSummary" style="margin-top:8px;">一个选题自动拆成两个版本：抖音版抓前 3 秒、搜索词和关注理由；视频号版抓家长信任、转发价值和私域承接。</p>
+        <div class="script-grid" id="dualPlatformScriptGrid"></div>
+
+        <div class="toolbar" style="justify-content:space-between; margin-top:20px;">
+          <div>
+            <p class="eyebrow">Material Library</p>
+            <h2>跨平台素材库</h2>
+          </div>
+          <span class="badge" id="platformMaterialLibraryBadge">等待沉淀</span>
+        </div>
+        <p id="platformMaterialLibrarySummary" style="margin-top:8px;">把好内容分成抖音爆款结构、视频号信任结构、双平台核心结构和平台限定结构，后续复拍不再从零想。</p>
+        <div class="task-card-grid" id="platformMaterialLibraryGrid"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Data Trust</p>
+            <h2>数据可信度分层</h2>
+          </div>
+          <span class="badge" id="dataTrustBadge">等待数据</span>
+        </div>
+        <p id="dataTrustSummary" style="margin-top:8px;">只让真实、可解释的数据进入重判断：哪些是真后台采到，哪些字段缺失，哪些只能轻判断，哪些可以深度复盘。</p>
+        <div class="focus-grid" id="dataTrustGrid"></div>
+        <div class="decision-list" id="dataTrustList"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -818,7 +865,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705s";
+        const pageVersion = "20260705t";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -953,7 +1000,7 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705s";
+      const PAGE_VERSION = "20260705t";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
@@ -1233,6 +1280,11 @@
           remakeDirections: reportList(source.remakeDirections || source.retakeDirections || source["复拍方向"] || source["值得复拍的方向"]),
           problemSolutions: reportList(source.problemSolutions || source.solutions || source["问题解决方案"] || source["问题到解决方案"]),
           executableScripts: reportList(source.executableScripts || source.scripts || source["可直接拍摄脚本"] || source["拍摄脚本"]),
+          crossPlatformComparison: reportList(source.crossPlatformComparison || source.platformComparison || source["双平台同题材对比"] || source["跨平台对比"]),
+          dualPlatformScripts: reportList(source.dualPlatformScripts || source.platformScripts || source["同一内容双平台脚本"] || source["双平台脚本"]),
+          postPublishReviewLoop: reportList(source.postPublishReviewLoop || source.postPublishLoop || source["发布后复盘闭环"] || source["2小时24小时72小时复盘"]),
+          platformMaterialLibrary: reportList(source.platformMaterialLibrary || source.crossPlatformMaterialLibrary || source["跨平台素材库"] || source["平台素材库"]),
+          dataTrustTiers: reportList(source.dataTrustTiers || source.dataTrust || source["数据可信度分层"] || source["可信度分层"]),
           stopDoing: reportList(source.stopDoing || source.stopList || source["停止事项"] || source["需要停止或重做的内容"]),
           weeklyShootingPlan: reportList(source.weeklyShootingPlan || source.shootingPlan || source["下周拍摄清单"]),
           missingData: reportList(source.missingData || source.dataGaps || source["补采字段"] || source["还需要补采哪些字段"]),
@@ -3240,6 +3292,7 @@
             ` : ""}
           </div>
         `).join("");
+        renderPostPublishReviewLoop();
       }
 
       function visitConversionCount(row = {}) {
@@ -4223,6 +4276,696 @@
         `).join("");
       }
 
+      function topicPlatformAggregate(label, rows = [], platform = "") {
+        const scoped = rows.filter((row) => {
+          if (!platform) return true;
+          if (platform === "抖音") return isDouyinPlatform(row.platform);
+          if (platform === "视频号") return isWechatVideoPlatform(row.platform);
+          return normalizeText(row.platform) === normalizeText(platform);
+        });
+        const diagnostics = scoped.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
+        const views = scoped.reduce((sum, row) => sum + (row.views || 0), 0);
+        const favorites = scoped.reduce((sum, row) => sum + (row.favorites || 0), 0);
+        const shares = scoped.reduce((sum, row) => sum + (row.shares || 0), 0);
+        const comments = scoped.reduce((sum, row) => sum + (row.comments || 0), 0);
+        const leads = scoped.reduce((sum, row) => sum + leadCount(row), 0);
+        const followers = scoped.reduce((sum, row) => sum + (row.followersGained || 0), 0);
+        const trustRows = scoped.map(dataTrustForVideo);
+        const bestVideo = scoped.slice().sort((a, b) => priorityScore(b) - priorityScore(a))[0] || null;
+        const aggregate = {
+          label,
+          platform,
+          rows: scoped,
+          count: scoped.length,
+          views,
+          avgViews: safeRate(views, scoped.length),
+          favorites,
+          shares,
+          comments,
+          saveShare: favorites + shares,
+          leads,
+          followers,
+          avgScore: diagnostics.length ? Math.round(average(diagnostics.map((item) => item.diagnosis.score))) : 0,
+          retentionCount: scoped.filter((row) => row.threeSecondRetention || row.completeRate || row.avgWatchSeconds).length,
+          conversionCount: scoped.filter((row) => hasConversionSignals(row) || hasLeadSignal(row) || hasFollowerSignal(row)).length,
+          trafficCount: scoped.filter((row) => row.trafficSourceLines?.length || row.searchKeywords?.length).length,
+          localCount: scoped.filter(hasLocalTrafficSignal).length,
+          deepCount: trustRows.filter((row) => row.key === "deepReview" || row.key === "backend").length,
+          lightCount: trustRows.filter((row) => row.key === "light").length,
+          missingCount: trustRows.filter((row) => row.key === "missing").length,
+          bestVideo
+        };
+        aggregate.score = platformTopicScore(aggregate, platform);
+        return aggregate;
+      }
+
+      function platformTopicScore(item = {}, platform = "") {
+        if (!item.count) return 0;
+        const profile = platformEvaluationProfile(platform);
+        const viewScore = Math.log10((item.views || 0) + 1) * (profile.key === "wechatChannels" ? 6 : 7);
+        const trustScore = item.deepCount * 2.5 + Math.max(0, item.count - item.missingCount) * 0.8;
+        if (profile.key === "douyin") {
+          return Math.round(
+            (item.avgScore || 0) +
+            viewScore +
+            item.followers * 4.5 +
+            item.leads * 6 +
+            item.saveShare * 0.22 +
+            item.retentionCount * 2.2 +
+            item.trafficCount * 2 +
+            trustScore
+          );
+        }
+        if (profile.key === "wechatChannels") {
+          return Math.round(
+            (item.avgScore || 0) +
+            viewScore +
+            item.shares * 2.1 +
+            item.comments * 2.4 +
+            item.favorites * 1.1 +
+            item.leads * 7 +
+            item.localCount * 3 +
+            trustScore
+          );
+        }
+        return Math.round((item.avgScore || 0) + viewScore + item.saveShare * 0.3 + item.leads * 6 + item.followers * 4 + trustScore);
+      }
+
+      function topicStatus(item = {}, platformScores = []) {
+        if (!item.count) return { key: "none", label: "无样本", tone: "danger" };
+        const averageScore = average(platformScores.filter(Boolean));
+        const goodLine = Math.max(68, averageScore ? averageScore * 0.88 : 68);
+        const okLine = Math.max(42, averageScore ? averageScore * 0.50 : 42);
+        if (item.avgScore >= 72 || item.score >= goodLine || (item.count >= 3 && item.score >= okLine && item.views >= item.avgViews * item.count)) {
+          return { key: "strong", label: "强", tone: "good" };
+        }
+        if (item.avgScore >= 60 || item.score >= okLine || item.count >= 2) {
+          return { key: "ok", label: "可验证", tone: "warn" };
+        }
+        return { key: "weak", label: "弱", tone: "danger" };
+      }
+
+      function topicAggregateLine(item = {}) {
+        if (!item.count) return "无样本";
+        const profile = platformEvaluationProfile(item.platform);
+        const extra = profile.key === "wechatChannels"
+          ? `转发 ${formatNumber(item.shares)}，评论 ${formatNumber(item.comments)}，收藏 ${formatNumber(item.favorites)}`
+          : `涨粉 ${formatNumber(item.followers)}，线索 ${formatNumber(item.leads)}，收藏转发 ${formatNumber(item.saveShare)}`;
+        return `${item.count}条｜播放 ${formatNumber(item.views)}｜均分 ${item.avgScore || "-"}｜${extra}`;
+      }
+
+      function classifyCrossPlatformTopic(douyin = {}, wechat = {}, douyinStatus = {}, wechatStatus = {}) {
+        const dyStrong = douyinStatus.key === "strong";
+        const wxStrong = wechatStatus.key === "strong";
+        const dyExists = Boolean(douyin.count);
+        const wxExists = Boolean(wechat.count);
+        if (dyStrong && wxStrong) {
+          return {
+            key: "core",
+            tone: "good",
+            label: "双平台核心优势",
+            action: "两边都能打。保留题材，抖音继续做曝光和搜索，视频号继续做信任和转发。"
+          };
+        }
+        if (dyStrong && !wxStrong) {
+          return {
+            key: "douyinOnly",
+            tone: "warn",
+            label: wxExists ? "抖音强，视频号弱" : "抖音曝光型",
+            action: "抖音继续拍，但视频号不能照搬讲题，要补本地升学场景、家长转发理由和私域承接。"
+          };
+        }
+        if (wxStrong && !dyStrong) {
+          return {
+            key: "wechatOnly",
+            tone: "warn",
+            label: dyExists ? "视频号强，抖音弱" : "视频号信任型",
+            action: "视频号保留信任表达；抖音版要重写前3秒、标题搜索词和关注理由，别直接平铺讲。"
+          };
+        }
+        if (!dyExists && wxExists) {
+          return {
+            key: "wechatPending",
+            tone: "warn",
+            label: "只有视频号样本",
+            action: "先按视频号信任逻辑复盘，同时补一条抖音版验证推荐流和搜索流。"
+          };
+        }
+        if (dyExists && !wxExists) {
+          return {
+            key: "douyinPending",
+            tone: "warn",
+            label: "只有抖音样本",
+            action: "先按抖音曝光逻辑复盘，同时补一条视频号版验证转发、评论和微信私域信任。"
+          };
+        }
+        return {
+          key: "weak",
+          tone: "danger",
+          label: "两边都弱",
+          action: "这个题材先不要继续硬拍。除非换标题、换开头、换家长场景，否则暂时放进失败样本库。"
+        };
+      }
+
+      function buildCrossPlatformComparison() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const topics = new Map();
+        rows.forEach((row) => {
+          const label = topicLabelForVideo(row);
+          const current = topics.get(label) || [];
+          current.push(row);
+          topics.set(label, current);
+        });
+        const baseRows = [...topics.entries()].map(([label, topicRows]) => ({
+          label,
+          douyin: topicPlatformAggregate(label, topicRows, "抖音"),
+          wechat: topicPlatformAggregate(label, topicRows, "视频号"),
+          allRows: topicRows
+        }));
+        const douyinScores = baseRows.map((item) => item.douyin.score).filter(Boolean);
+        const wechatScores = baseRows.map((item) => item.wechat.score).filter(Boolean);
+        const comparisons = baseRows.map((item) => {
+          const douyinStatus = topicStatus(item.douyin, douyinScores);
+          const wechatStatus = topicStatus(item.wechat, wechatScores);
+          const verdict = classifyCrossPlatformTopic(item.douyin, item.wechat, douyinStatus, wechatStatus);
+          const bestVideo = [item.douyin.bestVideo, item.wechat.bestVideo]
+            .filter(Boolean)
+            .sort((a, b) => priorityScore(b) - priorityScore(a))[0] || null;
+          return {
+            ...item,
+            douyinStatus,
+            wechatStatus,
+            verdict,
+            bestVideo,
+            weightedScore: Math.max(item.douyin.score, item.wechat.score) + (verdict.key === "core" ? 60 : 0) + item.allRows.length * 2
+          };
+        }).sort((left, right) => right.weightedScore - left.weightedScore);
+        const summary = {
+          topicCount: comparisons.length,
+          core: comparisons.filter((item) => item.verdict.key === "core").length,
+          douyinOnly: comparisons.filter((item) => item.verdict.key === "douyinOnly" || item.verdict.key === "douyinPending").length,
+          wechatOnly: comparisons.filter((item) => item.verdict.key === "wechatOnly" || item.verdict.key === "wechatPending").length,
+          weak: comparisons.filter((item) => item.verdict.key === "weak").length,
+          rows: rows.length
+        };
+        return {
+          badge: comparisons.length ? "已对比" : "等待数据",
+          tone: summary.core ? "good" : comparisons.length ? "warn" : "danger",
+          summary,
+          comparisons
+        };
+      }
+
+      function crossPlatformComparisonForAi() {
+        const data = buildCrossPlatformComparison();
+        return {
+          summary: data.summary,
+          comparisons: data.comparisons.slice(0, 12).map((item) => ({
+            topic: item.label,
+            verdict: item.verdict.label,
+            action: item.verdict.action,
+            douyin: {
+              status: item.douyinStatus.label,
+              count: item.douyin.count,
+              views: item.douyin.views,
+              avgScore: item.douyin.avgScore,
+              followers: item.douyin.followers,
+              leads: item.douyin.leads,
+              bestVideo: videoShortTitle(item.douyin.bestVideo || {})
+            },
+            wechat: {
+              status: item.wechatStatus.label,
+              count: item.wechat.count,
+              views: item.wechat.views,
+              avgScore: item.wechat.avgScore,
+              shares: item.wechat.shares,
+              comments: item.wechat.comments,
+              bestVideo: videoShortTitle(item.wechat.bestVideo || {})
+            }
+          }))
+        };
+      }
+
+      function renderCrossPlatformComparison() {
+        const badge = byId("crossPlatformBadge");
+        const summary = byId("crossPlatformSummary");
+        const grid = byId("crossPlatformGrid");
+        const list = byId("crossPlatformList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildCrossPlatformComparison();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.comparisons.length
+          ? `已把 ${data.summary.rows} 条自有视频按题材合并，找到 ${data.summary.core} 个双平台核心题材、${data.summary.douyinOnly} 个抖音偏强题材、${data.summary.wechatOnly} 个视频号偏强题材。`
+          : "还没有足够的自有视频样本。先采集抖音和视频号，再做同题材对比。";
+        grid.innerHTML = [
+          { tone: data.summary.core ? "good" : "warn", label: "双平台核心", value: `${data.summary.core}`, note: "两边都好，优先做系列" },
+          { tone: data.summary.douyinOnly ? "warn" : "", label: "抖音偏强", value: `${data.summary.douyinOnly}`, note: "视频号需补信任转发" },
+          { tone: data.summary.wechatOnly ? "warn" : "", label: "视频号偏强", value: `${data.summary.wechatOnly}`, note: "抖音需补前3秒搜索" },
+          { tone: data.summary.weak ? "danger" : "good", label: "两边都弱", value: `${data.summary.weak}`, note: "暂缓或彻底重做表达" }
+        ].map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.comparisons.length ? data.comparisons.slice(0, 6).map((item) => `
+          <div class="decision-card ${escapeHtml(item.verdict.tone)}">
+            <strong>${escapeHtml(item.label)}｜${escapeHtml(item.verdict.label)}</strong>
+            <p>${escapeHtml(item.verdict.action)}</p>
+            <p>${escapeHtml(`抖音：${topicAggregateLine(item.douyin)}｜视频号：${topicAggregateLine(item.wechat)}`)}</p>
+            ${item.bestVideo ? `
+              <div class="decision-actions">
+                <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(item.bestVideo.id)}">看代表视频</button>
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(item.bestVideo.id)}">看数据详情</button>
+              </div>
+            ` : ""}
+          </div>
+        `).join("") : `<div class="empty">等待抖音和视频号作品数据。数据到位后，这里会自动判断哪些题材两边都能打、哪些只适合一个平台。</div>`;
+      }
+
+      function primaryCrossPlatformTopic() {
+        const rows = buildCrossPlatformComparison().comparisons;
+        return rows.find((item) => item.verdict.key === "core")
+          || rows.find((item) => item.verdict.key === "douyinOnly" || item.verdict.key === "wechatOnly")
+          || rows[0]
+          || null;
+      }
+
+      function dualScriptForPlatform(topicItem = {}, platform = "抖音") {
+        const isWechat = platform === "视频号";
+        const topic = topicItem.label || "数学培优";
+        const agg = isWechat ? topicItem.wechat : topicItem.douyin;
+        const fallback = isWechat ? topicItem.douyin?.bestVideo : topicItem.wechat?.bestVideo;
+        const source = agg?.bestVideo || fallback || {};
+        const local = hasLocalTrafficSignal(source) ? "宁波家长" : "本地家长";
+        const titlePrefix = isWechat ? "转给家长看" : "别再这样学";
+        const titles = isWechat
+          ? [
+              `${local}要不要给孩子补 ${topic}，先看这个判断`,
+              `孩子这类题总错，家长转给他看这一步`,
+              `${topic}不是刷题越多越好，关键看这一个信号`
+            ]
+          : [
+              `${titlePrefix}：${topic}卡住的孩子，前 3 秒看这个`,
+              `${topic}孩子老错，不是粗心，是入口错了`,
+              `${local}搜 ${topic}，先把这个坑避开`
+            ];
+        const lead = isWechat
+          ? `如果你家孩子也在 ${topic} 上反复丢分，这条先转给孩子或家里负责学习的人看。`
+          : `这类题别上来就算，孩子只要第一步想错，后面刷再多都不稳。`;
+        const body = isWechat
+          ? [
+              "第一步：先说清年级和本地升学场景，让家长知道这不是泛泛讲题。",
+              "第二步：用一个典型错法证明孩子为什么会卡住，建立老师专业可信度。",
+              "第三步：给家长一个可转发、可保存的判断方法，方便微信里继续沟通。"
+            ]
+          : [
+              "第一步：前 3 秒直接抛痛点或结论，别铺垫学校介绍。",
+              "第二步：只讲一个核心入口，标题里放年级、题型和搜索关键词。",
+              "第三步：结尾给关注理由，说明后面会继续拆同类题。"
+            ];
+        const closing = isWechat
+          ? "如果孩子最近也卡在这类题，可以把年级和错题发来，我们先帮你判断是基础问题还是培优方法问题。"
+          : "想继续看这类题的拆法，可以关注后看同系列；也可以评论年级，我按年级继续讲。";
+        const acceptance = isWechat
+          ? [
+              "2小时：看转发、评论和收藏有没有启动，不只看播放。",
+              "24小时：看家长是否留下具体问题，主页访问或私信是否出现。",
+              "72小时：如果转发收藏好，归入视频号信任结构；如果无人转发，重写家长场景。"
+            ]
+          : [
+              "2小时：看播放启动、前3秒和完播，开头弱就先重剪。",
+              "24小时：看搜索词、涨粉、主页访问和线索，有播放没涨粉就补关注理由。",
+              "72小时：播放高就复拍同结构，低留存就重剪，低互动就换标题痛点。"
+            ];
+        return {
+          platform,
+          tone: isWechat ? "warn" : "good",
+          label: `${platform}版｜${topic}`,
+          sourceTitle: videoShortTitle(source),
+          metric: source?.id ? compactVideoMetrics(source) : "等待代表视频",
+          titles,
+          lead,
+          body,
+          closing,
+          acceptance,
+          videoId: source?.id || ""
+        };
+      }
+
+      function buildDualPlatformScripts() {
+        const topic = primaryCrossPlatformTopic();
+        if (!topic) {
+          return {
+            badge: "等待题材",
+            tone: "warn",
+            summary: "还没有可生成双平台脚本的题材。先采集抖音和视频号作品数据。",
+            topic: "",
+            cards: []
+          };
+        }
+        return {
+          badge: "可直接拍",
+          tone: "good",
+          summary: `当前优先把「${topic.label}」拆成两个平台版本：抖音负责推开，视频号负责信任和私域承接。`,
+          topic: topic.label,
+          cards: [dualScriptForPlatform(topic, "抖音"), dualScriptForPlatform(topic, "视频号")]
+        };
+      }
+
+      function renderDualPlatformScripts() {
+        const badge = byId("dualPlatformScriptBadge");
+        const summary = byId("dualPlatformScriptSummary");
+        const grid = byId("dualPlatformScriptGrid");
+        if (!badge || !summary || !grid) return;
+        const data = buildDualPlatformScripts();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.cards.length ? data.cards.map((card) => `
+          <article class="script-card ${escapeHtml(card.tone || "")}">
+            <h3>${escapeHtml(card.label)}</h3>
+            <div class="script-meta">${escapeHtml(card.sourceTitle)}｜${escapeHtml(card.metric)}</div>
+            <dl>
+              <div><dt>标题方向</dt><dd>${card.titles.map((item) => `《${escapeHtml(item)}》`).join("<br>")}</dd></div>
+              <div><dt>前 3 秒</dt><dd>${escapeHtml(card.lead)}</dd></div>
+              <div><dt>正文三步</dt><dd>${card.body.map(escapeHtml).join("<br>")}</dd></div>
+              <div><dt>结尾承接</dt><dd>${escapeHtml(card.closing)}</dd></div>
+              <div><dt>平台验收</dt><dd>${card.acceptance.map(escapeHtml).join("<br>")}</dd></div>
+            </dl>
+            ${card.videoId ? `
+              <div class="script-actions">
+                <button class="button secondary" type="button" data-video-action="open-original" data-video-id="${escapeHtml(card.videoId)}">看代表视频</button>
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(card.videoId)}">看数据详情</button>
+              </div>
+            ` : ""}
+          </article>
+        `).join("") : `<div class="empty">等待题材样本。抖音和视频号至少有一个平台采到真实作品后，这里会自动生成双平台脚本。</div>`;
+      }
+
+      function buildPlatformMaterialLibrary() {
+        const comparisons = buildCrossPlatformComparison().comparisons;
+        const take = (predicate) => comparisons.filter(predicate).slice(0, 4);
+        const categories = [
+          {
+            key: "douyinViral",
+            tone: "good",
+            label: "抖音爆款结构",
+            rows: take((item) => item.verdict.key === "douyinOnly" || (item.douyinStatus.key === "strong" && item.douyin.count)),
+            note: "保留强刺激开头、搜索关键词、关注理由和系列化标题。"
+          },
+          {
+            key: "wechatTrust",
+            tone: "warn",
+            label: "视频号信任结构",
+            rows: take((item) => item.verdict.key === "wechatOnly" || (item.wechatStatus.key === "strong" && item.wechat.count)),
+            note: "保留家长转发理由、本地升学场景、评论互动和私域承接。"
+          },
+          {
+            key: "core",
+            tone: "good",
+            label: "双平台核心结构",
+            rows: take((item) => item.verdict.key === "core"),
+            note: "两边都能打，优先做系列和复拍，不要轻易换掉核心表达。"
+          },
+          {
+            key: "limited",
+            tone: "danger",
+            label: "平台限定 / 失败样本",
+            rows: take((item) => item.verdict.key === "weak" || item.verdict.key === "douyinPending" || item.verdict.key === "wechatPending"),
+            note: "只适合一个平台的不要硬搬；两边都弱的先换题材包装。"
+          }
+        ];
+        return {
+          badge: comparisons.length ? "已沉淀" : "等待数据",
+          tone: categories.some((item) => item.rows.length) ? "good" : "warn",
+          categories,
+          summary: comparisons.length
+            ? `已按 ${comparisons.length} 个题材沉淀素材结构，后续复拍先从这里选。`
+            : "还没有足够题材样本，等待采集后自动沉淀。"
+        };
+      }
+
+      function renderPlatformMaterialLibrary() {
+        const badge = byId("platformMaterialLibraryBadge");
+        const summary = byId("platformMaterialLibrarySummary");
+        const grid = byId("platformMaterialLibraryGrid");
+        if (!badge || !summary || !grid) return;
+        const data = buildPlatformMaterialLibrary();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.categories.map((category) => `
+          <div class="task-card ${escapeHtml(category.tone || "")}">
+            <span>${escapeHtml(`${category.rows.length} 个题材`)}</span>
+            <strong>${escapeHtml(category.label)}</strong>
+            <p>${escapeHtml(category.note)}</p>
+            <p>${category.rows.length
+              ? category.rows.map((item, index) => `${index + 1}. ${item.label}｜${item.verdict.label}`).map(escapeHtml).join("<br>")
+              : "暂无稳定样本，等下一轮数据补齐。"
+            }</p>
+          </div>
+        `).join("");
+      }
+
+      function platformMaterialLibraryForAi() {
+        const data = buildPlatformMaterialLibrary();
+        return {
+          summary: data.summary,
+          categories: data.categories.map((category) => ({
+            label: category.label,
+            note: category.note,
+            topics: category.rows.map((item) => ({
+              topic: item.label,
+              verdict: item.verdict.label,
+              action: item.verdict.action,
+              representativeVideo: videoShortTitle(item.bestVideo || {}),
+              douyin: {
+                count: item.douyin.count,
+                views: item.douyin.views,
+                score: item.douyin.avgScore
+              },
+              wechat: {
+                count: item.wechat.count,
+                views: item.wechat.views,
+                score: item.wechat.avgScore,
+                shares: item.wechat.shares,
+                comments: item.wechat.comments
+              }
+            }))
+          }))
+        };
+      }
+
+      function dataTrustForVideo(row = {}) {
+        const hasCore = snapshotHasMetrics(row);
+        const hasOfficialSource = Boolean(row.deepSources?.length || row.officialMetricLines?.length || row.apiSignalLines?.length || row.dataCompleteness?.score);
+        const hasOriginal = hasOriginalVideoUrl(row);
+        const hasRetention = Boolean(row.threeSecondRetention || row.fiveSecondRetention || row.completeRate || row.avgWatchSeconds);
+        const hasConversion = Boolean(hasConversionSignals(row) || hasLeadSignal(row) || hasFollowerSignal(row));
+        const hasTraffic = Boolean(row.trafficSourceLines?.length || row.searchKeywords?.length);
+        const missing = [
+          hasCore ? "" : "缺播放/点赞/评论/收藏/转发等核心指标",
+          hasOriginal ? "" : "缺原视频链接",
+          hasRetention ? "" : "缺留存/完播/平均观看",
+          hasConversion ? "" : "缺主页访问/私信/线索/涨粉",
+          hasTraffic ? "" : "缺流量来源/搜索词"
+        ].filter(Boolean);
+        const score = Math.max(0, Math.min(100,
+          (hasCore ? 28 : 0) +
+          (hasOfficialSource ? 22 : 0) +
+          (hasOriginal ? 12 : 0) +
+          (hasRetention ? 14 : 0) +
+          (hasConversion ? 12 : 0) +
+          (hasTraffic ? 8 : 0) +
+          Math.min(4, row.dataCompleteness?.score ? row.dataCompleteness.score / 25 : 0)
+        ));
+        if (!hasCore) {
+          return {
+            key: "missing",
+            label: "字段缺失",
+            tone: "danger",
+            score,
+            missing,
+            summary: "缺核心指标，不能进入重判断。"
+          };
+        }
+        if (score >= 72 && hasOfficialSource && (hasRetention || hasConversion || hasTraffic)) {
+          return {
+            key: "deepReview",
+            label: "可深度复盘",
+            tone: "good",
+            score,
+            missing,
+            summary: "后台字段较全，可以用于题材归因和复拍判断。"
+          };
+        }
+        if (hasOfficialSource) {
+          return {
+            key: "backend",
+            label: "真后台采到",
+            tone: "good",
+            score,
+            missing,
+            summary: "有后台来源和核心指标，但部分深度字段还要补。"
+          };
+        }
+        return {
+          key: "light",
+          label: "只能轻判断",
+          tone: "warn",
+          score,
+          missing,
+          summary: "有核心指标，但缺后台深度来源，先做轻量参考。"
+        };
+      }
+
+      function buildDataTrustDashboard() {
+        const rows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
+        const trusted = rows.map((row) => ({ row, trust: dataTrustForVideo(row) }));
+        const buckets = {
+          deepReview: trusted.filter((item) => item.trust.key === "deepReview"),
+          backend: trusted.filter((item) => item.trust.key === "backend"),
+          light: trusted.filter((item) => item.trust.key === "light"),
+          missing: trusted.filter((item) => item.trust.key === "missing")
+        };
+        const deepUsable = buckets.deepReview.length + buckets.backend.length;
+        const badge = rows.length ? (deepUsable >= Math.max(8, rows.length * 0.25) ? "可信" : "需补字段") : "等待数据";
+        const tone = rows.length ? (buckets.missing.length > rows.length * 0.35 ? "danger" : deepUsable ? "good" : "warn") : "danger";
+        const weakest = trusted.slice().sort((a, b) => a.trust.score - b.trust.score).slice(0, 4);
+        const list = [
+          {
+            tone: deepUsable ? "good" : "warn",
+            title: "哪些数据可以重判断",
+            body: deepUsable
+              ? `${deepUsable} 条视频属于“可深度复盘/真后台采到”，可以用于复拍、题材归因和双平台判断。`
+              : "当前大多只能轻判断，先不要把 AI 报告当最终结论。"
+          },
+          {
+            tone: buckets.light.length ? "warn" : "good",
+            title: "哪些数据只能轻判断",
+            body: buckets.light.length
+              ? `${buckets.light.length} 条有核心指标但缺后台深度来源，适合看播放和互动，不适合判断留存、搜索或转化。`
+              : "当前轻判断样本不多，数据质量较稳。"
+          },
+          {
+            tone: buckets.missing.length ? "danger" : "good",
+            title: "字段缺失样本",
+            body: buckets.missing.length
+              ? weakest.map((item) => `「${videoShortTitle(item.row)}」：${item.trust.missing.slice(0, 2).join("、") || "字段不足"}`).join("；")
+              : "当前没有明显字段缺失样本。"
+          }
+        ];
+        return { badge, tone, rows, buckets, list };
+      }
+
+      function renderDataTrustDashboard() {
+        const badge = byId("dataTrustBadge");
+        const summary = byId("dataTrustSummary");
+        const grid = byId("dataTrustGrid");
+        const list = byId("dataTrustList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildDataTrustDashboard();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.rows.length
+          ? `当前自有视频 ${data.rows.length} 条：可深度复盘 ${data.buckets.deepReview.length} 条，真后台采到 ${data.buckets.backend.length} 条，只能轻判断 ${data.buckets.light.length} 条，字段缺失 ${data.buckets.missing.length} 条。`
+          : "等待自有账号视频数据。";
+        grid.innerHTML = [
+          { tone: "good", label: "可深度复盘", value: `${data.buckets.deepReview.length}`, note: "可做复拍和归因" },
+          { tone: "good", label: "真后台采到", value: `${data.buckets.backend.length}`, note: "核心可信，补深度字段" },
+          { tone: "warn", label: "只能轻判断", value: `${data.buckets.light.length}`, note: "只看热度和基础互动" },
+          { tone: data.buckets.missing.length ? "danger" : "good", label: "字段缺失", value: `${data.buckets.missing.length}`, note: "不进入重判断" }
+        ].map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone)}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function dataTrustTiersForAi() {
+        const data = buildDataTrustDashboard();
+        const missingExamples = data.buckets.missing.slice(0, 8).map((item) => ({
+          title: videoShortTitle(item.row),
+          platform: item.row.platform,
+          trustScore: item.trust.score,
+          missing: item.trust.missing.slice(0, 4)
+        }));
+        return {
+          summary: {
+            totalOwnVideos: data.rows.length,
+            deepReview: data.buckets.deepReview.length,
+            backend: data.buckets.backend.length,
+            light: data.buckets.light.length,
+            missing: data.buckets.missing.length
+          },
+          rules: [
+            "可深度复盘：后台来源较明确，且有核心指标、原视频/留存/转化/流量等深度字段。",
+            "真后台采到：有后台来源和核心指标，但部分深度字段缺失。",
+            "只能轻判断：有播放互动等核心指标，但缺后台深度来源。",
+            "字段缺失：缺核心指标，不用于复拍和账号级重结论。"
+          ],
+          missingExamples
+        };
+      }
+
+      function buildPostPublishReviewLoop() {
+        const baseline = executionBaseline();
+        const scriptData = buildDailyScriptWorkbench();
+        const first = scriptData.cards?.[0] || {};
+        const topic = first.topic || primaryCrossPlatformTopic()?.label || "今日主选题";
+        const viewsFloor = baseline.avgViews ? formatNumber(Math.max(1, Math.round(baseline.avgViews * 0.35))) : "待采集";
+        const dayFloor = baseline.avgViews ? formatNumber(Math.max(1, Math.round(baseline.avgViews * 0.75))) : "待采集";
+        return [
+          {
+            tone: "warn",
+            label: "发布后2小时",
+            title: "看启动，不急着否定",
+            body: `${topic} 发布后先看播放启动、前3秒、完播或平均观看。2小时播放低于 ${viewsFloor}，先改标题封面或重剪前3秒。`
+          },
+          {
+            tone: "good",
+            label: "发布后24小时",
+            title: "分目标看结果",
+            body: `24小时看播放是否接近 ${dayFloor}，同时分开看收藏/转发、评论、涨粉、主页访问和咨询线索。高播放低咨询先补承接，不直接判差。`
+          },
+          {
+            tone: "good",
+            label: "发布后72小时",
+            title: "决定去向",
+            body: "72小时后只做三种处理：高播放或高收藏转发进复拍素材库；低留存但题材好进重剪清单；播放、互动、转化都弱进失败样本库。"
+          },
+          {
+            tone: "warn",
+            label: "归档规则",
+            title: "形成闭环",
+            body: "每条新视频都归到复拍素材库、重剪清单、失败样本库或继续观察。下一轮拍摄优先复用真实有效结构。"
+          }
+        ];
+      }
+
+      function renderPostPublishReviewLoop() {
+        const box = byId("postPublishReviewGrid");
+        if (!box) return;
+        box.innerHTML = buildPostPublishReviewLoop().map((card) => `
+          <div class="task-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
       function buildNextTopicPlan() {
         const groups = topicPerformanceRows(ownVideoRows());
         const leaders = metricLeaderRows();
@@ -4295,6 +5038,7 @@
       function conciseVideoForAi(row) {
         const diagnosis = diagnoseVideo(row);
         const remake = remakePlan(row, diagnosis);
+        const trust = dataTrustForVideo(row);
         return {
           platform: row.platform,
           accountType: row.accountType,
@@ -4328,6 +5072,12 @@
           searchKeywords: (row.searchKeywords || []).slice(0, 5),
           originalVideoUrlAvailable: hasOriginalVideoUrl(row),
           dataCompleteness: row.dataCompleteness,
+          dataTrust: {
+            key: trust.key,
+            label: trust.label,
+            score: Math.round(trust.score),
+            missing: trust.missing.slice(0, 5)
+          },
           officialMetricLines: (row.officialMetricLines || []).slice(0, 6),
           apiSignalLines: (row.apiSignalLines || []).slice(0, 6),
           deepSources: (row.deepSources || []).slice(0, 4),
@@ -4385,6 +5135,7 @@
         const latestOwnVideos = rows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")));
         const savedVideos = rows.filter(isSavedVideo).sort((a, b) => priorityScore(b) - priorityScore(a));
         const videosWithOriginalUrl = rows.filter(hasOriginalVideoUrl);
+        const trustRows = rows.map(dataTrustForVideo);
         const dataQuality = {
           ownUsefulVideos: rows.length,
           videosWithCoreMetrics: rows.filter(snapshotHasMetrics).length,
@@ -4395,6 +5146,12 @@
           videosWithOriginalUrl: videosWithOriginalUrl.length,
           videosMissingOriginalUrl: Math.max(rows.length - videosWithOriginalUrl.length, 0),
           originalUrlRate: rows.length ? Math.round((videosWithOriginalUrl.length / rows.length) * 100) : 0,
+          dataTrust: {
+            deepReview: trustRows.filter((row) => row.key === "deepReview").length,
+            backend: trustRows.filter((row) => row.key === "backend").length,
+            light: trustRows.filter((row) => row.key === "light").length,
+            missing: trustRows.filter((row) => row.key === "missing").length
+          },
           missingFieldGuidance: [
             rows.some(hasOriginalVideoUrl) ? "" : "缺原视频链接，暂时无法直接回看视频画面，复拍建议只能基于标题和后台数据。",
             rows.some((row) => row.completeRate || row.threeSecondRetention || row.avgWatchSeconds) ? "" : "缺留存/完播/平均观看时长，暂时不能稳定判断开头和节奏。",
@@ -4439,7 +5196,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705s",
+          version: "20260705t",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -4593,10 +5350,15 @@
         const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 platformDiagnosis 和 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接。structuredData 里必须尽量返回 problemSolutions 和 executableScripts。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 platformDiagnosis、crossPlatformComparison、dualPlatformScripts、postPublishReviewLoop、platformMaterialLibrary、dataTrustTiers 和 videoRankings，不要只看混合样本。高播放视频代表本地影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接，并且同一个选题必须给抖音版和视频号版两套表达。",
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
           platformDiagnosis: buildPlatformDiagnosis(),
+          crossPlatformComparison: crossPlatformComparisonForAi(),
+          dualPlatformScripts: buildDualPlatformScripts(),
+          postPublishReviewLoop: buildPostPublishReviewLoop(),
+          platformMaterialLibrary: platformMaterialLibraryForAi(),
+          dataTrustTiers: dataTrustTiersForAi(),
           accounts: state.accounts,
           benchmarkAccounts: benchmarkAccountsFromState(),
           latestAccountAudits: latestAccountAudits(),
@@ -4612,6 +5374,11 @@
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
             executionLoop: buildExecutionLoop(),
+            crossPlatformComparison: crossPlatformComparisonForAi(),
+            dualPlatformScripts: buildDualPlatformScripts(),
+            postPublishReviewLoop: buildPostPublishReviewLoop(),
+            platformMaterialLibrary: platformMaterialLibraryForAi(),
+            dataTrustTiers: dataTrustTiersForAi(),
             collectionPrep: buildCollectionPrep(),
             shootingTasks: buildShootingTasks(),
             remakeMaterialLibrary: buildRemakeMaterialLibrary(),
@@ -4698,7 +5465,12 @@
           ` : "",
           reportTaskCardsHtml("问题到解决任务卡", data.problemSolutions, "good", "整改"),
           reportTaskCardsHtml("可直接拍摄脚本卡", data.executableScripts, "good", "拍摄"),
+          reportTaskCardsHtml("双平台同题材对比", data.crossPlatformComparison, "good", "对比"),
+          reportTaskCardsHtml("同一内容双平台脚本", data.dualPlatformScripts, "good", "脚本"),
           reportTaskCardsHtml("拍摄执行闭环", data.executionLoop, "good", "闭环"),
+          reportTaskCardsHtml("发布后复盘闭环", data.postPublishReviewLoop, "good", "复盘"),
+          reportTaskCardsHtml("跨平台素材库", data.platformMaterialLibrary, "good", "素材"),
+          reportTaskCardsHtml("数据可信度分层", data.dataTrustTiers, "warn", "可信度"),
           reportTaskCardsHtml("下周拍摄任务卡", data.weeklyShootingPlan, "good", "排期"),
           reportTaskCardsHtml("复拍素材库", data.remakeDirections, "good", "复拍"),
           reportCardHtml("主要问题", data.weaknesses, "warn"),
@@ -5357,6 +6129,7 @@
           const diagnosis = diagnoseVideo(row);
           const action = videoActionLabel(row, diagnosis);
           const remake = remakePlan(row, diagnosis);
+          const trust = dataTrustForVideo(row);
           const tags = videoTags(row);
           const completenessText = row.dataCompleteness?.summary
             ? `｜深采 ${row.dataCompleteness.summary}`
@@ -5374,6 +6147,7 @@
                       <div class="tag-row">
                         <span class="badge">${escapeHtml(row.platform)}</span>
                         <span class="badge ${row.accountType === "同行账号" ? "warn" : "good"}">${escapeHtml(row.accountType)}</span>
+                        <span class="badge ${escapeHtml(trust.tone)}">${escapeHtml(trust.label)}</span>
                         <span class="badge ${escapeHtml(action.tone)}">${escapeHtml(action.text)}</span>
                         <span class="badge ${escapeHtml(remake.tone)}">${escapeHtml(remake.label)}</span>
                         ${isSavedVideo(row) ? `<span class="badge good">已收藏</span>` : ""}
@@ -5390,7 +6164,7 @@
                 </div>
               </summary>
               <div class="video-card-body">
-              <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜${escapeHtml(diagnosis.historyText)}${escapeHtml(completenessText)}${escapeHtml(deepSourceText)}</div>
+              <div class="video-meta">${escapeHtml(row.accountName || "-")}｜发布 ${escapeHtml(shortDate(row.publishedAt))}｜采集 ${escapeHtml(shortDate(row.capturedAt))}｜可信度 ${escapeHtml(trust.label)} ${Math.round(trust.score)}分｜${escapeHtml(diagnosis.historyText)}${escapeHtml(completenessText)}${escapeHtml(deepSourceText)}</div>
               <div class="video-stats">
                 <div class="stat"><span>播放</span><strong>${formatNumber(row.views)}</strong></div>
                 <div class="stat"><span>点赞</span><strong>${formatNumber(row.likes)}</strong></div>
@@ -5410,6 +6184,7 @@
                 <div class="diagnosis-box"><strong>做得好的地方</strong><ul>${diagnosis.strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
                 <div class="diagnosis-box"><strong>不足和风险</strong><ul>${diagnosis.weaknesses.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
                 <div class="diagnosis-box"><strong>下一步建议</strong><ul><li>${escapeHtml(remake.detail)}</li>${diagnosis.next.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+                <div class="diagnosis-box"><strong>数据可信度</strong><ul><li>${escapeHtml(trust.summary)}</li>${trust.missing.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
               </div>
               <div class="actions" style="margin-top:12px;">
                 ${row.url ? `<a class="button secondary" href="${escapeHtml(row.url)}" target="_blank" rel="noopener">打开视频</a>` : ""}
@@ -6155,6 +6930,10 @@
         renderOvernightMiningPlan();
         renderMorningDecisions();
         renderPlatformDiagnosis();
+        renderCrossPlatformComparison();
+        renderDualPlatformScripts();
+        renderPlatformMaterialLibrary();
+        renderDataTrustDashboard();
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
         renderExecutionLoop();
@@ -6276,6 +7055,10 @@
         renderOvernightMiningPlan();
         renderMorningDecisions();
         renderPlatformDiagnosis();
+        renderCrossPlatformComparison();
+        renderDualPlatformScripts();
+        renderPlatformMaterialLibrary();
+        renderDataTrustDashboard();
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
         renderExecutionLoop();
@@ -6460,9 +7243,11 @@
         if (!row) return;
         const diagnosis = diagnoseVideo(row);
         const remake = remakePlan(row, diagnosis);
+        const trust = dataTrustForVideo(row);
         const text = [
           `${row.platform}｜${row.accountName}｜${row.title}`,
           `播放 ${formatNumber(row.views)}，收藏/转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}，涨粉 ${row.followersGained ? formatNumber(row.followersGained) : "-"}，每万播放涨粉 ${hasFollowerSignal(row) ? perWan(followerRate(row)) : "-"}，咨询线索 ${hasLeadSignal(row) ? formatNumber(leadCount(row)) : "-"}，每万播放线索 ${hasLeadSignal(row) ? perWan(leadRate(row)) : "-"}，诊断分 ${diagnosis.score}`,
+          `数据可信度：${trust.label} ${Math.round(trust.score)}分｜${trust.summary}${trust.missing.length ? `｜缺失：${trust.missing.join("、")}` : ""}`,
           `优先级：${priorityScore(row, diagnosis)}｜${priorityReason(row, diagnosis)}`,
           `处理策略：${remake.label}｜${remake.detail}`,
           `内容标签：${videoTags(row).join("、") || "-"}`,
