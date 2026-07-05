@@ -1337,11 +1337,12 @@
   function initCurriculumProducts() {
     if (!$("curriculumTableBody")) return;
     const moduleKey = "curriculum";
-    const capabilities = moduleCapabilities(moduleKey);
+    const baseCapabilities = moduleCapabilities(moduleKey);
     const key = "jrc-curriculum-products-v2";
     const maxCloudFileBytes = 30 * 1024 * 1024;
     const currentEmployee = window.JRC_CURRENT_EMPLOYEE || {};
     const isChengOperator = ["chengzhihao", "czh"].includes(String(currentEmployee.username || "").toLowerCase()) || normalizeName(currentEmployee.name) === "程志豪";
+    const capabilities = { ...baseCapabilities, delete: isChengOperator };
     const defaultGradeExpertRules = {
       liudajun: { grades: ["初一", "初二", "初三"], subject: "数学" },
       "刘大君": { grades: ["初一", "初二", "初三"], subject: "数学" },
@@ -1977,7 +1978,7 @@
     }
 
     function curriculumDeleteBlockedMessage() {
-      return "课程资料上传后不能直接删除。如果要改进教案，请更新版本后重新放入；如果是误传需要删除，请联系初中教研专责刘大君或小学教研专责赵萱处理。";
+      return "课程资料上传后不能直接删除。如果要改进教案，请更新版本后重新放入；如果是误传需要删除，请联系管理员。只有程老师有权限删除。";
     }
 
     function curriculumEntries({ keyword = "", sortValue = "newest" } = {}) {
@@ -2044,7 +2045,7 @@
         buttons.push(`<button type="button" data-action="edit" data-index="${index}">编辑</button>`);
       }
       if (capabilities.delete) {
-        buttons.push(`<button type="button" data-action="delete" data-index="${index}">误传联系管理员</button>`);
+        buttons.push(`<button type="button" data-action="delete" data-index="${index}">删除</button>`);
       }
       return buttons.length ? `<div class="folder-file-admin">${buttons.join("")}</div>` : "";
     }
@@ -2084,7 +2085,7 @@
         buttons.push(`<button type="button" data-action="edit" data-index="${index}" style="min-height:30px; padding:0 10px; border-radius:999px; border:1px solid rgba(23,33,50,0.12); background:#fff; color:#172132; cursor:pointer;">编辑</button>`);
       }
       if (capabilities.delete) {
-        buttons.push(`<button type="button" data-action="delete" data-index="${index}" style="min-height:30px; padding:0 10px; border-radius:999px; border:1px solid rgba(180,83,9,0.18); background:rgba(180,83,9,0.08); color:#b45309; cursor:pointer;">误传联系管理员</button>`);
+        buttons.push(`<button type="button" data-action="delete" data-index="${index}" style="min-height:30px; padding:0 10px; border-radius:999px; border:1px solid rgba(185,28,28,0.18); background:rgba(185,28,28,0.08); color:#b91c1c; cursor:pointer;">删除</button>`);
       }
       return buttons.length
         ? `<div style="display:flex; gap:6px; flex-wrap:wrap;">${buttons.join("")}</div>`
@@ -2536,9 +2537,44 @@
       setText("curriculumMessage", `正在编辑 ${rows[index].name}。`);
     }
 
-    function deleteCurriculumRow() {
-      alert(curriculumDeleteBlockedMessage());
-      setText("curriculumMessage", curriculumDeleteBlockedMessage());
+    async function deleteCurriculumRow(index) {
+      if (!isChengOperator) {
+        alert(curriculumDeleteBlockedMessage());
+        setText("curriculumMessage", curriculumDeleteBlockedMessage());
+        return;
+      }
+      const removed = rows[index];
+      if (!removed) return;
+      const label = removed.fileName || removed.name || "这条课程资料";
+      const password = window.prompt(`删除“${label}”需要验证程老师当前登录密码。`);
+      if (password == null) return;
+      if (!String(password).trim()) {
+        setText("curriculumMessage", "没有输入密码，已取消删除。");
+        return;
+      }
+      setText("curriculumMessage", "正在验证密码...");
+      const verified = typeof window.jrcVerifyCurrentPassword === "function"
+        ? await window.jrcVerifyCurrentPassword(password, currentEmployee)
+        : false;
+      if (!verified) {
+        setText("curriculumMessage", "密码不正确，已取消删除。");
+        alert("密码不正确，已取消删除。");
+        return;
+      }
+      if (!window.confirm(`密码已通过。确定删除“${label}”吗？删除后会同步到云端，普通老师无法恢复。`)) {
+        setText("curriculumMessage", "已取消删除。");
+        return;
+      }
+      markRowDeleted(key, removed);
+      rows.splice(index, 1);
+      editingIndex = -1;
+      writeStore(key, rows);
+      recordAudit(moduleKey, "删除", removed.name || removed.fileName, `${removed.grade || "-"}｜${removed.outlineCategory || removed.type || "-"}`);
+      applyTeacherOptions();
+      updateCurriculumFilterControls();
+      resetForm();
+      render();
+      setText("curriculumMessage", `已删除课程资料：${label}。`);
     }
 
     const curriculumRowHandlers = {

@@ -471,7 +471,7 @@ const JRC_ROLE_DIRECTORY_STORAGE_KEY = "jrc-hr-role-directory-v1";
 const JRC_ROLE_DIRECTORY_KNOWLEDGE_MEMBER_NAMES = ["颜雨涵", "高芳燕", "周珊", "李舒", "刘大君", "叶源泽", "赵萱", "郑嘉艺", "陈雨晴"];
 const JRC_SUGGESTION_ADMIN_USERNAMES = ["yeyuanze", "zhaoxuan", "chengzhihao"];
 const JRC_ADMISSIONS_ADMIN_USERNAMES = ["chenyuqing", "chengzhihao", "yanyuhan", "gaofangyan"];
-const JRC_CURRICULUM_ADMIN_USERNAMES = ["zhaoxuan", "chengzhihao"];
+const JRC_CURRICULUM_ADMIN_USERNAMES = ["chengzhihao"];
 const JRC_TEACHING_QUALITY_ADMIN_USERNAMES = ["zhengjiayi", "chengzhihao"];
 const JRC_STUDENT_SERVICE_ADMIN_USERNAMES = ["yanyuhan", "zhoushan", "gaofangyan", "chengzhihao"];
 const JRC_VIDEO_OPS_ADMIN_USERNAMES = ["chengzhihao", "gaofangyan", "chenyuqing"];
@@ -1099,6 +1099,23 @@ function jrcIsSuperAdmin(subject) {
 function jrcFindEmployeeByUsername(username) {
   const normalizedUsername = jrcNormalizeUsername(username);
   return jrcGetAllEmployees().find((employee) => employee.username === normalizedUsername);
+}
+
+async function jrcVerifyCurrentPassword(password, subject = jrcResolveCurrentEmployee()) {
+  const text = String(password || "").trim();
+  const username = jrcNormalizeUsername(subject?.username);
+  if (!text || !username) return false;
+  if (window.JRC_CLOUD?.login) {
+    try {
+      const result = await window.JRC_CLOUD.login(username, text);
+      if (result?.ok && result.data?.employee) return true;
+      if (result && result.ok === false) return false;
+    } catch {
+      // Local fallback below keeps high-risk checks usable if the cloud login check is temporarily unavailable.
+    }
+  }
+  const employee = jrcFindEmployeeByUsername(username);
+  return Boolean(employee && employee.password === text);
 }
 
 function jrcResolveCurrentEmployee() {
@@ -2663,6 +2680,7 @@ function jrcBootstrapAuth() {
   window.JRC_EMPLOYEES = jrcGetAllEmployees();
   window.JRC_ROLE_PERMISSIONS = JRC_ROLE_PERMISSIONS;
   window.jrcHasPermission = jrcHasPermission;
+  window.jrcVerifyCurrentPassword = jrcVerifyCurrentPassword;
   window.JRC_MARK_EMPLOYEE_DEPARTED = jrcMarkEmployeeDeparted;
   window.JRC_UPSERT_EMPLOYEE_FROM_HR = jrcUpsertEmployeeFromHr;
   const currentEmployee = jrcResolveCurrentEmployee();
