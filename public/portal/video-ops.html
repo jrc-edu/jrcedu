@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705o</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705p</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -776,7 +776,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705o";
+        const pageVersion = "20260705p";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -909,8 +909,9 @@
     <script src="/jrcedu/portal/business-modules.js?v=20260703a"></script>
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
+      const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705o";
+      const PAGE_VERSION = "20260705p";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -1737,9 +1738,10 @@
             const cloudPayload = result.data.payload;
             const rawCounts = rawPayloadCounts(cloudPayload);
             const normalizedCloud = normalizeState(cloudPayload);
-            const localDailySkip = state.dailySkip;
+            const localDailySkip = activeDailySkip();
             state = rawCounts.snapshots || rawCounts.accountAudits || rawCounts.rebuildMode ? normalizedCloud : mergeState(state, cloudPayload);
             state.dailySkip = chooseDailySkip(localDailySkip, state.dailySkip);
+            writeLocalDailySkip(state.dailySkip);
             localStorage.setItem(STORE_KEY, JSON.stringify(state));
             renderAll();
             const normalizedCounts = {
@@ -1806,14 +1808,46 @@
 
       function normalizeDailySkip(value = {}) {
         const source = value && typeof value === "object" ? value : {};
+        const items = (Array.isArray(source.items) ? source.items : [])
+          .map(normalizeDailySkipItem)
+          .filter(Boolean);
+        const itemKeys = items.map((item) => item.primaryKey).filter(Boolean);
         return {
           date: normalizeText(source.date) || todayKey(),
           updatedAt: normalizeText(source.updatedAt),
-          videoKeys: Array.from(new Set((Array.isArray(source.videoKeys) ? source.videoKeys : [])
+          videoKeys: Array.from(new Set([...(Array.isArray(source.videoKeys) ? source.videoKeys : []), ...itemKeys]
             .map(normalizeText)
             .filter(Boolean)))
-            .slice(-120)
+            .slice(-120),
+          items: uniqueDailySkipItems(items).slice(-120)
         };
+      }
+
+      function normalizeDailySkipItem(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        const keys = Array.from(new Set([
+          source.primaryKey,
+          source.key,
+          ...(Array.isArray(source.keys) ? source.keys : [])
+        ].map(normalizeText).filter(Boolean))).slice(0, 12);
+        const primaryKey = normalizeText(source.primaryKey || keys[0]);
+        if (!primaryKey && !keys.length) return null;
+        return {
+          primaryKey: primaryKey || keys[0],
+          keys: Array.from(new Set([primaryKey, ...keys].map(normalizeText).filter(Boolean))).slice(0, 12),
+          title: normalizeText(source.title),
+          addedAt: normalizeText(source.addedAt || source.updatedAt)
+        };
+      }
+
+      function uniqueDailySkipItems(items = []) {
+        const map = new Map();
+        items.map(normalizeDailySkipItem).filter(Boolean).forEach((item) => {
+          const key = item.primaryKey || item.keys[0];
+          if (!key) return;
+          map.set(key, { ...(map.get(key) || {}), ...item });
+        });
+        return [...map.values()];
       }
 
       function dailySkipTimeValue(row = {}) {
@@ -1835,17 +1869,100 @@
         return a.videoKeys.length >= b.videoKeys.length ? a : b;
       }
 
+      function readLocalDailySkip() {
+        return normalizeDailySkip(safeParse(localStorage.getItem(DAILY_SKIP_LOCAL_KEY), {}));
+      }
+
+      function writeLocalDailySkip(value = {}) {
+        try {
+          localStorage.setItem(DAILY_SKIP_LOCAL_KEY, JSON.stringify(normalizeDailySkip(value)));
+        } catch {
+          // localStorage can fail in private or restricted browser contexts; the main state still carries the change.
+        }
+      }
+
       function activeDailySkip() {
-        const current = normalizeDailySkip(state.dailySkip || {});
+        const current = chooseDailySkip(readLocalDailySkip(), state.dailySkip || {});
         return current.date === todayKey() ? current : { date: todayKey(), updatedAt: "", videoKeys: [] };
       }
 
       function dailySkipKeys() {
-        return new Set(activeDailySkip().videoKeys);
+        const current = activeDailySkip();
+        return new Set([
+          ...(current.videoKeys || []),
+          ...((current.items || []).flatMap((item) => item.keys || []))
+        ].map(normalizeText).filter(Boolean));
       }
 
       function isDailySkipped(row) {
-        return dailySkipKeys().has(videoKey(row));
+        const keys = dailySkipKeys();
+        return dailySkipKeysForRow(row).some((key) => keys.has(key));
+      }
+
+      function compactIdentity(value) {
+        return normalizeText(value).replace(/\s+/g, " ").toLowerCase();
+      }
+
+      function dailySkipIdentity(prefix, value) {
+        const text = compactIdentity(value);
+        return text ? `${prefix}:${text}` : "";
+      }
+
+      function dailySkipPrimaryKey(row = {}) {
+        return dailySkipIdentity("video", row.videoId)
+          || dailySkipIdentity("url", originalVideoUrl(row) || row.url)
+          || dailySkipIdentity("title", [row.platform, row.accountName, row.title].map(normalizeText).filter(Boolean).join("|"))
+          || dailySkipIdentity("id", row.id)
+          || videoKey(row);
+      }
+
+      function dailySkipKeysForRow(row = {}) {
+        return Array.from(new Set([
+          dailySkipPrimaryKey(row),
+          dailySkipIdentity("id", row.id),
+          dailySkipIdentity("video", row.videoId),
+          dailySkipIdentity("url", originalVideoUrl(row) || row.url),
+          dailySkipIdentity("title", [row.platform, row.accountName, row.title].map(normalizeText).filter(Boolean).join("|")),
+          dailySkipIdentity("legacy", videoKey(row)),
+          videoKey(row)
+        ].map(normalizeText).filter(Boolean)));
+      }
+
+      function dailySkipItems(skip = {}) {
+        const current = normalizeDailySkip(skip);
+        const items = [...(current.items || [])];
+        current.videoKeys.forEach((key) => {
+          if (!items.some((item) => item.primaryKey === key || (item.keys || []).includes(key))) {
+            items.push({ primaryKey: key, keys: [key], title: "", addedAt: current.updatedAt });
+          }
+        });
+        return uniqueDailySkipItems(items);
+      }
+
+      function dailySkipItemForRow(row = {}) {
+        const keys = dailySkipKeysForRow(row);
+        const primaryKey = dailySkipPrimaryKey(row) || keys[0];
+        return normalizeDailySkipItem({
+          primaryKey,
+          keys,
+          title: videoShortTitle(row),
+          addedAt: new Date().toISOString()
+        });
+      }
+
+      function dailySkipItemMatchesRow(item = {}, row = {}) {
+        const rowKeys = new Set(dailySkipKeysForRow(row));
+        return normalizeDailySkipItem(item)?.keys?.some((key) => rowKeys.has(key));
+      }
+
+      function buildDailySkipFromItems(items = [], updatedAt = new Date().toISOString()) {
+        const normalizedItems = uniqueDailySkipItems(items).slice(-120);
+        return normalizeDailySkip({
+          date: todayKey(),
+          updatedAt,
+          videoKeys: normalizedItems.map((item) => item.primaryKey).filter(Boolean),
+          items: normalizedItems
+        });
       }
 
       function latestSnapshots() {
@@ -3025,11 +3142,10 @@
 
       function commandCenterLeaders() {
         const rows = ownVideoRows().filter(isUsefulSnapshot);
-        const skippedKeys = dailySkipKeys();
-        const activeRows = rows.filter((row) => !skippedKeys.has(videoKey(row)));
+        const activeRows = rows.filter((row) => !isDailySkipped(row));
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row), remake: null }));
         diagnostics.forEach((item) => { item.remake = remakePlan(item.row, item.diagnosis); });
-        const activeDiagnostics = diagnostics.filter((item) => !skippedKeys.has(videoKey(item.row)));
+        const activeDiagnostics = diagnostics.filter((item) => !isDailySkipped(item.row));
         const remakeCandidates = activeDiagnostics
           .filter((item) => ["sameStructure", "titleUpgrade", "series"].includes(item.remake.key))
           .sort((a, b) => compareTraceableDiagnostics(a, b) || priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis));
@@ -3056,7 +3172,7 @@
         return {
           rows,
           activeRows,
-          skippedCount: rows.filter((row) => skippedKeys.has(videoKey(row))).length,
+          skippedCount: rows.filter(isDailySkipped).length,
           diagnostics,
           activeDiagnostics,
           candidates: {
@@ -3251,12 +3367,13 @@
         summary.textContent = data.summary;
         if (skipStrip) {
           const skipped = activeDailySkip();
-          const skippedRows = state.snapshots.filter((row) => skipped.videoKeys.includes(videoKey(row)));
-          if (skipped.videoKeys.length) {
+          const skippedRows = latestSnapshots().filter(isDailySkipped);
+          const skippedCount = skippedRows.length || dailySkipItems(skipped).length || skipped.videoKeys.length;
+          if (skippedCount) {
             skipStrip.hidden = false;
             skipStrip.innerHTML = `
               <div>
-                <strong>今天已跳过 ${skipped.videoKeys.length} 条</strong>
+                <strong>今天已跳过 ${skippedCount} 条</strong>
                 <span>${escapeHtml(skippedRows.slice(0, 3).map(videoShortTitle).join("、") || "这些内容今天先不推荐")}。它们没有删除，点恢复后会回来，明天也会重新参与推荐。</span>
               </div>
               <button class="button secondary" type="button" data-video-action="reset-daily-skips">恢复跳过</button>
@@ -3701,7 +3818,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705o",
+          version: "20260705p",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5515,28 +5632,37 @@
         saveState(nextSaved ? "已收藏这条视频，后面可以筛选“只看已收藏”。" : "已取消收藏。");
       }
 
-      async function skipDailyVideo(videoId) {
+      function skipDailyVideo(videoId) {
         const row = state.snapshots.find((item) => item.id === videoId);
         if (!row) {
           byId("videoOpsMessage").textContent = "没有找到这条视频，暂时不能换一个。请刷新页面后再试。";
           return;
         }
-        const key = videoKey(row);
         const current = activeDailySkip();
-        const keys = Array.from(new Set([...current.videoKeys, key])).slice(-120);
-        state.dailySkip = { date: todayKey(), updatedAt: new Date().toISOString(), videoKeys: keys };
-        const saved = await saveState(`正在换一个：今天先不推荐「${videoShortTitle(row)}」，系统正在保存...`);
-        byId("videoOpsMessage").textContent = saved
-          ? `已换一个：今天先不推荐「${videoShortTitle(row)}」，刷新后也会保留。点“恢复跳过”可让它回来。`
-          : `已在本机换一个：今天先不推荐「${videoShortTitle(row)}」。但云端保存暂时失败，刷新前请稍等或重新点一次。`;
+        const skipItem = dailySkipItemForRow(row);
+        const nextItems = [
+          ...dailySkipItems(current).filter((item) => !dailySkipItemMatchesRow(item, row)),
+          skipItem
+        ].filter(Boolean);
+        state.dailySkip = buildDailySkipFromItems(nextItems);
+        writeLocalDailySkip(state.dailySkip);
+        saveState(`已换一个：今天先不推荐「${videoShortTitle(row)}」，系统已自动递补下一条。`)
+          .then((saved) => {
+            if (!saved) {
+              byId("videoOpsMessage").textContent = `已在本机换一个：今天先不推荐「${videoShortTitle(row)}」。云端稍后会自动同步，刷新本机页面也会保留。`;
+            }
+          });
       }
 
-      async function resetDailySkips() {
-        state.dailySkip = { date: todayKey(), updatedAt: new Date().toISOString(), videoKeys: [] };
-        const saved = await saveState("正在恢复今日跳过，系统正在保存...");
-        byId("videoOpsMessage").textContent = saved
-          ? "已恢复今日跳过，今天被换掉的内容会重新参与推荐。"
-          : "已在本机恢复今日跳过，但云端保存暂时失败，刷新前请稍等或重新点一次。";
+      function resetDailySkips() {
+        state.dailySkip = buildDailySkipFromItems([]);
+        writeLocalDailySkip(state.dailySkip);
+        saveState("已恢复今日跳过，今天被换掉的内容会重新参与推荐。")
+          .then((saved) => {
+            if (!saved) {
+              byId("videoOpsMessage").textContent = "已在本机恢复今日跳过。云端稍后会自动同步，刷新本机页面也会保留。";
+            }
+          });
       }
 
       function originalVideoUrl(row = {}) {
@@ -5639,11 +5765,13 @@
             byId("videoOpsMessage").textContent = "已取消换一个。";
             return;
           }
-          await skipDailyVideo(videoId);
+          button.disabled = true;
+          skipDailyVideo(videoId);
           return;
         }
         if (action === "reset-daily-skips") {
-          await resetDailySkips();
+          button.disabled = true;
+          resetDailySkips();
           return;
         }
         if (action === "open-original") {
