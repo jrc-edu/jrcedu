@@ -100,6 +100,8 @@
       .decision-card { padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: #fff; }
       .decision-card strong { display: block; font-size: 15px; }
       .decision-card p { margin-top: 6px; font-size: 13px; line-height: 1.65; }
+      .decision-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .decision-actions .button { min-height: 34px; padding: 0 12px; font-size: 12px; }
       .decision-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.06); }
       .decision-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.06); }
       .decision-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.05); }
@@ -113,6 +115,8 @@
       .script-card dl { display: grid; gap: 9px; margin: 12px 0 0; }
       .script-card dt { color: var(--brand-dark); font-size: 12px; font-weight: 900; }
       .script-card dd { margin: 4px 0 0; color: var(--ink); font-size: 13px; line-height: 1.65; }
+      .script-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+      .script-actions .button { min-height: 34px; padding: 0 12px; font-size: 12px; }
       .method-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
       .method-list li { padding: 10px 12px; border-radius: 13px; background: rgba(13,148,136,0.07); color: var(--ink); font-size: 13px; line-height: 1.6; }
       .command-panel { margin-top: 18px; border-color: rgba(13,148,136,0.20); background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(235,250,246,0.90)); }
@@ -267,7 +271,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705g</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705h</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -734,7 +738,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705g";
+        const pageVersion = "20260705h";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -868,7 +872,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705g";
+      const PAGE_VERSION = "20260705h";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -1153,6 +1157,7 @@
           collectionPlan: normalizeCollectionPlan(source.collectionPlan || {}),
           analysisStatus: normalizeAnalysisStatus(source.analysisStatus || {}),
           aiReport: normalizeAiReport(source.aiReport || {}),
+          dailySkip: normalizeDailySkip(source.dailySkip || {}),
           warnings: Array.isArray(source.warnings) ? source.warnings.map(normalizeText).filter(Boolean).slice(-40) : [],
           updatedAt: source.updatedAt || ""
         };
@@ -1418,6 +1423,7 @@
         let collectionPlan = normalizeCollectionPlan({});
         let analysisStatus = normalizeAnalysisStatus({});
         let aiReport = normalizeAiReport({});
+        let dailySkip = normalizeDailySkip({});
         let warnings = [];
         states.map(normalizeState).forEach((item) => {
           item.accounts.forEach((row) => accountMap.set(row.id || accountKey(row), { ...(accountMap.get(row.id || accountKey(row)) || {}), ...row }));
@@ -1434,6 +1440,9 @@
           if (item.aiReport?.generatedAt && (!aiReport.generatedAt || String(item.aiReport.generatedAt).localeCompare(String(aiReport.generatedAt)) >= 0)) {
             aiReport = item.aiReport;
           }
+          if (item.dailySkip?.date && String(item.dailySkip.date).localeCompare(String(dailySkip.date || "")) >= 0) {
+            dailySkip = item.dailySkip;
+          }
         });
         return normalizeState({
           accounts: [...accountMap.values()],
@@ -1443,6 +1452,7 @@
           collectionPlan,
           analysisStatus,
           aiReport,
+          dailySkip,
           warnings,
           updatedAt: new Date().toISOString()
         });
@@ -1674,6 +1684,37 @@
 
       function videoKey(row) {
         return [row.platform, row.accountName, row.videoId || row.url || row.title].map(normalizeText).join("|");
+      }
+
+      function todayKey() {
+        const date = new Date();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${date.getFullYear()}-${month}-${day}`;
+      }
+
+      function normalizeDailySkip(value = {}) {
+        const source = value && typeof value === "object" ? value : {};
+        return {
+          date: normalizeText(source.date) || todayKey(),
+          videoKeys: Array.from(new Set((Array.isArray(source.videoKeys) ? source.videoKeys : [])
+            .map(normalizeText)
+            .filter(Boolean)))
+            .slice(-120)
+        };
+      }
+
+      function activeDailySkip() {
+        const current = normalizeDailySkip(state.dailySkip || {});
+        return current.date === todayKey() ? current : { date: todayKey(), videoKeys: [] };
+      }
+
+      function dailySkipKeys() {
+        return new Set(activeDailySkip().videoKeys);
+      }
+
+      function isDailySkipped(row) {
+        return dailySkipKeys().has(videoKey(row));
       }
 
       function latestSnapshots() {
@@ -2797,6 +2838,17 @@
           <div class="decision-card ${escapeHtml(card.tone || "")}">
             <strong>${escapeHtml(card.title)}</strong>
             <p>${escapeHtml(card.body)}</p>
+            ${card.videoId ? `
+              <div class="decision-actions">
+                <button class="button" type="button" data-video-action="skip-daily" data-video-id="${escapeHtml(card.videoId)}">换一个</button>
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
+              </div>
+            ` : ""}
+            ${card.resetAction ? `
+              <div class="decision-actions">
+                <button class="button secondary" type="button" data-video-action="reset-daily-skips">恢复跳过</button>
+              </div>
+            ` : ""}
           </div>
         `).join("");
       }
@@ -2811,30 +2863,55 @@
 
       function commandCenterLeaders() {
         const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const skippedKeys = dailySkipKeys();
+        const activeRows = rows.filter((row) => !skippedKeys.has(videoKey(row)));
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row), remake: null }));
         diagnostics.forEach((item) => { item.remake = remakePlan(item.row, item.diagnosis); });
-        const remake = diagnostics
+        const activeDiagnostics = diagnostics.filter((item) => !skippedKeys.has(videoKey(item.row)));
+        const remakeCandidates = activeDiagnostics
           .filter((item) => ["sameStructure", "titleUpgrade", "series"].includes(item.remake.key))
-          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis))[0] || null;
-        const growth = rows.slice()
+          .sort((a, b) => priorityScore(b.row, b.diagnosis) - priorityScore(a.row, a.diagnosis));
+        const growthCandidates = activeRows.slice()
           .filter((row) => Number(row.followersGained || 0) > 0)
-          .sort((a, b) => (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a))[0] || null;
-        const conversion = rows.slice()
+          .sort((a, b) => (b.followersGained || 0) - (a.followersGained || 0) || followerRate(b) - followerRate(a));
+        const conversionCandidates = activeRows.slice()
           .filter((row) => visitConversionCount(row) > 0)
-          .sort((a, b) => visitConversionCount(b) - visitConversionCount(a) || visitConversionRate(b) - visitConversionRate(a))[0] || null;
-        const saveShare = rows.slice()
+          .sort((a, b) => visitConversionCount(b) - visitConversionCount(a) || visitConversionRate(b) - visitConversionRate(a));
+        const saveShareCandidates = activeRows.slice()
           .filter((row) => (row.favorites || 0) + (row.shares || 0) > 0)
-          .sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)) || saveShareRate(b) - saveShareRate(a))[0] || null;
-        const retentionWeak = rows.slice()
+          .sort((a, b) => ((b.favorites || 0) + (b.shares || 0)) - ((a.favorites || 0) + (a.shares || 0)) || saveShareRate(b) - saveShareRate(a));
+        const retentionWeakCandidates = activeRows.slice()
           .filter((row) => Number(row.completeRate || 0) > 0 || Number(row.avgWatchSeconds || 0) > 0)
           .sort((a, b) => {
             const leftRatio = averageWatchRatio(a) || Number(a.completeRate || 0) || 1;
             const rightRatio = averageWatchRatio(b) || Number(b.completeRate || 0) || 1;
             return leftRatio - rightRatio || (b.views || 0) - (a.views || 0);
-          })[0] || null;
-        const brand = rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0))[0] || null;
-        const latest = rows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")))[0] || null;
-        return { rows, diagnostics, remake, growth, conversion, saveShare, retentionWeak, brand, latest };
+          });
+        const brandCandidates = activeRows.slice().sort((a, b) => (b.views || 0) - (a.views || 0));
+        const latestCandidates = activeRows.slice().sort((a, b) => String(b.publishedAt || b.capturedAt || "").localeCompare(String(a.publishedAt || a.capturedAt || "")));
+        return {
+          rows,
+          activeRows,
+          skippedCount: rows.filter((row) => skippedKeys.has(videoKey(row))).length,
+          diagnostics,
+          activeDiagnostics,
+          candidates: {
+            remake: remakeCandidates,
+            growth: growthCandidates,
+            conversion: conversionCandidates,
+            saveShare: saveShareCandidates,
+            retentionWeak: retentionWeakCandidates,
+            brand: brandCandidates,
+            latest: latestCandidates
+          },
+          remake: remakeCandidates[0] || null,
+          growth: growthCandidates[0] || null,
+          conversion: conversionCandidates[0] || null,
+          saveShare: saveShareCandidates[0] || null,
+          retentionWeak: retentionWeakCandidates[0] || null,
+          brand: brandCandidates[0] || null,
+          latest: latestCandidates[0] || null
+        };
       }
 
       function commandVideoLine(row = {}, metric = "") {
@@ -2844,6 +2921,7 @@
       function buildShootingCommandCenter() {
         const leaders = commandCenterLeaders();
         const rows = leaders.rows || [];
+        const activeRows = leaders.activeRows || [];
         if (!rows.length) {
           return {
             badge: "等待数据",
@@ -2856,6 +2934,26 @@
               { tone: "", label: "转化承接", value: "待定", note: "采到主页访问后自动判断" }
             ],
             list: [{ tone: "warn", title: "先完成自有账号建档", body: "没有数据时不做拍摄方向判断，先让采集器补齐历史视频。" }]
+          };
+        }
+        if (!activeRows.length) {
+          return {
+            badge: "今日已跳过",
+            tone: "warn",
+            skippedCount: leaders.skippedCount || 0,
+            summary: `今天已经跳过 ${leaders.skippedCount || 0} 条候选。可以恢复跳过，重新从最强推荐开始挑。`,
+            grid: [
+              { tone: "warn", label: "账号样本", value: `${rows.length}条`, note: "历史样本仍保留" },
+              { tone: "warn", label: "今日候选", value: "已用完", note: "恢复后重新推荐" },
+              { tone: "", label: "递补逻辑", value: "强到弱", note: "复拍、涨粉、转化分别递补" },
+              { tone: "good", label: "操作", value: "可恢复", note: "不会删除任何历史数据" }
+            ],
+            list: [{
+              tone: "warn",
+              title: "今日候选已经全部先不拍",
+              body: "如果是误点，点“恢复跳过”后，系统会重新按播放、涨粉、咨询、收藏转发和留存信号排序。",
+              resetAction: true
+            }]
           };
         }
         const profile = dataReadinessProfile();
@@ -2887,25 +2985,41 @@
           }
         ];
         const list = [];
-        if (leaders.remake) {
+        const usedCommandKeys = new Set();
+        const rememberCommandRow = (row) => {
+          if (!row) return false;
+          const key = videoKey(row);
+          if (usedCommandKeys.has(key)) return false;
+          usedCommandKeys.add(key);
+          return true;
+        };
+        const nextDiagnostic = (items = []) => (items || []).find((item) => item?.row && !usedCommandKeys.has(videoKey(item.row))) || null;
+        const nextRow = (items = []) => (items || []).find((row) => row && !usedCommandKeys.has(videoKey(row))) || null;
+        const remakePick = nextDiagnostic(leaders.candidates?.remake);
+        if (remakePick && rememberCommandRow(remakePick.row)) {
           list.push({
             tone: "good",
-            title: `今天第一条：复拍「${videoShortTitle(leaders.remake.row)}」`,
-            body: `${leaders.remake.remake.detail} 这条播放 ${formatNumber(leaders.remake.row.views)}、收藏转发 ${formatNumber((leaders.remake.row.favorites || 0) + (leaders.remake.row.shares || 0))}、涨粉 ${formatNumber(leaders.remake.row.followersGained || 0)}，优先拆标题结构和题型包装。`
+            title: `今天第一条：复拍「${videoShortTitle(remakePick.row)}」`,
+            body: `${remakePick.remake.detail} 这条播放 ${formatNumber(remakePick.row.views)}、收藏转发 ${formatNumber((remakePick.row.favorites || 0) + (remakePick.row.shares || 0))}、涨粉 ${formatNumber(remakePick.row.followersGained || 0)}，优先拆标题结构和题型包装。`,
+            videoId: remakePick.row.id
           });
         }
-        if (leaders.growth) {
+        const growthPick = nextRow(leaders.candidates?.growth);
+        if (growthPick && rememberCommandRow(growthPick)) {
           list.push({
             tone: "good",
-            title: `今天第二条：拆涨粉结构「${videoShortTitle(leaders.growth)}」`,
-            body: `这条涨粉 ${formatNumber(leaders.growth.followersGained)}，每万播放涨粉 ${perWan(followerRate(leaders.growth))}。重点保留人群定位、家长痛点和关注理由。`
+            title: `今天第二条：拆涨粉结构「${videoShortTitle(growthPick)}」`,
+            body: `这条涨粉 ${formatNumber(growthPick.followersGained)}，每万播放涨粉 ${perWan(followerRate(growthPick))}。重点保留人群定位、家长痛点和关注理由。`,
+            videoId: growthPick.id
           });
         }
-        if (leaders.conversion) {
+        const conversionPick = nextRow(leaders.candidates?.conversion);
+        if (conversionPick && rememberCommandRow(conversionPick)) {
           list.push({
             tone: "warn",
-            title: `今天第三件事：补转化承接「${videoShortTitle(leaders.conversion)}」`,
-            body: `这条主页访问/线索合计 ${formatNumber(visitConversionCount(leaders.conversion))}，说明内容能把人带到账号页。今天要检查主页置顶、评论关键词、私信入口和结尾口播。`
+            title: `今天第三件事：补转化承接「${videoShortTitle(conversionPick)}」`,
+            body: `这条主页访问/线索合计 ${formatNumber(visitConversionCount(conversionPick))}，说明内容能把人带到账号页。今天要检查主页置顶、评论关键词、私信入口和结尾口播。`,
+            videoId: conversionPick.id
           });
         } else {
           list.push({
@@ -2914,25 +3028,31 @@
             body: "当前没有明确咨询线索，不能只追播放。所有新视频统一加评论区关键词、主页置顶说明和结尾口播。"
           });
         }
-        if (leaders.saveShare) {
+        const saveSharePick = nextRow(leaders.candidates?.saveShare);
+        if (saveSharePick && rememberCommandRow(saveSharePick)) {
           list.push({
             tone: "",
-            title: `做成可收藏题型库「${videoShortTitle(leaders.saveShare)}」`,
-            body: `收藏转发 ${formatNumber((leaders.saveShare.favorites || 0) + (leaders.saveShare.shares || 0))}。这类内容适合做系列，标题要强调“孩子能照着用的方法”。`
+            title: `做成可收藏题型库「${videoShortTitle(saveSharePick)}」`,
+            body: `收藏转发 ${formatNumber((saveSharePick.favorites || 0) + (saveSharePick.shares || 0))}。这类内容适合做系列，标题要强调“孩子能照着用的方法”。`,
+            videoId: saveSharePick.id
           });
         }
-        if (leaders.retentionWeak) {
+        const retentionPick = nextRow(leaders.candidates?.retentionWeak);
+        if (retentionPick && rememberCommandRow(retentionPick)) {
           list.push({
             tone: "danger",
-            title: `优先重剪低留存样本「${videoShortTitle(leaders.retentionWeak)}」`,
-            body: `完播/观看占比偏弱，先重写第一句话，把结论或冲突前置，再删掉重复铺垫。`
+            title: `优先重剪低留存样本「${videoShortTitle(retentionPick)}」`,
+            body: `完播/观看占比偏弱，先重写第一句话，把结论或冲突前置，再删掉重复铺垫。`,
+            videoId: retentionPick.id
           });
         }
-        if (leaders.brand) {
+        const brandPick = nextRow(leaders.candidates?.brand);
+        if (brandPick && rememberCommandRow(brandPick)) {
           list.push({
             tone: "good",
-            title: `不要丢掉品牌曝光王「${videoShortTitle(leaders.brand)}」`,
-            body: `播放 ${formatNumber(leaders.brand.views)}。这类对宁波本地影响力很重要，不要因为直接咨询少就否定，要把它和转化型视频分开评价。`
+            title: `不要丢掉品牌曝光王「${videoShortTitle(brandPick)}」`,
+            body: `播放 ${formatNumber(brandPick.views)}。这类对宁波本地影响力很重要，不要因为直接咨询少就否定，要把它和转化型视频分开评价。`,
+            videoId: brandPick.id
           });
         }
         list.push({
@@ -2946,10 +3066,11 @@
           badge: enough ? "可执行" : "初步可用",
           tone: enough ? "good" : "warn",
           summary: enough
-            ? "这块直接指导今天怎么拍：先复拍高价值结构，再拆涨粉结构，最后补转化承接和低留存重剪。"
-            : `当前 ${rows.length} 条样本可做初步判断；继续补历史数据后清单会更稳。`,
+            ? `这块直接指导今天怎么拍：先复拍高价值结构，再拆涨粉结构，最后补转化承接和低留存重剪。${leaders.skippedCount ? `今日已跳过 ${leaders.skippedCount} 条。` : ""}`
+            : `当前 ${rows.length} 条样本可做初步判断；继续补历史数据后清单会更稳。${leaders.skippedCount ? `今日已跳过 ${leaders.skippedCount} 条。` : ""}`,
           grid,
-          list: list.slice(0, 4)
+          list: list.slice(0, 4),
+          skippedCount: leaders.skippedCount || 0
         };
       }
 
@@ -3041,6 +3162,7 @@
           ? "如果孩子这类题连续错，先别盲目刷题，可以把年级和最近错题发来，我们帮你判断该补基础还是该做培优。"
           : "想要我继续拆这类题，可以在评论区打年级；我们后面按年级继续讲。";
         return {
+          videoId: row.id || "",
           tone: purpose === "retention" ? "warn" : "good",
           label: fallbackTitle,
           sourceTitle: videoShortTitle(row),
@@ -3069,11 +3191,40 @@
             ]
           };
         }
-        if (leaders.remake) cards.push(buildScriptCard(leaders.remake.row, "remake", "第一条：复拍高价值结构"));
-        if (leaders.growth && (!leaders.remake || videoKey(leaders.growth) !== videoKey(leaders.remake.row))) cards.push(buildScriptCard(leaders.growth, "growth", "第二条：做涨粉型内容"));
-        if (leaders.conversion) cards.push(buildScriptCard(leaders.conversion, "conversion", "第三条：补咨询转化承接"));
-        if (cards.length < 3 && leaders.retentionWeak) cards.push(buildScriptCard(leaders.retentionWeak, "retention", "备选：重剪低留存样本"));
-        if (cards.length < 3 && leaders.saveShare) cards.push(buildScriptCard(leaders.saveShare, "remake", "备选：做收藏系列"));
+        if (!leaders.activeRows?.length) {
+          return {
+            badge: "今日已跳过",
+            summary: `今天已经跳过 ${leaders.skippedCount || 0} 条候选。点“恢复跳过”后重新生成脚本。`,
+            cards: [],
+            methods: [
+              "今天先不拍的内容只影响今日推荐，不会删除历史视频数据。",
+              "恢复跳过后，系统会按播放、涨粉、咨询、收藏转发和留存重新给出脚本。"
+            ],
+            resetAction: true
+          };
+        }
+        const usedKeys = new Set();
+        const pushCard = (row, purpose, label) => {
+          if (!row) return;
+          const key = videoKey(row);
+          if (usedKeys.has(key)) return;
+          usedKeys.add(key);
+          cards.push(buildScriptCard(row, purpose, label));
+        };
+        const pushFirstRow = (rows = [], purpose, label) => {
+          const row = (rows || []).find((item) => item && !usedKeys.has(videoKey(item)));
+          pushCard(row, purpose, label);
+        };
+        const pushFirstDiagnostic = (items = [], purpose, label) => {
+          const item = (items || []).find((candidate) => candidate?.row && !usedKeys.has(videoKey(candidate.row)));
+          pushCard(item?.row, purpose, label);
+        };
+        pushFirstDiagnostic(leaders.candidates?.remake, "remake", "第一条：复拍高价值结构");
+        pushFirstRow(leaders.candidates?.growth, "growth", "第二条：做涨粉型内容");
+        pushFirstRow(leaders.candidates?.conversion, "conversion", "第三条：补咨询转化承接");
+        if (cards.length < 3) pushFirstRow(leaders.candidates?.retentionWeak, "retention", "备选：重剪低留存样本");
+        if (cards.length < 3) pushFirstRow(leaders.candidates?.saveShare, "remake", "备选：做收藏系列");
+        if (cards.length < 3) pushFirstRow(leaders.candidates?.brand, "growth", "备选：放大品牌影响");
         const methods = [
           "平台推荐先看用户行为信号：看完、复看、点赞、评论、转发、关注，比单纯粉丝数更能说明内容能不能继续扩散。",
           "教培账号不能只追播放：高播放负责本地影响力，收藏转发负责干货价值，涨粉负责长期账号池，咨询/主页访问才负责招生转化。",
@@ -3082,9 +3233,10 @@
         ];
         return {
           badge: cards.length ? "可直接拍" : "待补数据",
-          summary: cards.length ? "下面每张卡都能直接交给拍摄老师：照标题、开头、正文三步和结尾承接执行。" : "当前样本不足，先看采集状态。",
+          summary: cards.length ? `下面每张卡都能直接交给拍摄老师：照标题、开头、正文三步和结尾承接执行。${leaders.skippedCount ? `今日已跳过 ${leaders.skippedCount} 条。` : ""}` : "当前样本不足，先看采集状态。",
           cards: cards.slice(0, 3),
-          methods
+          methods,
+          skippedCount: leaders.skippedCount || 0
         };
       }
 
@@ -3109,8 +3261,17 @@
               <div><dt>结尾承接</dt><dd>${escapeHtml(card.closing)}</dd></div>
               <div><dt>为什么拍</dt><dd>${escapeHtml(card.reason)}</dd></div>
             </dl>
+            ${card.videoId ? `
+              <div class="script-actions">
+                <button class="button" type="button" data-video-action="skip-daily" data-video-id="${escapeHtml(card.videoId)}">换一个</button>
+                <button class="button secondary" type="button" data-video-action="focus" data-video-id="${escapeHtml(card.videoId)}">看原视频</button>
+              </div>
+            ` : ""}
           </article>
-        `).join("") : `<div class="empty">还没有足够数据生成拍摄脚本。先让 Mac mini 采集器补齐自有账号历史视频。</div>`;
+        `).join("") : `<div class="empty">
+          ${data.resetAction ? "今天的候选已经全部先不拍。恢复跳过后会重新生成脚本。" : "还没有足够数据生成拍摄脚本。先让 Mac mini 采集器补齐自有账号历史视频。"}
+          ${data.resetAction ? `<div class="script-actions"><button class="button secondary" type="button" data-video-action="reset-daily-skips">恢复跳过</button></div>` : ""}
+        </div>`;
         methods.innerHTML = data.methods.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
       }
 
@@ -3334,7 +3495,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705g",
+          version: "20260705h",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5044,6 +5205,21 @@
         saveState(nextSaved ? "已收藏这条视频，后面可以筛选“只看已收藏”。" : "已取消收藏。");
       }
 
+      function skipDailyVideo(videoId) {
+        const row = state.snapshots.find((item) => item.id === videoId);
+        if (!row) return;
+        const key = videoKey(row);
+        const current = activeDailySkip();
+        const keys = Array.from(new Set([...current.videoKeys, key])).slice(-120);
+        state.dailySkip = { date: todayKey(), videoKeys: keys };
+        saveState(`已换一个：今天先不拍「${videoShortTitle(row)}」，系统已自动递补下一条。`);
+      }
+
+      function resetDailySkips() {
+        state.dailySkip = { date: todayKey(), videoKeys: [] };
+        saveState("已恢复今日跳过，拍摄指挥台和脚本已重新按强弱排序。");
+      }
+
       function focusVideo(videoId) {
         const rows = filteredVideos();
         const index = rows.findIndex((row) => row.id === videoId);
@@ -5067,6 +5243,14 @@
         const videoId = button.dataset.videoId;
         if (action === "toggle-save") {
           toggleSaveVideo(videoId);
+          return;
+        }
+        if (action === "skip-daily") {
+          skipDailyVideo(videoId);
+          return;
+        }
+        if (action === "reset-daily-skips") {
+          resetDailySkips();
           return;
         }
         if (action === "focus") {
@@ -5260,6 +5444,8 @@
         });
         byId("priorityVideoList").addEventListener("click", handleVideoAction);
         byId("videoList").addEventListener("click", handleVideoAction);
+        byId("shootingCommandList")?.addEventListener("click", handleVideoAction);
+        byId("dailyScriptGrid")?.addEventListener("click", handleVideoAction);
         byId("copyShootingTasksButton").addEventListener("click", async () => {
           await navigator.clipboard?.writeText(shootingTasksText());
           byId("videoOpsMessage").textContent = "已复制自有账号深度挖掘任务。";
