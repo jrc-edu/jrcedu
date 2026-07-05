@@ -1978,7 +1978,7 @@
     }
 
     function curriculumDeleteBlockedMessage() {
-      return "课程资料上传后不能直接删除。如果要改进教案，请更新版本后重新放入；如果是误传需要删除，请联系管理员。只有程老师有权限删除。";
+      return "课程资料上传后不能直接删除。如果要改进教案，请更新版本后重新放入；如果是误传需要删除，请联系管理员。";
     }
 
     function curriculumEntries({ keyword = "", sortValue = "newest" } = {}) {
