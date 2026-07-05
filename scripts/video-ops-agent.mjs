@@ -661,6 +661,13 @@ function pickApiPublishedAt(value) {
   return extractPublishedAt(raw);
 }
 
+function timestampToIso(value) {
+  const number = Number(value) || 0;
+  if (!number) return "";
+  const ms = number > 100000000000 ? number : number > 1000000000 ? number * 1000 : 0;
+  return ms ? new Date(ms).toISOString() : "";
+}
+
 function metricValueFromObject(value, metricKey, depth = 0, pathName = "") {
   if (depth > 6 || value == null) return 0;
   const patterns = METRIC_KEY_PATTERNS[metricKey] || [];
@@ -1704,6 +1711,80 @@ async function collectVideoCards(page, account, config, onProgress = async () =>
   return dedupeCards(collected, target);
 }
 
+async function fetchDouyinWorkListPage(page, cursor = 0, count = 12) {
+  const result = await page.evaluate(async ({ cursorValue, countValue }) => {
+    const params = new URLSearchParams({
+      status: "0",
+      count: String(countValue),
+      max_cursor: String(cursorValue || 0),
+      scene: "star_atlas",
+      device_platform: "android",
+      aid: "1128"
+    });
+    const url = `https://creator.douyin.com/janus/douyin/creator/pc/work_list?${params.toString()}`;
+    const response = await fetch(url, { credentials: "include" });
+    const text = await response.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    return {
+      ok: response.ok,
+      status: response.status,
+      url,
+      json,
+      text: json ? "" : text.slice(0, 300)
+    };
+  }, { cursorValue: cursor, countValue: count });
+  if (!result?.ok || !result?.json) {
+    throw new Error(`抖音作品接口失败 ${result?.status || ""}: ${result?.text || "无返回"}`);
+  }
+  return result;
+}
+
+async function fetchDouyinWorkListSnapshots(page, account, config, onProgress = async () => {}) {
+  if (!/抖音|douyin/i.test(account.platform || "")) return { snapshots: [], total: 0 };
+  if ((account.accountType || "自有账号") === "同行账号") return { snapshots: [], total: 0 };
+  const target = Math.max(1, Number(account.maxVideosPerRun || config.limits?.maxVideosPerAccount || 30));
+  const count = 12;
+  const snapshots = [];
+  const seenCursor = new Set();
+  const seenKeys = new Set();
+  let cursor = 0;
+  let total = 0;
+  const maxPages = Math.min(80, Math.ceil(target / count) + 8);
+
+  for (let pageIndex = 0; pageIndex < maxPages && snapshots.length < target; pageIndex += 1) {
+    if (seenCursor.has(String(cursor))) break;
+    seenCursor.add(String(cursor));
+    const result = await fetchDouyinWorkListPage(page, cursor, count);
+    const json = result.json || {};
+    total = Number(json.total || total || 0) || total;
+    const pageSnapshots = douyinWorkListSnapshotsFromJson(json, account, result.url);
+    pageSnapshots.forEach((snapshot) => {
+      const key = stableSnapshotKey(snapshot);
+      if (!key.replace(/\|/g, "") || seenKeys.has(key)) return;
+      seenKeys.add(key);
+      snapshots.push(snapshot);
+    });
+    if (pageIndex === 0 || (pageIndex + 1) % 5 === 0 || snapshots.length >= target) {
+      await onProgress(`抖音作品接口分页 ${pageIndex + 1} 页，已入库候选 ${snapshots.length}/${Math.min(target, total || target)} 条`, { increment: false });
+    }
+    const nextCursor = Number(json.max_cursor || 0);
+    const hasMore = Boolean(json.has_more);
+    if (!hasMore || !nextCursor || nextCursor === Number(cursor)) break;
+    cursor = nextCursor;
+    await randomDelay(config);
+  }
+
+  return {
+    snapshots: dedupeApiSnapshots(snapshots).slice(0, target),
+    total
+  };
+}
+
 async function extractVideoSnapshot(page, account, card, config, detailSignals = {}) {
   const text = [await pageText(page), (detailSignals.signalLines || []).join("\n")].filter(Boolean).join("\n");
   const selectors = account.selectors?.videoDetail || {};
@@ -1794,6 +1875,101 @@ function extractSnapshotFromCard(account, card) {
   snapshot.dataCompleteness = metricCompleteness(snapshot);
   snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
   return snapshot;
+}
+
+function numFrom(...values) {
+  for (const value of values) {
+    const parsed = parseNumber(value);
+    if (Number(parsed) > 0) return parsed;
+  }
+  return 0;
+}
+
+function rateFrom(...values) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed > 1 && parsed <= 100 ? parsed / 100 : parsed;
+  }
+  return 0;
+}
+
+function textExtraTags(textExtra = []) {
+  return (Array.isArray(textExtra) ? textExtra : [])
+    .map((item) => normalizeText(item?.hashtag_name || item?.tag_name || item?.keyword || item?.text))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function snapshotFromDouyinWorkItem(account, aweme = {}, item = {}, sourceUrl = "") {
+  const stats = aweme.statistics || {};
+  const metrics = item.metrics || {};
+  const videoId = normalizeText(aweme.aweme_id || aweme.item_id || item.id || aweme.group_id);
+  const title = normalizeText(aweme.desc || aweme.item_title || item.description || aweme.caption || account.defaultTopic || "");
+  const hashtags = [
+    ...textExtraTags(aweme.text_extra),
+    ...textExtraTags(aweme.next_info?.text_extra),
+    ...(Array.isArray(aweme.cha_list) ? aweme.cha_list.map((row) => normalizeText(row?.cha_name)).filter(Boolean) : [])
+  ].filter((value, index, arr) => arr.indexOf(value) === index).slice(0, 10);
+  const mapped = {
+    views: numFrom(metrics.view_count, stats.play_count),
+    likes: numFrom(metrics.like_count, stats.digg_count),
+    comments: numFrom(metrics.comment_count, stats.comment_count),
+    favorites: numFrom(metrics.favorite_count, stats.collect_count),
+    shares: numFrom(metrics.share_count, stats.share_count),
+    impressions: numFrom(metrics.cover_show),
+    completeRate: rateFrom(metrics.completion_rate),
+    fiveSecondRetention: rateFrom(metrics.completion_rate_5s),
+    avgWatchSeconds: normalizeDurationSeconds(metrics.avg_view_second),
+    videoDurationSeconds: normalizeDurationSeconds(item.video_info?.duration || aweme.video?.duration || aweme.duration || aweme.music?.duration),
+    profileVisits: numFrom(metrics.homepage_visit_count),
+    followersGained: Math.max(0, numFrom(metrics.subscribe_count) - numFrom(metrics.unsubscribe_count))
+  };
+  const signalLines = [
+    `metrics.view_count：${metrics.view_count ?? stats.play_count ?? 0}`,
+    `metrics.like_count：${metrics.like_count ?? stats.digg_count ?? 0}`,
+    `metrics.comment_count：${metrics.comment_count ?? stats.comment_count ?? 0}`,
+    `metrics.favorite_count：${metrics.favorite_count ?? stats.collect_count ?? 0}`,
+    `metrics.share_count：${metrics.share_count ?? stats.share_count ?? 0}`,
+    `metrics.homepage_visit_count：${metrics.homepage_visit_count ?? 0}`,
+    `metrics.subscribe_count：${metrics.subscribe_count ?? 0}`,
+    `metrics.completion_rate：${metrics.completion_rate ?? 0}`,
+    `metrics.completion_rate_5s：${metrics.completion_rate_5s ?? 0}`,
+    `metrics.avg_view_second：${metrics.avg_view_second ?? 0}`,
+    `video.duration：${item.video_info?.duration ?? aweme.video?.duration ?? aweme.duration ?? 0}`
+  ];
+  const snapshot = {
+    platform: account.platform,
+    accountType: account.accountType || "自有账号",
+    accountName: account.name,
+    owner: account.owner || "",
+    videoId: videoId || `douyin-work-${hashText([account.name, title, aweme.create_time].join("|"))}`,
+    title,
+    url: normalizeText(aweme.share_url || aweme.share_info?.share_url || (videoId ? `https://www.douyin.com/video/${videoId}` : "")),
+    topic: extractTopic(`${title} ${hashtags.join(" ")}`, account.defaultTopic || ""),
+    contentTags: inferVideoTags({ title, topic: extractTopic(`${title} ${hashtags.join(" ")}`, account.defaultTopic || ""), searchKeywords: hashtags, ...mapped }),
+    publishedAt: timestampToIso(aweme.create_time || item.create_time),
+    capturedAt: nowIso(),
+    ...mapped,
+    messages: 0,
+    leads: 0,
+    platformAdvice: "",
+    trafficSourceLines: [],
+    searchKeywords: hashtags,
+    officialMetricLines: signalLines,
+    apiSignalLines: signalLines,
+    deepSources: [normalizeText(sourceUrl).split("?")[0]].filter(Boolean),
+    source: "creator-center-work-list-api"
+  };
+  snapshot.dataCompleteness = metricCompleteness(snapshot);
+  snapshot.id = `snapshot-${hashText([snapshot.platform, snapshot.accountName, snapshot.videoId, snapshot.capturedAt].join("|"))}`;
+  return sanitizeVideoMetrics(snapshot);
+}
+
+function douyinWorkListSnapshotsFromJson(json = {}, account = {}, sourceUrl = "") {
+  const awemeList = Array.isArray(json.aweme_list) ? json.aweme_list : [];
+  const itemList = Array.isArray(json.items) ? json.items : [];
+  return awemeList.map((aweme, index) => snapshotFromDouyinWorkItem(account, aweme, itemList[index] || {}, sourceUrl))
+    .filter(isTrustedSnapshot);
 }
 
 function mergeSnapshotData(primary, fallback) {
@@ -1998,16 +2174,53 @@ async function collectAccount(context, account, config, onProgress = async () =>
         return { accountAudits, snapshots, warnings };
       }
       await onProgress(`识别${account.platform}作品卡片`, { currentAccount: account.name, currentPlatform: account.platform });
-      const cards = await collectVideoCards(page, account, config, async (label, extra = {}) => {
+      const maxVideos = Number(account.maxVideosPerRun || config.limits?.maxVideosPerAccount || 30);
+      const directWorkList = await fetchDouyinWorkListSnapshots(page, account, config, async (label, extra = {}) => {
         await onProgress(label, {
           currentAccount: account.name,
           currentPlatform: account.platform,
           ...extra
         });
       });
+      let directImported = 0;
+      for (const snapshot of directWorkList.snapshots) {
+        const duplicate = snapshotResumeKeys(snapshot).some((key) => resumeState?.snapshotKeys?.has(key));
+        if (duplicate) continue;
+        snapshot.confidence = snapshotConfidence(snapshot);
+        snapshot.source = `${snapshot.source || "creator-center-work-list-api"}+auto-trusted`;
+        snapshots.push(snapshot);
+        directImported += 1;
+        snapshotResumeKeys(snapshot).forEach((key) => resumeState?.snapshotKeys?.add(key));
+        await onCheckpoint({ account, snapshot, accountAudits, snapshots, warnings });
+      }
+      if (directImported) {
+        await onProgress(`抖音作品接口分页入库完成：${directImported}/${directWorkList.total || directImported} 条作品`, {
+          currentAccount: account.name,
+          currentPlatform: account.platform,
+          increment: false
+        });
+      }
+      const directTarget = Math.min(maxVideos, Number(directWorkList.total || maxVideos));
+      const shouldSkipVisibleCards = directImported >= directTarget && directTarget > 0;
+      const cards = shouldSkipVisibleCards ? [] : await collectVideoCards(page, account, config, async (label, extra = {}) => {
+        await onProgress(label, {
+          currentAccount: account.name,
+          currentPlatform: account.platform,
+          ...extra
+        });
+      });
+      if (shouldSkipVisibleCards) {
+        await onProgress(`作品接口已覆盖本轮目标 ${directImported}/${directTarget} 条，跳过页面滚动补采`, {
+          currentAccount: account.name,
+          currentPlatform: account.platform,
+          increment: false
+        });
+      }
       if (!cards.length) {
-        const screenshot = await saveEvidence(page, config, `${account.name}-video-list-no-cards`);
-        warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要补充 selectors，或后台列表当前没有展示视频数据。截图：${screenshot}`);
+        if (!directImported) {
+          const screenshot = await saveEvidence(page, config, `${account.name}-video-list-no-cards`);
+          warnings.push(`${account.platform}｜${account.name} 没有识别到有效视频卡片。可能需要补充 selectors，或后台列表当前没有展示视频数据。截图：${screenshot}`);
+        }
       }
       const apiSnapshots = pageApiCapture.apiSnapshots(account);
       let apiImported = 0;
