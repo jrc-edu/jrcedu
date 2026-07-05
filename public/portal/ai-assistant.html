@@ -1775,81 +1775,110 @@
           byId("aiMessage").textContent = "关联对象里有多个学生。请先点“批量保存多学生草稿”，再逐个打开草稿精修和归档。";
           return;
         }
-        const visibleFeedbackText = syncLatestResultFromVisibleEditors();
-        const feedbackText = visibleFeedbackText || latestResult.parentMessage || latestResult.polishedText || resultToText(latestResult);
-        const parsedFeedbackMeta = parseFeedbackMetaFromText(feedbackText);
-        const resolvedLessonSeason = latestResult.lessonSeason || parsedFeedbackMeta.lessonSeason || feedbackMeta(student, byId("aiInputText").value.trim()).lessonSeason;
-        const resolvedLessonNumber = latestResult.lessonNumber || parsedFeedbackMeta.lessonNumber || feedbackMeta(student, byId("aiInputText").value.trim()).lessonNumber;
-        const resolvedCourseName = ["feedback", "classFeedback"].includes(mode)
-          ? feedbackCourseLabel({ lessonSeason: resolvedLessonSeason, lessonNumber: resolvedLessonNumber }, feedbackText).replace(/课堂反馈$/, "")
-          : latestResult.className || latestResult.courseName || "-";
-        const now = new Date().toISOString();
-        let serviceRow = {
-          id: `ai-feedback-${Date.now()}`,
-          student,
-          className: resolvedCourseName,
-          teacher: currentName,
-          teacherUsername: currentUsername,
-          type: mode === "attendanceFollowup" ? "缺勤跟进" : ["feedback", "classFeedback"].includes(mode) ? "课后反馈" : mode === "parentCommunication" ? "家长沟通" : "学习跟踪",
-          risk: latestResult.riskLevel || "正常",
-          content: mode === "classFeedback" ? (latestResult.parentMessage || latestResult.polishedText || resultToText(latestResult)) : (latestResult.internalNote || latestResult.polishedText || resultToText(latestResult)),
-          parentMessage: latestResult.parentMessage || "",
-          next: latestResult.suggestedAction || (Array.isArray(latestResult.todoItems) ? latestResult.todoItems.join("；") : "") || "学管跟进家长反馈",
-          sourceModule: "aiAssistant",
-          sourceDraftId: editingDraftId || "",
-          sourceText: byId("aiInputText").value.trim(),
-          lessonSeason: resolvedLessonSeason,
-          lessonNumber: resolvedLessonNumber,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: currentName,
-          createdByUsername: currentUsername
-        };
-        serviceRow.archiveKey = feedbackArchiveKey(serviceRow);
-        let rows = safeParse(localStorage.getItem(STUDENT_SERVICE_KEY), []);
-        try {
-          const remote = await window.JRC_CLOUD?.readModuleData?.(STUDENT_SERVICE_KEY);
-          if (remote?.ok && remote.data?.found && Array.isArray(remote.data.payload)) {
-            rows = mergeRowsById([...remote.data.payload, ...(Array.isArray(rows) ? rows : [])]);
-          }
-        } catch (_) {}
-        const archiveKey = feedbackArchiveKey(serviceRow);
-        const existingIndex = archiveKey
-          ? rows.findIndex((row) => feedbackArchiveKey(row) === archiveKey)
-          : -1;
-        const updatedExisting = existingIndex >= 0;
-        if (updatedExisting) {
-          const existing = rows[existingIndex];
-          serviceRow = {
-            ...existing,
-            ...serviceRow,
-            id: existing.id || existing.rowId || serviceRow.id,
-            createdAt: existing.createdAt || serviceRow.createdAt,
-            updatedAt: now
-          };
-          rows[existingIndex] = serviceRow;
+        const archiveButton = byId("saveStudentServiceButton");
+        const originalButtonText = archiveButton?.textContent || "归档学生服务";
+        if (archiveButton) {
+          archiveButton.disabled = true;
+          archiveButton.textContent = "正在归档...";
         }
-        const nextRows = updatedExisting
-          ? mergeRowsById(rows)
-          : mergeRowsById([serviceRow, ...(Array.isArray(rows) ? rows : [])]);
-        localStorage.setItem(STUDENT_SERVICE_KEY, JSON.stringify(nextRows));
-        const result = await window.JRC_CLOUD?.writeModuleData?.(STUDENT_SERVICE_KEY, "studentService", nextRows);
-        await markEditingDraftArchived(serviceRow);
-        window.dispatchEvent(new CustomEvent("jrc-student-service-linked", {
-          detail: { rows: [serviceRow], source: "aiAssistant", updated: updatedExisting }
-        }));
-        window.JRC_BUSINESS_MODULES?.recordLinkEvent?.({
-          source: "课堂反馈AI助手",
-          target: "学生服务系统",
-          action: updatedExisting ? "课堂反馈更新归档" : "课堂反馈归档",
-          count: 1,
-          samples: [`${student}${resolvedCourseName ? `｜${resolvedCourseName}` : ""}`],
-          note: updatedExisting ? "同一草稿或同一课次再次归档时更新原记录，避免重复。" : "老师确认课堂反馈后归档到学生服务，方便学管回看和复制家长文案。"
-        });
-        byId("aiMessage").textContent = result?.ok
-          ? `${updatedExisting ? "已更新学生服务归档" : "已归档到学生服务系统"}：${student}。进入学生服务台账搜索学生姓名，可直接复制家长版反馈。`
-          : `已先保存到当前设备：${student}。云端恢复后会同步到学生服务台账。`;
-        hydrateArchivedFeedbacks();
+        try {
+          const visibleFeedbackText = syncLatestResultFromVisibleEditors();
+          const feedbackText = visibleFeedbackText || latestResult.parentMessage || latestResult.polishedText || resultToText(latestResult);
+          if (!String(feedbackText || "").trim()) {
+            byId("aiMessage").textContent = "当前没有可归档的反馈正文，请先生成或填写反馈内容。";
+            return;
+          }
+          const parsedFeedbackMeta = parseFeedbackMetaFromText(feedbackText);
+          const resolvedLessonSeason = latestResult.lessonSeason || parsedFeedbackMeta.lessonSeason || feedbackMeta(student, byId("aiInputText").value.trim()).lessonSeason;
+          const resolvedLessonNumber = latestResult.lessonNumber || parsedFeedbackMeta.lessonNumber || feedbackMeta(student, byId("aiInputText").value.trim()).lessonNumber;
+          const resolvedCourseName = ["feedback", "classFeedback"].includes(mode)
+            ? feedbackCourseLabel({ lessonSeason: resolvedLessonSeason, lessonNumber: resolvedLessonNumber }, feedbackText).replace(/课堂反馈$/, "")
+            : latestResult.className || latestResult.courseName || "-";
+          const now = new Date().toISOString();
+          let serviceRow = {
+            id: `ai-feedback-${Date.now()}`,
+            student,
+            className: resolvedCourseName,
+            teacher: currentName,
+            teacherUsername: currentUsername,
+            type: mode === "attendanceFollowup" ? "缺勤跟进" : ["feedback", "classFeedback"].includes(mode) ? "课后反馈" : mode === "parentCommunication" ? "家长沟通" : "学习跟踪",
+            risk: latestResult.riskLevel || "正常",
+            content: mode === "classFeedback" ? feedbackText : (latestResult.internalNote || latestResult.polishedText || resultToText(latestResult)),
+            parentMessage: mode === "classFeedback" ? feedbackText : (latestResult.parentMessage || ""),
+            next: latestResult.suggestedAction || (Array.isArray(latestResult.todoItems) ? latestResult.todoItems.join("；") : "") || "学管跟进家长反馈",
+            sourceModule: "aiAssistant",
+            sourceDraftId: editingDraftId || "",
+            sourceText: byId("aiInputText").value.trim(),
+            lessonSeason: resolvedLessonSeason,
+            lessonNumber: resolvedLessonNumber,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: currentName,
+            createdByUsername: currentUsername
+          };
+          serviceRow.archiveKey = feedbackArchiveKey(serviceRow);
+          let rows = safeParse(localStorage.getItem(STUDENT_SERVICE_KEY), []);
+          try {
+            const remote = await window.JRC_CLOUD?.readModuleData?.(STUDENT_SERVICE_KEY);
+            if (remote?.ok && remote.data?.found && Array.isArray(remote.data.payload)) {
+              rows = mergeRowsById([...remote.data.payload, ...(Array.isArray(rows) ? rows : [])]);
+            }
+          } catch (_) {}
+          const archiveKey = feedbackArchiveKey(serviceRow);
+          const existingIndex = archiveKey
+            ? rows.findIndex((row) => feedbackArchiveKey(row) === archiveKey)
+            : -1;
+          const updatedExisting = existingIndex >= 0;
+          if (updatedExisting) {
+            const existing = rows[existingIndex];
+            serviceRow = {
+              ...existing,
+              ...serviceRow,
+              id: existing.id || existing.rowId || serviceRow.id,
+              createdAt: existing.createdAt || serviceRow.createdAt,
+              updatedAt: now
+            };
+            rows[existingIndex] = serviceRow;
+          }
+          const nextRows = updatedExisting
+            ? mergeRowsById(rows)
+            : mergeRowsById([serviceRow, ...(Array.isArray(rows) ? rows : [])]);
+          localStorage.setItem(STUDENT_SERVICE_KEY, JSON.stringify(nextRows));
+          let cloudResult = { ok: false, skipped: true };
+          let cloudError = "";
+          try {
+            cloudResult = await window.JRC_CLOUD?.writeModuleData?.(STUDENT_SERVICE_KEY, "studentService", nextRows) || { ok: false, skipped: true };
+            if (!cloudResult?.ok) cloudError = cloudResult?.data?.message || cloudResult?.data?.error || cloudResult?.error || "云端同步暂未成功";
+          } catch (error) {
+            cloudError = String(error?.message || error || "云端同步暂未成功");
+            cloudResult = { ok: false, error: cloudError };
+          }
+          try {
+            await markEditingDraftArchived(serviceRow);
+          } catch (_) {}
+          window.dispatchEvent(new CustomEvent("jrc-student-service-linked", {
+            detail: { rows: [serviceRow], source: "aiAssistant", updated: updatedExisting }
+          }));
+          window.JRC_BUSINESS_MODULES?.recordLinkEvent?.({
+            source: "课堂反馈AI助手",
+            target: "学生服务系统",
+            action: updatedExisting ? "课堂反馈更新归档" : "课堂反馈归档",
+            count: 1,
+            samples: [`${student}${resolvedCourseName ? `｜${resolvedCourseName}` : ""}`],
+            note: updatedExisting ? "同一草稿或同一课次再次归档时更新原记录，避免重复。" : "老师确认课堂反馈后归档到学生服务，方便学管回看和复制家长文案。"
+          });
+          byId("aiMessage").textContent = cloudResult?.ok
+            ? `${updatedExisting ? "已更新学生服务归档" : "已归档到学生服务系统"}：${student}。进入学生服务台账搜索学生姓名，可直接复制家长版反馈。`
+            : `已先保存到当前设备：${student}。${cloudError ? `云端提示：${cloudError}。` : ""}网络或登录恢复后可刷新重试同步。`;
+          hydrateArchivedFeedbacks();
+        } catch (error) {
+          byId("aiMessage").textContent = `归档没有完成：${String(error?.message || error || "未知错误")}。请先复制反馈内容保留，再刷新重试。`;
+        } finally {
+          if (archiveButton) {
+            archiveButton.disabled = false;
+            archiveButton.textContent = originalButtonText;
+          }
+        }
       }
 
       function structuredDataMap() {
