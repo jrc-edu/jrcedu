@@ -255,7 +255,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705d</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705e</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -271,56 +271,30 @@
         <article class="card">
           <p class="eyebrow">Video Ops Monitor</p>
           <h1>短视频系统</h1>
-          <p class="hero-text">今晚重点不是再看零散视频，而是让 Mac mini 把自有账号历史作品尽量深挖成完整档案：播放负责本地影响力，涨粉负责账号增长，咨询线索负责招生转化，收藏转发负责干货价值。</p>
+          <p class="hero-text">这里不做后台日志展示，重点直接看运营结论：今天该拍什么、哪些内容值得复拍、哪些视频需要重剪、账号优势怎么继续放大。</p>
           <div class="tag-row" style="margin-top:14px;">
             <span class="tag">自有账号巡检</span>
-            <span class="tag">平台建议归档</span>
+            <span class="tag">拍摄指挥</span>
             <span class="tag">数学教培诊断</span>
-            <span class="tag">自有账号深挖</span>
-            <span class="tag">300+ 历史视频</span>
+            <span class="tag">复拍清单</span>
             <span class="tag">题材归因</span>
             <span class="tag">下一轮选题</span>
           </div>
-          <div class="notice" id="videoOpsMessage">系统已就绪。第一版先接收机器人同步后的结构化数据，并自动完成分析。</div>
+          <div class="notice" id="videoOpsMessage">系统已就绪。数据采集会在后台自动同步，页面重点展示拍摄建议、复盘结论和下一步动作。</div>
           <div class="sync-diagnostic warn" id="cloudSyncDiagnostic">
             <strong>等待最新采集结果</strong>
-            <span>Mac mini 跑完会自动写入网站，本页面会自动读取并显示最新视频档案和下一步建议。</span>
+            <span>Mac mini 跑完会自动写入网站，本页面会自动读取并更新账号体检、视频排行和行动建议。</span>
           </div>
         </article>
         <aside class="card">
-          <p class="eyebrow">今晚目标</p>
-          <h2>睡前启动，整夜挖数据</h2>
-          <p style="margin-top:10px;">默认不需要你一条条确认。系统会按创作者中心作品列表顺序加载历史作品，能打开详情就补详情数据，打不开就保留可信列表数据；登录页、验证码页、菜单页和无效字段会自动跳过。</p>
-          <div class="notice warn">睡前确认 Chrome 已登录抖音/视频号后台，不要关 Mac mini，不要关采集 Chrome。跑完后本页面会自动更新结果，不需要手动同步。</div>
+          <p class="eyebrow">运营看板</p>
+          <h2>先看结论，再看明细</h2>
+          <p style="margin-top:10px;">播放负责本地影响力，涨粉负责账号增长，咨询线索负责招生转化，收藏转发负责干货价值。系统会把这些信号拆开判断，不用老师从一长串后台数据里找重点。</p>
+          <div class="notice">日常使用优先看“今日拍摄指挥台”和“运营决策摘要”；采集状态、设备台帐、接口细节都已放到高级入口里。</div>
         </aside>
       </section>
 
-      <section class="card command-panel" id="overnightPanel">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">Auto Deep Mining</p>
-            <h2>自有账号自动深挖安排</h2>
-          </div>
-        </div>
-        <p style="margin-top:8px;">采集器按自有账号优先：最多每个自有账号 500 条，自动打开详情页，自动过滤无效数据，跑完自动写入网站。同行自动挖掘先暂停，避免验证码和滑块风控浪费时间。</p>
-        <div class="focus-grid" id="overnightMiningGrid"></div>
-        <div class="decision-list" id="overnightMiningActions"></div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">Morning Decisions</p>
-            <h2>明早直接看的决策首页</h2>
-          </div>
-          <span class="badge" id="morningDecisionBadge">等待数据</span>
-        </div>
-        <p id="morningDecisionSummary" style="margin-top:8px;">这里不放后台细节，只放明早最该看的结论：数据是否可信、账号优势、最值得复拍、最该复盘、下一轮拍摄方向。</p>
-        <div class="focus-grid" id="morningDecisionGrid"></div>
-        <div class="decision-list" id="morningDecisionList"></div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
+      <section class="card command-panel" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
             <p class="eyebrow">Shooting Command</p>
@@ -328,7 +302,7 @@
           </div>
           <span class="badge" id="shootingCommandBadge">等待数据</span>
         </div>
-        <p id="shootingCommandSummary" style="margin-top:8px;">这里把 382 条历史视频压缩成今天最该执行的拍摄、复拍、转化和重剪动作。</p>
+        <p id="shootingCommandSummary" style="margin-top:8px;">把历史视频数据压缩成今天要拍、要复拍、要重剪、要补转化承接的具体动作。</p>
         <div class="signal-ranking-grid" id="shootingCommandGrid"></div>
         <div class="decision-list" id="shootingCommandList"></div>
       </section>
@@ -336,64 +310,14 @@
       <section class="card" style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
-            <p class="eyebrow">Automation Cadence</p>
-            <h2>自动采集节奏安排</h2>
+            <p class="eyebrow">Operation Decisions</p>
+            <h2>运营决策摘要</h2>
           </div>
-          <span class="badge">今晚全量，以后轻量</span>
+          <span class="badge" id="morningDecisionBadge">等待数据</span>
         </div>
-        <p style="margin-top:8px;">每天最多新发一个视频，所以今晚全量建档后，日常只需要盯新发、近 7 天变化和少量二次起量老视频；每周再做阶段复盘，每月才做全量校验。</p>
-        <div class="focus-grid" id="automationScheduleGrid"></div>
-        <div class="decision-list" id="automationScheduleActions"></div>
-      </section>
-
-      <section class="card progress-panel" id="collectorProgressCard">
-        <article>
-          <p class="eyebrow">Collector Progress</p>
-          <h2>采集进度</h2>
-          <p id="collectorStatusText" style="margin-top:8px;">等待 Mac mini 采集器同步状态。</p>
-          <div class="progress-track"><i class="progress-fill" id="collectorProgressFill"></i></div>
-          <div class="status-line">
-            <i class="status-dot" id="collectorStatusDot"></i>
-            <span id="collectorStatusMeta">暂无正在运行的采集任务。</span>
-          </div>
-        </article>
-        <aside>
-          <p class="eyebrow">Current Task</p>
-          <h3 id="collectorCurrentTask">等待采集</h3>
-          <p id="collectorCurrentDetail" style="margin-top:8px;">运行 Mac mini 采集器后，这里会显示正在打开哪个平台、正在采哪条作品、是否已经完成。</p>
-        </aside>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">Data Readiness</p>
-            <h2>数据完整度体检</h2>
-          </div>
-          <span class="badge" id="dataReadinessBadge">等待数据</span>
-        </div>
-        <p id="dataReadinessSummary" style="margin-top:8px;">先看数据够不够，再决定能不能做账号级判断，避免拿几条样本下重结论。</p>
-        <div class="readiness-grid" id="dataReadinessGrid"></div>
-        <div class="decision-list" id="nextActionList"></div>
-      </section>
-
-      <section class="card" style="margin-top:18px;">
-        <div class="toolbar" style="justify-content:space-between;">
-          <div>
-            <p class="eyebrow">Auto Analysis</p>
-            <h2>自动入库与自动分析结果</h2>
-          </div>
-          <span class="badge" id="analysisClosureBadge">等待采集</span>
-        </div>
-        <p id="analysisClosureSummary" style="margin-top:8px;">今晚采集完成后，Mac mini 会自动把数据写入短视频系统，并自动生成 DeepSeek 专家报告。明早打开这里应当能直接看结论和行动清单。</p>
-        <div class="focus-grid" id="analysisClosureGrid"></div>
-        <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
-        <div class="decision-list" id="aiActionCards"></div>
-        <div class="report" id="aiExpertReport">等待生成。</div>
-        <div class="actions" style="margin-top:12px;">
-          <button class="button secondary" id="generateAiReportButton" type="button">重新生成专家报告</button>
-          <button class="button secondary" id="copyAiReportButton" type="button">复制报告</button>
-        </div>
+        <p id="morningDecisionSummary" style="margin-top:8px;">这里不放后台细节，只放最该看的结论：数据是否可信、账号优势、最值得复拍、最该复盘、下一轮拍摄方向。</p>
+        <div class="focus-grid" id="morningDecisionGrid"></div>
+        <div class="decision-list" id="morningDecisionList"></div>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -414,19 +338,22 @@
         <div class="decision-list" id="executiveSummaryList"></div>
       </section>
 
-      <section class="card" style="margin-top:18px;">
+      <section class="auxiliary-stack">
+        <details class="panel">
+          <summary>账号复盘、优势和选题建议</summary>
+          <section style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
             <p class="eyebrow">Deep Mining</p>
-            <h2>自有账号深度挖掘任务</h2>
+            <h2>历史内容复盘任务</h2>
           </div>
-          <button class="button secondary" id="copyShootingTasksButton" type="button" hidden>复制深挖任务</button>
+          <button class="button secondary" id="copyShootingTasksButton" type="button" hidden>复制复盘任务</button>
         </div>
-        <p style="margin-top:8px;">今天不急着拍摄。这里先把自己的历史视频变成深挖任务：采全数据、找优势、找短板、沉淀长期可复制结构。</p>
+        <p style="margin-top:8px;">把自己的历史视频变成复盘任务：找优势、找短板、沉淀长期可复制结构。</p>
         <div class="decision-list" id="shootingTaskList"></div>
-      </section>
+          </section>
 
-      <section class="card" style="margin-top:18px;">
+          <section style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
             <p class="eyebrow">Account Advantage</p>
@@ -437,9 +364,9 @@
         <p style="margin-top:8px;">系统会从自己的历史视频里找出最值得放大的优势：哪个题型、哪个年级、哪种标题、哪种证明力更容易被家长保存和转发。</p>
         <div class="focus-grid" id="advantageMapGrid"></div>
         <div class="decision-list" id="advantagePlanList"></div>
-      </section>
+          </section>
 
-      <section class="card" style="margin-top:18px;">
+          <section style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
             <p class="eyebrow">Next Topics</p>
@@ -449,9 +376,9 @@
         </div>
         <p style="margin-top:8px;">系统把高播放、高涨粉、高咨询、高收藏转发拆开归因，不平均发力，直接给下一轮应该重点拍哪些方向。</p>
         <div class="decision-list" id="nextTopicPlanList"></div>
-      </section>
+          </section>
 
-      <section class="card" style="margin-top:18px;">
+          <section style="margin-top:18px;">
         <div class="toolbar" style="justify-content:space-between;">
           <div>
             <p class="eyebrow">Account Audit</p>
@@ -467,11 +394,91 @@
           <div class="metrics" id="accountAuditMetrics"></div>
           <div class="report" id="accountAuditReport">等待选择账号。</div>
         </div>
+          </section>
+        </details>
       </section>
 
       <section class="auxiliary-stack">
         <details class="panel">
-          <summary>辅助内容：采集策略、标杆账号库（同行自动挖掘暂缓）</summary>
+          <summary>专家报告与自动分析</summary>
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Auto Analysis</p>
+                <h2>DeepSeek 专家报告</h2>
+              </div>
+              <span class="badge" id="analysisClosureBadge">等待采集</span>
+            </div>
+            <p id="analysisClosureSummary" style="margin-top:8px;">数据进入短视频系统后，会自动生成账号判断、复拍方向和拍摄行动清单。</p>
+            <div class="focus-grid" id="analysisClosureGrid"></div>
+            <div class="notice" id="aiReportStatus">还没有生成 AI 专家报告。</div>
+            <div class="decision-list" id="aiActionCards"></div>
+            <div class="report" id="aiExpertReport">等待生成。</div>
+            <div class="actions" style="margin-top:12px;">
+              <button class="button secondary" id="generateAiReportButton" type="button">重新生成专家报告</button>
+              <button class="button secondary" id="copyAiReportButton" type="button">复制报告</button>
+            </div>
+          </section>
+        </details>
+
+        <details class="panel">
+          <summary>高级设置与采集状态（管理员查看）</summary>
+          <section style="margin-top:18px;" id="overnightPanel">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Auto Deep Mining</p>
+                <h2>自有账号采集安排</h2>
+              </div>
+            </div>
+            <p style="margin-top:8px;">这里用于管理员确认采集覆盖范围和字段完整度。普通老师日常不用看这一块。</p>
+            <div class="focus-grid" id="overnightMiningGrid"></div>
+            <div class="decision-list" id="overnightMiningActions"></div>
+          </section>
+
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Automation Cadence</p>
+                <h2>自动采集节奏</h2>
+              </div>
+              <span class="badge">后台自动执行</span>
+            </div>
+            <p style="margin-top:8px;">历史库建好后，日常只盯新发、近 7 天变化和少量二次起量老视频；每周阶段复盘，每月全量校验。</p>
+            <div class="focus-grid" id="automationScheduleGrid"></div>
+            <div class="decision-list" id="automationScheduleActions"></div>
+          </section>
+
+          <section class="progress-panel" id="collectorProgressCard">
+            <article>
+              <p class="eyebrow">Collector Progress</p>
+              <h2>采集进度</h2>
+              <p id="collectorStatusText" style="margin-top:8px;">等待 Mac mini 采集器同步状态。</p>
+              <div class="progress-track"><i class="progress-fill" id="collectorProgressFill"></i></div>
+              <div class="status-line">
+                <i class="status-dot" id="collectorStatusDot"></i>
+                <span id="collectorStatusMeta">暂无正在运行的采集任务。</span>
+              </div>
+            </article>
+            <aside>
+              <p class="eyebrow">Current Task</p>
+              <h3 id="collectorCurrentTask">等待采集</h3>
+              <p id="collectorCurrentDetail" style="margin-top:8px;">运行 Mac mini 采集器后，这里会显示正在打开哪个平台、正在采哪条作品、是否已经完成。</p>
+            </aside>
+          </section>
+
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Data Readiness</p>
+                <h2>数据完整度体检</h2>
+              </div>
+              <span class="badge" id="dataReadinessBadge">等待数据</span>
+            </div>
+            <p id="dataReadinessSummary" style="margin-top:8px;">先看数据够不够，再决定能不能做账号级判断，避免拿几条样本下重结论。</p>
+            <div class="readiness-grid" id="dataReadinessGrid"></div>
+            <div class="decision-list" id="nextActionList"></div>
+          </section>
+
           <section style="margin-top:18px;">
             <div class="toolbar" style="justify-content:space-between;">
               <div>
@@ -493,7 +500,7 @@
               </div>
               <span class="badge">抖音账号库｜视频号待匹配</span>
             </div>
-            <p style="margin-top:8px;">今晚先深挖自有账号；同行平台容易触发手机号验证码、滑块/图形验证，自动挖掘先暂停。标杆库只留作后续人工学习和方向参考。</p>
+            <p style="margin-top:8px;">同行平台容易触发手机号验证码、滑块/图形验证，自动挖掘暂缓。标杆库只留作后续人工学习和方向参考。</p>
             <div class="benchmark-library" id="benchmarkLibraryTopPanel"></div>
           </section>
 
@@ -517,13 +524,16 @@
               </div>
               <span class="badge">培优/奥数/补弱｜升学节点｜本地家长</span>
             </div>
-            <p style="margin-top:8px;">同行自动挖掘暂缓。这里保留为后续人工学习入口，不参与今晚自有账号判断。</p>
+            <p style="margin-top:8px;">同行自动挖掘暂缓。这里保留为后续人工学习入口，不参与自有账号日常判断。</p>
             <div class="benchmark-library" id="benchmarkLibraryPanel"></div>
             <div class="benchmark-grid" id="industryBenchmarkGrid"></div>
           </section>
         </details>
       </section>
 
+      <section class="auxiliary-stack">
+        <details class="panel">
+          <summary>视频明细、排行榜和周报</summary>
       <section class="grid">
         <div>
           <article class="panel">
@@ -673,12 +683,14 @@
           </details>
         </aside>
       </section>
+        </details>
+      </section>
     </main>
 
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705d";
+        const pageVersion = "20260705e";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -812,7 +824,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705d";
+      const PAGE_VERSION = "20260705e";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -2250,7 +2262,7 @@
         if (!Number.isFinite(time)) return "采集时间格式待确认";
         const hours = (Date.now() - time) / 36e5;
         if (hours <= 14) return "采集正常";
-        if (hours <= 36) return "建议今晚再采一次";
+        if (hours <= 36) return "建议今天补采一次";
         return "超过 36 小时未采集，请检查 Mac mini";
       }
 
@@ -2329,7 +2341,7 @@
             <strong>${escapeHtml(value)}</strong>
           </div>
         `).join("");
-        byId("collectionCommandHint").textContent = "采集节奏：今晚先做一次全量建档；以后每天轻量巡检，每周阶段复盘，每月全量校验。同行自动挖掘暂缓，只有特殊排查才开启人工模式。";
+        byId("collectionCommandHint").textContent = "采集节奏：历史库建好后，日常轻量巡检；每周阶段复盘，每月全量校验。同行自动挖掘暂缓，只有特殊排查才开启人工模式。";
       }
 
       function dataReadinessProfile() {
@@ -2379,7 +2391,7 @@
         if (status.status === "running") {
           commands.push("当前采集器正在运行，先等本轮结束再看结论。");
         } else if (ownCount < 20) {
-          commands.push("下一步建议：先让 Mac mini 跑自有账号整夜深挖，补齐历史作品数据。同行自动挖掘先不跑。");
+          commands.push("下一步建议：先让 Mac mini 补采自有账号历史作品数据。同行自动挖掘先不跑。");
         } else if (ownCount < 300) {
           commands.push("下一步建议：继续让 Mac mini 补到 300 条以上，再做账号长期方向判断。");
         } else {
@@ -2530,12 +2542,12 @@
         if (running) {
           nextActions.push({ tone: "good", title: "采集器正在运行", body: `${status.stepLabel || "正在采集"}。先不要关闭 Mac mini 和采集 Chrome，等进度结束后再看账号结论。` });
         } else if (rows.length < 300) {
-          nextActions.push({ tone: "good", title: "等待整夜深挖补齐数据", body: "采集器启动后会重建本轮可信数据，最多每个自有账号采 500 条，并自动写入网站；页面会自动更新。" });
+          nextActions.push({ tone: "good", title: "等待补采补齐数据", body: "采集器启动后会重建可信数据，最多每个自有账号采 500 条，并自动写入网站；页面会自动更新。" });
         } else {
           nextActions.push({ tone: "good", title: "已具备深度复盘基础", body: "样本已经足够看账号方向。下一步重点看：题材归因、涨粉/C粉、咨询线索、收藏转发和本地曝光。" });
         }
-        if (withTraffic < 15) nextActions.push({ tone: "warn", title: "今晚重点补流量来源", body: "如果创作者中心能看到来源/搜索词/同城数据，系统会单独入库。它决定我们是靠推荐爆、搜索来、粉丝看，还是本地影响扩散。" });
-        if (withConversion < 20) nextActions.push({ tone: "warn", title: "今晚重点补转化字段", body: "主页访问、私信、线索、涨粉字段越完整，系统越能判断哪类视频真正带来招生机会。" });
+        if (withTraffic < 15) nextActions.push({ tone: "warn", title: "重点补流量来源", body: "如果创作者中心能看到来源/搜索词/同城数据，系统会单独入库。它决定我们是靠推荐爆、搜索来、粉丝看，还是本地影响扩散。" });
+        if (withConversion < 20) nextActions.push({ tone: "warn", title: "重点补转化字段", body: "主页访问、私信、线索、涨粉字段越完整，系统越能判断哪类视频真正带来招生机会。" });
         actions.innerHTML = nextActions.slice(0, 4).map((card) => `
           <div class="decision-card ${escapeHtml(card.tone)}">
             <strong>${escapeHtml(card.title)}</strong>
@@ -2557,7 +2569,7 @@
         const cards = [
           {
             tone: rows.length >= 300 ? "good" : "warn",
-            label: "今晚一次性建档",
+            label: "历史库建档",
             value: "最多500条",
             note: rows.length >= 300 ? "历史库基本成型，后续不用天天全扫" : "先把历史作品挖出来，建立账号基准"
           },
@@ -2591,7 +2603,7 @@
         if (status.status === "running") {
           actionCards.push({ tone: "good", title: "当前正在采集", body: `${status.stepLabel || "采集器运行中"}。这轮结束后页面会自动更新，不需要手动导入。` });
         } else if (rows.length < 300) {
-          actionCards.push({ tone: "warn", title: "今晚先做一次全量建档", body: "今晚的目标是把历史视频挖出来。建档完成后，日常任务切换成轻量巡检，不再每天扫500条。" });
+          actionCards.push({ tone: "warn", title: "先做一次全量建档", body: "目标是把历史视频建成可信档案。建档完成后，日常任务切换成轻量巡检，不再每天扫500条。" });
         } else {
           actionCards.push({ tone: "good", title: "后续切换轻量巡检", body: "历史视频库已经足够支撑账号判断。以后每天只看新视频、近7天变化和二次起量老视频。" });
         }
@@ -2630,7 +2642,7 @@
         const grid = [
           {
             tone: status.status === "running" ? "warn" : ready ? "good" : profile.ownCount ? "warn" : "danger",
-            label: "明早数据状态",
+            label: "数据状态",
             value: status.status === "running" ? "正在采" : ready ? "可复盘" : `${profile.ownCount}条`,
             note: status.status === "running" ? status.stepLabel || "采集器运行中" : profile.summary
           },
@@ -2655,8 +2667,8 @@
         ];
         const list = [];
         if (!rows.length) {
-          list.push({ tone: "warn", title: "今晚先跑自有账号整夜深挖", body: "还没有可分析的视频档案。先跑 Mac mini 采集器，系统会自动导入并生成报告。" });
-          return { badge: "等待采集", tone: "warn", summary: "还没有自有视频样本。今晚先把自己的历史作品采回来，明早再看结论。", grid, list };
+          list.push({ tone: "warn", title: "先补采自有账号历史作品", body: "还没有可分析的视频档案。先跑 Mac mini 采集器，系统会自动导入并生成报告。" });
+          return { badge: "等待采集", tone: "warn", summary: "还没有自有视频样本。先把自己的历史作品采回来，再看运营结论。", grid, list };
         }
         if (bestRemake) {
           list.push({
@@ -2707,14 +2719,14 @@
           });
         }
         const summary = ready
-          ? "明早先看这几张卡：品牌曝光、招生转化、涨粉/C粉、可复拍结构和需复盘样本。"
-          : `当前自有视频 ${rows.length} 条，能做初步判断；如果今晚继续深采，明早结论会更稳。`;
+          ? "优先看这几张卡：品牌曝光、招生转化、涨粉/C粉、可复拍结构和需复盘样本。"
+          : `当前自有视频 ${rows.length} 条，能做初步判断；继续补采后结论会更稳。`;
         return {
           badge: status.status === "running" ? "正在采集" : ready ? "可直接看" : "初步可看",
           tone: status.status === "running" ? "warn" : ready ? "good" : "warn",
           summary,
           grid,
-          list: list.slice(0, 7)
+          list: list.slice(0, 4)
         };
       }
 
@@ -2879,7 +2891,7 @@
         }
         list.push({
           tone: "good",
-          title: "明天开始切换日常节奏",
+          title: "后续切换日常节奏",
           body: profile.ownCount >= 300
             ? "历史库已经成型。以后每天轻量巡检新视频和近 7 天变化，每周阶段复盘，每月全量校验。"
             : "继续补够历史库后，再切换到每天轻量巡检。"
@@ -2891,7 +2903,7 @@
             ? "这块直接指导今天怎么拍：先复拍高价值结构，再拆涨粉结构，最后补转化承接和低留存重剪。"
             : `当前 ${rows.length} 条样本可做初步判断；继续补历史数据后清单会更稳。`,
           grid,
-          list: list.slice(0, 7)
+          list: list.slice(0, 4)
         };
       }
 
@@ -2934,7 +2946,7 @@
         const groups = topicPerformanceRows(ownVideoRows());
         const leaders = metricLeaderRows();
         if (!groups.length) {
-          return [{ tone: "warn", title: "先跑整夜深挖", body: "还没有足够自有视频样本。今晚先采 300+ 历史视频，明天再定下一轮拍摄方向。" }];
+          return [{ tone: "warn", title: "先补采历史数据", body: "还没有足够自有视频样本。先采 300+ 历史视频，再定下一轮拍摄方向。" }];
         }
         const bestReach = groups.slice().sort((a, b) => b.views - a.views || b.avgViews - a.avgViews)[0];
         const bestLeads = groups.slice().filter((row) => row.leads > 0).sort((a, b) => b.leads - a.leads || b.leadRate - a.leadRate)[0];
@@ -2975,7 +2987,7 @@
           title: "每条选题都要加本地化判断",
           body: hasTraffic
             ? "已有部分流量来源/搜索词，可以继续判断推荐、搜索、同城和粉丝流量。"
-            : "今晚深挖前先把流量来源/搜索词作为重点字段；本地教培账号要特别看同城、本地家长和搜索词带来的影响。"
+            : "补采时把流量来源/搜索词作为重点字段；本地教培账号要特别看同城、本地家长和搜索词带来的影响。"
         });
         return cards.slice(0, 6);
       }
@@ -3251,7 +3263,7 @@
         const running = collector.status === "running";
         const failed = collector.status === "failed" || analysis.status === "failed";
         const ready = imported && hasReport && !running;
-        badge.textContent = running ? "正在采集" : ready ? "明早可直接看" : imported ? "数据已入库" : failed ? "需要检查" : "等待采集";
+        badge.textContent = running ? "正在采集" : ready ? "可直接看" : imported ? "数据已入库" : failed ? "需要检查" : "等待采集";
         badge.className = `badge ${ready ? "good" : failed ? "danger" : imported || running ? "warn" : ""}`;
         summary.textContent = ready
           ? "数据已经自动导入，DeepSeek 专家报告也已经回写到短视频系统。你明天打开页面可以直接看账号判断、复拍方向和下周拍摄清单。"
@@ -3259,7 +3271,7 @@
             ? "Mac mini 正在采集。采集完成后会自动推送云端，并继续自动生成专家报告。"
             : imported
               ? "数据已经进入短视频系统；如果专家报告还没出来，系统会在页面打开时继续尝试自动生成，也可以点重新生成。"
-              : "还没有读到本轮采集结果。今晚运行整夜深挖命令后，这里会自动更新。";
+              : "还没有读到本轮采集结果。运行采集命令后，这里会自动更新。";
         const cards = [
           {
             tone: running ? "warn" : imported ? "good" : "danger",
@@ -3281,7 +3293,7 @@
           },
           {
             tone: ready ? "good" : imported ? "warn" : "",
-            label: "明早使用",
+            label: "日常使用",
             value: ready ? "可直接看" : imported ? "先看数据" : "待采集",
             note: ready ? "看行动卡片、账号体检、视频排行" : "完整结论依赖 AI 报告"
           }
@@ -4139,7 +4151,7 @@
           return [{
             tone: "warn",
             title: "先深采自己的历史作品",
-            body: "当前还没有单条视频数据。先让 Mac mini 采集器自动深挖自己的历史作品，把播放、点赞、收藏、分享和详情页数据采回来。"
+            body: "当前还没有单条视频数据。先让 Mac mini 采集器自动采集自己的历史作品，把播放、点赞、收藏、分享和详情页数据采回来。"
           }];
         }
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row) }));
@@ -4156,7 +4168,7 @@
           title: "先把自有账号样本扩到 100 条左右",
           body: rows.length >= 80
             ? `当前已有 ${rows.length} 条自有视频样本，可以开始做阶段性优势归因。`
-            : `当前只有 ${rows.length} 条自有视频样本。下一步让 Mac mini 采集器继续自动深挖，先把自己的历史作品尽量采到 100 条左右，再稳定判断长期优势。`
+            : `当前只有 ${rows.length} 条自有视频样本。下一步让 Mac mini 采集器继续自动补采，先把自己的历史作品尽量采到 100 条左右，再稳定判断长期优势。`
         });
         if (remake[0]) {
           const row = sameStructure[0]?.row || remake[0].row;
@@ -4928,7 +4940,7 @@
         ["copyOvernightCommandButton", "copyOvernightCommandButton2"].forEach((id) => {
           byId(id)?.addEventListener("click", async () => {
             await navigator.clipboard?.writeText(OVERNIGHT_COMMAND);
-            byId("videoOpsMessage").textContent = "已复制今晚整夜深挖命令。";
+            byId("videoOpsMessage").textContent = "已复制自有账号补采命令。";
           });
         });
         byId("scrollToVideosButton")?.addEventListener("click", () => {
