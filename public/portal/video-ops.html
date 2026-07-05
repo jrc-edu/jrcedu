@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705t</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705u</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -331,6 +331,19 @@
           <p style="margin-top:10px;">播放负责本地影响力，涨粉负责账号增长，咨询线索负责招生转化，收藏转发负责干货价值。系统会把这些信号拆开判断，不用老师从一长串后台数据里找重点。</p>
           <div class="notice">日常使用优先看“今日拍摄指挥台”和“运营决策摘要”；采集状态、设备台帐、接口细节都已放到高级入口里。</div>
         </aside>
+      </section>
+
+      <section class="card command-panel" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Today Command</p>
+            <h2>今日运营总控台</h2>
+          </div>
+          <span class="badge" id="todayCommandBadge">等待数据</span>
+        </div>
+        <p id="todayCommandSummary" style="margin-top:8px;">先看今天最重要的四个动作：拍什么、两个平台怎么拆、数据能不能信、发布后怎么复盘。</p>
+        <div class="focus-grid" id="todayCommandGrid"></div>
+        <div class="decision-list" id="todayCommandList"></div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -865,7 +878,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705t";
+        const pageVersion = "20260705u";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -1000,7 +1013,7 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705t";
+      const PAGE_VERSION = "20260705u";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
@@ -4276,6 +4289,32 @@
         `).join("");
       }
 
+      function contentIdeaLabelForVideo(row = {}) {
+        const tags = videoTags(row);
+        const text = normalizeText([
+          row.title,
+          row.topic,
+          ...(row.searchKeywords || []),
+          ...(row.trafficSourceLines || [])
+        ].join(" "));
+        const grade = tags.find((tag) => /小升初|中考|初一|初二|初三|小学奥数|暑假规划/.test(tag)) || "";
+        const topic = topicLabelForVideo(row);
+        const angleRules = [
+          ["最值压轴", /最值|最大|最小|取值范围|压轴/i],
+          ["选拔真题", /选拔|真题|自招|重点高中|初升高|分班考/i],
+          ["几何辅助线", /辅助线|折叠|全等|相似|圆|K字|角平分|中点/i],
+          ["计算技巧", /计算|巧算|裂项|根号|二次根式|分式|有理数|绝对值/i],
+          ["学习规划", /规划|暑假|预习|复习|方法|习惯|粗心|掉队|分化/i],
+          ["家长决策", /家长|补课|培优|试听|课程|刷题班|咨询/i]
+        ];
+        const angle = angleRules.find(([, re]) => re.test(text))?.[0] || "";
+        return [grade, topic, angle]
+          .filter(Boolean)
+          .filter((value, index, arr) => arr.indexOf(value) === index)
+          .slice(0, 3)
+          .join(" · ") || topic || "未分类题材";
+      }
+
       function topicPlatformAggregate(label, rows = [], platform = "") {
         const scoped = rows.filter((row) => {
           if (!platform) return true;
@@ -4356,7 +4395,7 @@
         const averageScore = average(platformScores.filter(Boolean));
         const goodLine = Math.max(68, averageScore ? averageScore * 0.88 : 68);
         const okLine = Math.max(42, averageScore ? averageScore * 0.50 : 42);
-        if (item.avgScore >= 72 || item.score >= goodLine || (item.count >= 3 && item.score >= okLine && item.views >= item.avgViews * item.count)) {
+        if (item.avgScore >= 72 || item.score >= goodLine || (item.count >= 3 && item.avgScore >= 66 && item.score >= okLine)) {
           return { key: "strong", label: "强", tone: "good" };
         }
         if (item.avgScore >= 60 || item.score >= okLine || item.count >= 2) {
@@ -4431,7 +4470,7 @@
         const rows = ownVideoRows().filter(isUsefulSnapshot);
         const topics = new Map();
         rows.forEach((row) => {
-          const label = topicLabelForVideo(row);
+          const label = contentIdeaLabelForVideo(row);
           const current = topics.get(label) || [];
           current.push(row);
           topics.set(label, current);
@@ -4919,6 +4958,123 @@
         };
       }
 
+      function buildTodayCommandCenter() {
+        const platformData = buildCrossPlatformComparison();
+        const scriptData = buildDualPlatformScripts();
+        const trust = buildDataTrustDashboard();
+        const prep = buildCollectionPrep();
+        const primary = primaryCrossPlatformTopic();
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const deepUsable = trust.buckets.deepReview.length + trust.buckets.backend.length;
+        if (!rows.length) {
+          return {
+            badge: "等待采集",
+            tone: "warn",
+            summary: "还没有自有账号作品数据。先完成抖音/视频号采集，再进入今日拍摄判断。",
+            grid: [
+              { tone: "warn", label: "今日拍摄", value: "待定", note: "缺少作品样本" },
+              { tone: "warn", label: "双平台判断", value: "待定", note: "等待抖音/视频号数据" },
+              { tone: "danger", label: "可信数据", value: "0", note: "不能下重结论" },
+              { tone: "warn", label: "下一步", value: "采集", note: prep.command ? "按推荐命令运行" : "等待采集器状态" }
+            ],
+            list: [
+              { tone: "warn", title: "先采自己的真实作品", body: "没有真实作品数据时，不生成拍摄方向，避免 AI 讲得漂亮但不能落地。" },
+              { tone: "good", title: "采集完成后自动分析", body: "Mac mini 跑完会自动写入网站，页面会重新生成总控台、双平台脚本和 DeepSeek 专家报告。" }
+            ]
+          };
+        }
+        const primaryTopic = primary?.label || scriptData.topic || "今日主选题";
+        const scriptCount = scriptData.cards?.length || 0;
+        const trustTone = deepUsable >= Math.max(8, rows.length * 0.25) ? "good" : deepUsable ? "warn" : "danger";
+        const crossTone = platformData.summary.core ? "good" : platformData.summary.douyinOnly || platformData.summary.wechatOnly ? "warn" : "danger";
+        const grid = [
+          {
+            tone: scriptCount ? "good" : "warn",
+            label: "今日主选题",
+            value: primaryTopic.slice(0, 12),
+            note: scriptCount ? "已生成双平台脚本" : "等待脚本生成"
+          },
+          {
+            tone: crossTone,
+            label: "双平台题材",
+            value: `${platformData.summary.core}/${platformData.summary.topicCount}`,
+            note: `核心 ${platformData.summary.core}，抖音偏强 ${platformData.summary.douyinOnly}，视频号偏强 ${platformData.summary.wechatOnly}`
+          },
+          {
+            tone: trustTone,
+            label: "可信样本",
+            value: `${deepUsable}条`,
+            note: `轻判断 ${trust.buckets.light.length}，缺字段 ${trust.buckets.missing.length}`
+          },
+          {
+            tone: "good",
+            label: "复盘节奏",
+            value: "2/24/72h",
+            note: "发布后自动按时间节点判断去向"
+          }
+        ];
+        const list = [
+          {
+            tone: "good",
+            title: `今天先围绕「${primaryTopic}」做双平台表达`,
+            body: scriptCount
+              ? "抖音版负责前3秒、痛点、搜索词和关注理由；视频号版负责家长信任、转发价值、本地升学场景和私域承接。"
+              : "先从可复拍素材里选一条有代表视频的数据，再生成两套平台表达。"
+          },
+          {
+            tone: platformData.summary.core ? "good" : "warn",
+            title: platformData.summary.core ? "优先放大双平台核心题材" : "先验证平台分化题材",
+            body: platformData.summary.core
+              ? `当前已有 ${platformData.summary.core} 个两边都能打的题材，优先做系列和复拍。`
+              : "暂时没有稳定双平台核心题材，先把抖音强题材改成视频号信任版，或把视频号强题材改成抖音强开头版。"
+          },
+          {
+            tone: trustTone,
+            title: "先看可信数据再下结论",
+            body: deepUsable
+              ? `${deepUsable} 条数据可进入深度复盘。只能轻判断的视频可以看热度，但不要用来决定长期账号方向。`
+              : "目前缺后台深度字段，今天先做轻量判断，下一轮采集要补留存、搜索词、主页访问和线索。"
+          },
+          {
+            tone: "warn",
+            title: "发布后不要只看播放",
+            body: "2小时看启动和留存，24小时看收藏/转发/评论/涨粉/咨询，72小时决定进入复拍、重剪、失败样本或继续观察。"
+          }
+        ];
+        return {
+          badge: "可执行",
+          tone: "good",
+          summary: `当前可基于 ${rows.length} 条自有作品做今日决策：主选题「${primaryTopic}」，先按双平台脚本执行，再按 2/24/72 小时复盘。`,
+          grid,
+          list
+        };
+      }
+
+      function renderTodayCommandCenter() {
+        const badge = byId("todayCommandBadge");
+        const summary = byId("todayCommandSummary");
+        const grid = byId("todayCommandGrid");
+        const list = byId("todayCommandList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildTodayCommandCenter();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.grid.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
       function buildPostPublishReviewLoop() {
         const baseline = executionBaseline();
         const scriptData = buildDailyScriptWorkbench();
@@ -5045,6 +5201,7 @@
           accountName: row.accountName,
           title: row.title,
           topic: row.topic,
+          contentIdea: contentIdeaLabelForVideo(row),
           contentTags: videoTags(row),
           publishedAt: row.publishedAt,
           capturedAt: row.capturedAt,
@@ -5196,7 +5353,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705t",
+          version: "20260705u",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -5354,6 +5511,7 @@
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
           platformDiagnosis: buildPlatformDiagnosis(),
+          todayCommandCenter: buildTodayCommandCenter(),
           crossPlatformComparison: crossPlatformComparisonForAi(),
           dualPlatformScripts: buildDualPlatformScripts(),
           postPublishReviewLoop: buildPostPublishReviewLoop(),
@@ -5371,6 +5529,7 @@
           accountReports,
           localActionDrafts: {
             morningDecisions: buildMorningDecisions(),
+            todayCommandCenter: buildTodayCommandCenter(),
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
             executionLoop: buildExecutionLoop(),
@@ -6928,6 +7087,7 @@
         renderCollectionPlan();
         renderDataReadiness();
         renderOvernightMiningPlan();
+        renderTodayCommandCenter();
         renderMorningDecisions();
         renderPlatformDiagnosis();
         renderCrossPlatformComparison();
@@ -7053,6 +7213,7 @@
 
       function refreshVideoLists() {
         renderOvernightMiningPlan();
+        renderTodayCommandCenter();
         renderMorningDecisions();
         renderPlatformDiagnosis();
         renderCrossPlatformComparison();
