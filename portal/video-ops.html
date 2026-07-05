@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705r</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705s</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -371,6 +371,22 @@
         <p id="executionLoopSummary" style="margin-top:8px;">把“系统建议”变成今天能执行、明天能复盘的流程：选题、拍摄、发布、复盘。</p>
         <div class="focus-grid" id="executionLoopGrid"></div>
         <div class="decision-list" id="executionLoopList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Before Collection</p>
+            <h2>采集前准备台</h2>
+          </div>
+          <span class="badge" id="collectionPrepBadge">等待检查</span>
+        </div>
+        <p id="collectionPrepSummary" style="margin-top:8px;">采集前先看这里：能不能开始、该跑深采还是日常巡检、缺哪些关键字段。</p>
+        <div class="focus-grid" id="collectionPrepGrid"></div>
+        <div class="decision-list" id="collectionPrepList"></div>
+        <div class="actions" style="margin-top:12px;">
+          <button class="button secondary" id="copyCollectionCommandButton" type="button">复制推荐采集命令</button>
+        </div>
       </section>
 
       <section class="auxiliary-stack">
@@ -802,7 +818,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705q";
+        const pageVersion = "20260705s";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -937,9 +953,12 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705q";
+      const PAGE_VERSION = "20260705s";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
+      const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
+      const CHANNELS_TRIAL_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:channels-trial";
+      const CHANNELS_DEEP_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:channels-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -2783,6 +2802,7 @@
         byId("collectionPlanBadge").textContent = `${plan.mode}｜每账号 ${plan.targetPerAccount} 条`;
         byId("collectionPlanSummary").textContent = plan.sampleMethod;
         const rows = [
+          ["本轮平台范围", plan.platformFilter ? `只采 ${plan.platformFilter}` : "抖音和视频号按账号配置分别采集，复盘时分平台判断"],
           ["自有账号采多少", `每个自有账号最多 ${plan.targetPerAccount} 条后台作品数据，系统自动过滤无效页面和低可信字段`],
           ["标杆账号采多少", plan.benchmarkAccountsPerRun ? `本轮显式开启标杆采集：${plan.benchmarkAccountsPerRun} 个账号，每个最多 ${plan.benchmarkVideosPerAccount || 8} 条` : "默认不采标杆公开搜索，只保留标杆名单用于人工学习"],
           ["自有账号是否深采", plan.deepOwnDetails ? "本轮会尝试打开自有账号作品详情页，补更多官方后台数据" : "本轮只采列表可见数据，不自动点详情页"],
@@ -3846,6 +3866,172 @@
         `).join("");
       }
 
+      function platformRows(platform = "") {
+        return ownVideoRows().filter((row) => normalizeText(row.platform) === normalizeText(platform));
+      }
+
+      function latestLoginCheckForPlatform(platform = "") {
+        const rows = Array.isArray(state.collectorStatus?.loginChecks) ? state.collectorStatus.loginChecks : [];
+        return rows.slice().reverse().find((row) => normalizeText(row.platform) === normalizeText(platform)) || null;
+      }
+
+      function loginCheckTone(row = null, hasRows = false) {
+        if (row?.status === "ready") return "good";
+        if (hasRows) return "warn";
+        if (row?.status) return "danger";
+        return "warn";
+      }
+
+      function loginCheckText(row = null, hasRows = false) {
+        if (row?.status === "ready") return "已登录";
+        if (hasRows) return "已有数据";
+        if (row?.status === "login_required") return "需扫码";
+        if (row?.status === "blocked" || row?.status === "skipped") return "未通过";
+        return "待预检";
+      }
+
+      function recommendedCollectionCommand() {
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
+        const profile = dataReadinessProfile();
+        const channels = platformRows("视频号");
+        const channelsLogin = latestLoginCheckForPlatform("视频号");
+        if (status.status === "running") return "";
+        if (!channels.length || channelsLogin?.status === "login_required" || channelsLogin?.status === "blocked") {
+          return CHANNELS_TRIAL_COMMAND;
+        }
+        if (channels.length < 20) return CHANNELS_TRIAL_COMMAND;
+        if (channels.length < 80) return CHANNELS_DEEP_COMMAND;
+        if (profile.ownCount < 300) return OVERNIGHT_COMMAND;
+        return DAILY_COMMAND;
+      }
+
+      function buildCollectionPrep() {
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
+        const profile = dataReadinessProfile();
+        const douyin = platformRows("抖音");
+        const channels = platformRows("视频号");
+        const douyinLogin = latestLoginCheckForPlatform("抖音");
+        const channelsLogin = latestLoginCheckForPlatform("视频号");
+        const command = recommendedCollectionCommand();
+        const channelsUseful = channels.filter(isUsefulSnapshot);
+        const channelsWithInteraction = channels.filter((row) => row.comments || row.shares || row.favorites);
+        const channelsWithConversion = channels.filter((row) => row.profileVisits || row.messages || row.leads);
+        const grid = [
+          {
+            tone: loginCheckTone(douyinLogin, douyin.length > 0),
+            label: "抖音预检",
+            value: loginCheckText(douyinLogin, douyin.length > 0),
+            note: douyin.length ? `${douyin.length} 条作品数据` : "先确认创作者中心已登录"
+          },
+          {
+            tone: loginCheckTone(channelsLogin, channels.length > 0),
+            label: "视频号预检",
+            value: loginCheckText(channelsLogin, channels.length > 0),
+            note: channels.length ? `${channels.length} 条作品数据` : "建议先单独小样本试跑"
+          },
+          {
+            tone: channels.length >= 20 ? "good" : channels.length ? "warn" : "danger",
+            label: "视频号样本",
+            value: `${channels.length}条`,
+            note: channels.length >= 20 ? "可做初步复盘" : "先不要下视频号结论"
+          },
+          {
+            tone: channelsWithInteraction.length >= 10 ? "good" : channelsWithInteraction.length ? "warn" : "danger",
+            label: "视频号互动",
+            value: `${channelsWithInteraction.length}条`,
+            note: "重点看评论、转发、收藏"
+          },
+          {
+            tone: channelsWithConversion.length >= 5 ? "good" : channelsWithConversion.length ? "warn" : "danger",
+            label: "私域承接",
+            value: `${channelsWithConversion.length}条`,
+            note: "主页访问、私信、线索"
+          },
+          {
+            tone: profile.ownCount >= 300 ? "good" : profile.ownCount ? "warn" : "danger",
+            label: "全平台样本",
+            value: `${profile.ownCount}条`,
+            note: profile.ownCount >= 300 ? "可做账号级复盘" : "继续补历史库"
+          }
+        ];
+        const list = [];
+        if (status.status === "running") {
+          list.push({
+            tone: "warn",
+            title: "当前采集器正在运行",
+            body: "先不要重复开第二个采集任务。等本轮结束后，页面会自动读取数据并生成专家报告。"
+          });
+        } else if (!channels.length) {
+          list.push({
+            tone: "warn",
+            title: "先单独验证视频号",
+            body: "先跑 video:channels-trial。它只采视频号，最多 20 条，用来确认扫码登录、页面入口、作品标题和播放互动字段是否真实。"
+          });
+        } else if (channels.length < 80) {
+          list.push({
+            tone: "good",
+            title: "视频号可以继续深采",
+            body: "小样本有真实数据后，再跑 video:channels-deep。视频号重点补评论、转发、收藏、主页访问、私信和原视频链接。"
+          });
+        } else {
+          list.push({
+            tone: "good",
+            title: "视频号进入分平台复盘",
+            body: "视频号数据已具备复盘基础。不要按抖音高播放逻辑硬评，优先看微信生态里的转发、评论质量、收藏、本地信任和私域承接。"
+          });
+        }
+        list.push({
+          tone: "good",
+          title: "抖音复盘口径",
+          body: "抖音重点看推荐流能否推开、搜索词是否命中、前3秒/完播是否稳、涨粉和线索是否出现。高播放视频保留为本地影响力样本。"
+        });
+        list.push({
+          tone: "good",
+          title: "视频号复盘口径",
+          body: "视频号重点看家长是否愿意转发、评论是否有具体问题、收藏是否代表干货价值、是否能进入微信私域沟通。视频号不只追单条爆量。"
+        });
+        list.push({
+          tone: "warn",
+          title: "合并判断规则",
+          body: "抖音负责扩大曝光和搜索增长，视频号负责熟人圈信任和私域承接。最后系统只合并成一件事：今天拍什么、怎么拍、拍完看什么数据。"
+        });
+        return {
+          badge: status.status === "running" ? "正在采集" : channelsUseful.length ? "可继续采" : "先验证视频号",
+          tone: status.status === "running" ? "warn" : channelsUseful.length ? "good" : "warn",
+          summary: command
+            ? `推荐下一步：${command.includes("channels-trial") ? "先跑视频号小样本验证" : command.includes("channels-deep") ? "继续视频号深采" : command.includes("own-deep") ? "补全自有账号历史库" : "日常轻量巡检"}。`
+            : "采集器正在运行，等本轮结束后再决定下一步。",
+          command,
+          grid,
+          list
+        };
+      }
+
+      function renderCollectionPrep() {
+        const badge = byId("collectionPrepBadge");
+        const summary = byId("collectionPrepSummary");
+        const grid = byId("collectionPrepGrid");
+        const list = byId("collectionPrepList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildCollectionPrep();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.grid.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
       function metricLeaderRows() {
         const rows = ownVideoRows();
         return {
@@ -4253,7 +4439,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705r",
+          version: "20260705s",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -4426,6 +4612,7 @@
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
             executionLoop: buildExecutionLoop(),
+            collectionPrep: buildCollectionPrep(),
             shootingTasks: buildShootingTasks(),
             remakeMaterialLibrary: buildRemakeMaterialLibrary(),
             nextTopicPlan: buildNextTopicPlan(),
@@ -5971,6 +6158,7 @@
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
         renderExecutionLoop();
+        renderCollectionPrep();
         renderMethodLibrary();
         renderAutomationSchedule();
         renderAnalysisClosure();
@@ -6091,6 +6279,7 @@
         renderShootingCommandCenter();
         renderDailyScriptWorkbench();
         renderExecutionLoop();
+        renderCollectionPrep();
         renderSignalRankings();
         renderTopicPerformance();
         renderPriorityVideos();
@@ -6455,6 +6644,17 @@
             await navigator.clipboard?.writeText(OVERNIGHT_COMMAND);
             byId("videoOpsMessage").textContent = "已复制自有账号补采命令。";
           });
+        });
+        byId("copyCollectionCommandButton")?.addEventListener("click", async () => {
+          const command = recommendedCollectionCommand() || DAILY_COMMAND;
+          await navigator.clipboard?.writeText(command);
+          byId("videoOpsMessage").textContent = command.includes("channels-trial")
+            ? "已复制视频号小样本验证命令。"
+            : command.includes("channels-deep")
+              ? "已复制视频号深度采集命令。"
+              : command.includes("own-deep")
+                ? "已复制自有账号整夜深挖命令。"
+                : "已复制日常轻量巡检命令。";
         });
         byId("scrollToVideosButton")?.addEventListener("click", () => {
           byId("signalRankingGrid")?.scrollIntoView({ behavior: "smooth", block: "start" });

@@ -415,6 +415,11 @@ function applyRuntimeOptions(config, options = {}) {
   if (maxVideos > 0) next.limits.maxVideosPerAccount = Math.max(1, Math.min(500, Math.round(maxVideos)));
   const scanMode = normalizeText(options.scanMode || options["scan-mode"] || process.env.VIDEO_OPS_SCAN_MODE);
   if (scanMode) next.scanMode = scanMode;
+  const platformFilter = normalizeText(options.platform || options["only-platform"] || options.onlyPlatform || process.env.VIDEO_OPS_PLATFORM);
+  if (platformFilter) {
+    next.platformFilter = platformFilter;
+    next.accounts = (next.accounts || []).filter((account) => normalizeText(account.platform) === platformFilter);
+  }
   const benchmarkAccounts = parseNumber(options.benchmarkAccounts || options["benchmark-accounts"] || process.env.VIDEO_OPS_BENCHMARK_ACCOUNTS);
   if (benchmarkAccounts > 0) {
     next.benchmarks.publicCollection.accountsPerRun = Math.max(1, Math.min(47, Math.round(benchmarkAccounts)));
@@ -464,6 +469,7 @@ function collectionPlan(config) {
   return {
     mode,
     cadence,
+    platformFilter: normalizeText(config.platformFilter || ""),
     targetPerAccount: maxVideos,
     benchmarkAccountsPerRun: benchmarkAccounts,
     benchmarkVideosPerAccount: benchmarkVideos,
