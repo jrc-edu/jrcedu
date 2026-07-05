@@ -310,7 +310,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705x</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260706a</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -353,12 +353,41 @@
         <strong>今日工作入口</strong>
         <div class="toolbar">
           <button class="button secondary" type="button" data-jump-target="todayCommandGrid">总控台</button>
+          <button class="button secondary" type="button" data-jump-target="collectionAcceptanceGrid">数据验收</button>
+          <button class="button secondary" type="button" data-jump-target="channelsReviewGrid">视频号复盘</button>
           <button class="button secondary" type="button" data-jump-target="roleBriefGrid">角色输出</button>
           <button class="button secondary" type="button" data-jump-target="dailyScriptGrid">今日脚本</button>
           <button class="button secondary" type="button" data-jump-target="weeklyPlanGrid">7日排期</button>
           <button class="button secondary" type="button" data-jump-target="remakeBookmarkGrid">复拍收藏</button>
           <button class="button secondary" type="button" data-jump-target="signalRankingGrid">视频明细</button>
         </div>
+      </section>
+
+      <section class="card command-panel" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Collection Acceptance</p>
+            <h2>采集验收与缺口核查</h2>
+          </div>
+          <span class="badge" id="collectionAcceptanceBadge">等待数据</span>
+        </div>
+        <p id="collectionAcceptanceSummary" style="margin-top:8px;">先验收采集质量，再看 AI 结论：有效作品、字段完整度、跳过原因和下一步补采都会在这里说明。</p>
+        <div class="focus-grid" id="collectionAcceptanceGrid"></div>
+        <div class="decision-list" id="collectionAcceptanceList"></div>
+      </section>
+
+      <section class="card command-panel" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Channels Review</p>
+            <h2>视频号专项复盘</h2>
+          </div>
+          <span class="badge" id="channelsReviewBadge">等待数据</span>
+        </div>
+        <p id="channelsReviewSummary" style="margin-top:8px;">视频号不按抖音爆量逻辑硬评，重点看转发、评论、收藏、本地升学场景和微信私域承接。</p>
+        <div class="focus-grid" id="channelsReviewGrid"></div>
+        <div class="decision-list" id="channelsReviewList"></div>
+        <div class="topic-performance-grid" id="channelsTopicGrid"></div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -962,7 +991,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705x";
+        const pageVersion = "20260706a";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -1097,12 +1126,13 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705x";
+        const PAGE_VERSION = "20260706a";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
       const CHANNELS_TRIAL_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:channels-trial";
       const CHANNELS_DEEP_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:channels-deep";
+      const CHANNELS_FULL_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:channels-full";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
         "/jrcedu/data/video_benchmark_accounts.json",
         "/data/video_benchmark_accounts.json"
@@ -4317,13 +4347,15 @@
         const status = effectiveCollectorStatus(state.collectorStatus || {});
         const profile = dataReadinessProfile();
         const channels = platformRows("视频号");
+        const douyin = platformRows("抖音");
         const channelsLogin = latestLoginCheckForPlatform("视频号");
         if (status.status === "running") return "";
         if (!channels.length || channelsLogin?.status === "login_required" || channelsLogin?.status === "blocked") {
           return CHANNELS_TRIAL_COMMAND;
         }
         if (channels.length < 20) return CHANNELS_TRIAL_COMMAND;
-        if (channels.length < 80) return CHANNELS_DEEP_COMMAND;
+        if (channels.length < 220) return CHANNELS_FULL_COMMAND;
+        if (channels.length < 300 && douyin.length >= 300) return CHANNELS_FULL_COMMAND;
         if (profile.ownCount < 300) return OVERNIGHT_COMMAND;
         return DAILY_COMMAND;
       }
@@ -4390,11 +4422,11 @@
             title: "先单独验证视频号",
             body: "先跑 video:channels-trial。它只采视频号，最多 20 条，用来确认扫码登录、页面入口、作品标题和播放互动字段是否真实。"
           });
-        } else if (channels.length < 80) {
+        } else if (channels.length < 220) {
           list.push({
             tone: "good",
-            title: "视频号可以继续深采",
-            body: "小样本有真实数据后，再跑 video:channels-deep。视频号重点补评论、转发、收藏、主页访问、私信和原视频链接。"
+            title: "视频号可以继续全量深采",
+            body: "小样本有真实数据后，再跑 video:channels-deep 或 video:channels-full。现在这两个命令都是 500 上限的视频号全量采集，重点补评论、转发、收藏、主页访问、私信和原视频链接。"
           });
         } else {
           list.push({
@@ -4422,7 +4454,7 @@
           badge: status.status === "running" ? "正在采集" : channelsUseful.length ? "可继续采" : "先验证视频号",
           tone: status.status === "running" ? "warn" : channelsUseful.length ? "good" : "warn",
           summary: command
-            ? `推荐下一步：${command.includes("channels-trial") ? "先跑视频号小样本验证" : command.includes("channels-deep") ? "继续视频号深采" : command.includes("own-deep") ? "补全自有账号历史库" : "日常轻量巡检"}。`
+            ? `推荐下一步：${command.includes("channels-trial") ? "先跑视频号小样本验证" : command.includes("channels-deep") || command.includes("channels-full") ? "继续视频号全量深采" : command.includes("own-deep") ? "补全自有账号历史库" : "日常轻量巡检"}。`
             : "采集器正在运行，等本轮结束后再决定下一步。",
           command,
           grid,
@@ -4453,6 +4485,328 @@
             <p>${escapeHtml(card.body)}</p>
           </div>
         `).join("");
+      }
+
+      function rowsForPlatform(platform = "") {
+        return ownVideoRows().filter((row) => normalizeText(row.platform) === normalizeText(platform)).filter(isUsefulSnapshot);
+      }
+
+      function fieldCoverage(rows = [], predicate = () => false) {
+        return rows.filter((row) => {
+          try { return predicate(row); } catch { return false; }
+        }).length;
+      }
+
+      function videoDateValue(row = {}) {
+        const time = Date.parse(row.publishedAt || row.capturedAt || "");
+        return Number.isFinite(time) ? time : 0;
+      }
+
+      function videoDateRangeText(rows = []) {
+        const values = rows.map(videoDateValue).filter(Boolean).sort((a, b) => a - b);
+        if (!values.length) return "待确认";
+        const format = (time) => {
+          const date = new Date(time);
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+        };
+        return `${format(values[0])} 至 ${format(values[values.length - 1])}`;
+      }
+
+      function recentRowsByDays(rows = [], days = 30) {
+        const floor = Date.now() - days * 24 * 60 * 60 * 1000;
+        return rows.filter((row) => videoDateValue(row) >= floor);
+      }
+
+      function previousRowsByDays(rows = [], days = 30) {
+        const end = Date.now() - days * 24 * 60 * 60 * 1000;
+        const start = Date.now() - days * 2 * 24 * 60 * 60 * 1000;
+        return rows.filter((row) => {
+          const time = videoDateValue(row);
+          return time >= start && time < end;
+        });
+      }
+
+      function collectionWarningCount() {
+        const statusCount = parseNumber(state.collectorStatus?.warningsCount);
+        const rawCount = Array.isArray(state.warnings) ? state.warnings.length : 0;
+        return Math.max(statusCount, rawCount);
+      }
+
+      function buildCollectionAcceptance() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const channels = rowsForPlatform("视频号");
+        const douyin = rowsForPlatform("抖音");
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
+        const plan = currentCollectionPlan();
+        const target = Math.max(parseNumber(status.targetPerAccount), parseNumber(plan.targetPerAccount), 0);
+        const warnings = collectionWarningCount();
+        const channelCore = {
+          views: fieldCoverage(channels, (row) => Number(row.views || 0) > 0),
+          likes: fieldCoverage(channels, (row) => Number(row.likes || 0) > 0),
+          shares: fieldCoverage(channels, (row) => Number(row.shares || 0) > 0),
+          comments: fieldCoverage(channels, (row) => Number(row.comments || 0) > 0)
+        };
+        const channelDeep = {
+          retention: fieldCoverage(channels, (row) => row.threeSecondRetention || row.completeRate || row.avgWatchSeconds),
+          conversion: fieldCoverage(channels, (row) => row.profileVisits || row.messages || row.leads || row.followersGained),
+          traffic: fieldCoverage(channels, (row) => row.trafficSourceLines?.length || row.searchKeywords?.length),
+          originalUrl: fieldCoverage(channels, hasOriginalVideoUrl)
+        };
+        const targetText = target ? `${channels.length}/${target}` : `${channels.length}`;
+        const candidateGap = target ? Math.max(0, target - channels.length) : 0;
+        const usableTone = channels.length >= 200 ? "good" : channels.length >= 80 ? "warn" : channels.length ? "warn" : "danger";
+        const deepTone = channelDeep.retention || channelDeep.conversion || channelDeep.traffic ? "warn" : "danger";
+        const summary = channels.length
+          ? `本轮视频号可用作品 ${channels.length} 条，时间覆盖 ${videoDateRangeText(channels)}。核心播放/互动可以复盘，留存、转化和流量来源还要继续补。`
+          : rows.length
+            ? "当前有自有账号数据，但视频号作品还没有形成有效样本。先确认视频号登录和作品接口。"
+            : "还没有自有账号作品数据。先跑采集器，页面会自动验收。";
+        const grid = [
+          {
+            tone: usableTone,
+            label: "视频号有效作品",
+            value: target ? targetText : `${channels.length}条`,
+            note: target ? `按 ${plan.mode || status.scanMode || "本轮采集"} 验收` : "等待采集目标"
+          },
+          {
+            tone: channelCore.views === channels.length && channels.length ? "good" : channelCore.views ? "warn" : "danger",
+            label: "播放量字段",
+            value: `${channelCore.views}/${channels.length}`,
+            note: "决定曝光和本地影响力判断"
+          },
+          {
+            tone: channelCore.shares || channelCore.comments ? "good" : "warn",
+            label: "转发/评论",
+            value: `${channelCore.shares}/${channelCore.comments}`,
+            note: "视频号信任传播核心信号"
+          },
+          {
+            tone: deepTone,
+            label: "深度经营字段",
+            value: `${channelDeep.retention + channelDeep.conversion + channelDeep.traffic}`,
+            note: "留存、转化、流量来源仍需补采"
+          },
+          {
+            tone: channelDeep.originalUrl ? "good" : "warn",
+            label: "可回看原视频",
+            value: `${channelDeep.originalUrl}条`,
+            note: "有链接才能直接拆画面和表达"
+          },
+          {
+            tone: candidateGap || warnings ? "warn" : "good",
+            label: "跳过候选",
+            value: candidateGap ? `约${candidateGap}条` : `${warnings}条`,
+            note: "多为低可信、只有日期或非作品项"
+          }
+        ];
+        const list = [
+          {
+            tone: usableTone,
+            title: "这轮不是停在 200，而是做了全量验收",
+            body: target
+              ? `采集目标上限是 ${target}，真正进入系统的有效视频号作品是 ${channels.length} 条。剩余候选没有直接导入，主要是因为缺标题、缺核心指标、只有日期或不像真实作品。`
+              : `当前视频号有效作品 ${channels.length} 条。后续会继续按有效作品入库，不把低可信候选混进分析。`
+          },
+          {
+            tone: "good",
+            title: "现在可以放心看的结论",
+            body: `视频号的播放、点赞、转发、评论已经能支撑“哪些内容有曝光、哪些内容有微信转发价值、哪些题材值得复拍”的判断。抖音样本 ${douyin.length} 条，视频号样本 ${channels.length} 条，后续分平台看。`
+          },
+          {
+            tone: deepTone,
+            title: "现在不能假装已经完整的结论",
+            body: `留存/完播 ${channelDeep.retention} 条、转化/涨粉 ${channelDeep.conversion} 条、流量来源/搜索词 ${channelDeep.traffic} 条。字段不足时，系统会按“轻判断”处理，不会编造完播、咨询或搜索结论。`
+          },
+          {
+            tone: "warn",
+            title: "下一步补采方向",
+            body: "不是继续盲目加上限，而是针对缺口补：视频号作品详情页、数据中心、评论/转发信号、主页访问/私信线索、流量来源和搜索词。能拿到就入库，平台不给就明确标记缺失。"
+          }
+        ];
+        return {
+          badge: channels.length ? "已验收" : "等待视频号",
+          tone: channels.length ? usableTone : "warn",
+          summary,
+          grid,
+          list,
+          raw: { rows, channels, douyin, channelCore, channelDeep, target, candidateGap, warnings }
+        };
+      }
+
+      function renderCollectionAcceptance() {
+        const badge = byId("collectionAcceptanceBadge");
+        const summary = byId("collectionAcceptanceSummary");
+        const grid = byId("collectionAcceptanceGrid");
+        const list = byId("collectionAcceptanceList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildCollectionAcceptance();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.grid.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+      }
+
+      function rowListText(rows = [], metricFn = () => "", empty = "暂无明确样本。") {
+        const valid = rows.filter(Boolean).slice(0, 3);
+        if (!valid.length) return empty;
+        return valid.map((row, index) => `${index + 1}. ${videoShortTitle(row)}｜${metricFn(row)}`).join("；");
+      }
+
+      function buildChannelsDeepReview() {
+        const rows = rowsForPlatform("视频号");
+        const aggregate = platformAggregate("视频号");
+        const acceptance = buildCollectionAcceptance();
+        if (!rows.length) {
+          return {
+            badge: "等待数据",
+            tone: "warn",
+            summary: "还没有视频号有效作品。先完成视频号小样本验证或全量采集。",
+            grid: [
+              { tone: "warn", label: "视频号作品", value: "0条", note: "等待采集" },
+              { tone: "warn", label: "转发信号", value: "0", note: "等待字段" },
+              { tone: "warn", label: "评论信号", value: "0", note: "等待字段" },
+              { tone: "warn", label: "下一步", value: "采集", note: "先确认扫码登录" }
+            ],
+            list: [{ tone: "warn", title: "先采视频号真实数据", body: "视频号不能用抖音数据替代。先采作品标题、播放、转发、评论和原视频链接，再做专项复盘。" }],
+            topics: []
+          };
+        }
+        const avgViews = average(rows.map((row) => row.views));
+        const avgSaveShare = average(rows.map(saveShareRate));
+        const recent30 = recentRowsByDays(rows, 30);
+        const previous30 = previousRowsByDays(rows, 30);
+        const recentViews = recent30.reduce((sum, row) => sum + (row.views || 0), 0);
+        const previousViews = previous30.reduce((sum, row) => sum + (row.views || 0), 0);
+        const topViews = rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0));
+        const topShare = rows.slice().filter((row) => (row.shares || 0) + (row.favorites || 0) > 0).sort((a, b) => ((b.shares || 0) + (b.favorites || 0)) - ((a.shares || 0) + (a.favorites || 0)) || saveShareRate(b) - saveShareRate(a));
+        const lowViewHighShare = rows.slice()
+          .filter((row) => (row.views || 0) < Math.max(1, avgViews * 0.75) && saveShareRate(row) >= Math.max(0.006, avgSaveShare * 1.2))
+          .sort((a, b) => saveShareRate(b) - saveShareRate(a) || ((b.shares || 0) + (b.favorites || 0)) - ((a.shares || 0) + (a.favorites || 0)));
+        const highViewLowTrust = rows.slice()
+          .filter((row) => (row.views || 0) >= Math.max(1200, avgViews * 1.15) && saveShareRate(row) < Math.max(0.004, avgSaveShare * 0.75) && !(row.comments || 0))
+          .sort((a, b) => (b.views || 0) - (a.views || 0));
+        const topics = topicPerformanceRows(rows).slice(0, 4);
+        const deep = acceptance.raw.channelDeep;
+        const trendTone = recentViews >= previousViews || !previous30.length ? "good" : "warn";
+        const grid = [
+          {
+            tone: rows.length >= 200 ? "good" : rows.length >= 80 ? "warn" : "danger",
+            label: "视频号样本",
+            value: `${rows.length}条`,
+            note: videoDateRangeText(rows)
+          },
+          {
+            tone: "good",
+            label: "累计播放",
+            value: formatNumber(aggregate.totalViews),
+            note: `均播 ${formatNumber(Math.round(avgViews || 0))}`
+          },
+          {
+            tone: aggregate.saveShare ? "good" : "warn",
+            label: "收藏转发",
+            value: formatNumber(aggregate.saveShare),
+            note: `每万播放 ${perWan(safeRate(aggregate.saveShare, aggregate.totalViews))}`
+          },
+          {
+            tone: aggregate.comments ? "good" : "warn",
+            label: "评论",
+            value: formatNumber(aggregate.comments),
+            note: "评论代表家长具体问题和信任建立"
+          },
+          {
+            tone: trendTone,
+            label: "近30天播放",
+            value: formatNumber(recentViews),
+            note: previous30.length ? `前30天 ${formatNumber(previousViews)}` : `${recent30.length} 条新内容`
+          },
+          {
+            tone: deep.retention || deep.conversion || deep.traffic ? "warn" : "danger",
+            label: "深度字段",
+            value: `${deep.retention}/${deep.conversion}/${deep.traffic}`,
+            note: "留存 / 转化 / 流量来源"
+          }
+        ];
+        const list = [
+          {
+            tone: "good",
+            title: "视频号最值得复拍的内容",
+            body: rowListText(topShare.length ? topShare : topViews, (row) => `播放 ${formatNumber(row.views)}，转发收藏 ${formatNumber((row.shares || 0) + (row.favorites || 0))}`, "暂时没有转发收藏样本，先按播放最高视频拆结构。")
+          },
+          {
+            tone: highViewLowTrust.length ? "warn" : "good",
+            title: "高播放但信任承接弱",
+            body: highViewLowTrust.length
+              ? rowListText(highViewLowTrust, (row) => `播放 ${formatNumber(row.views)}，转发收藏 ${formatNumber((row.shares || 0) + (row.favorites || 0))}，评论 ${formatNumber(row.comments)}`)
+              : "目前没有明显“高播放但零转发零评论”的风险样本。"
+          },
+          {
+            tone: lowViewHighShare.length ? "good" : "warn",
+            title: "低播放但值得保留的信任内容",
+            body: lowViewHighShare.length
+              ? rowListText(lowViewHighShare, (row) => `播放 ${formatNumber(row.views)}，转发收藏率 ${formatPercent(saveShareRate(row))}`)
+              : "暂时没发现明显低播放高转发样本。后续如果出现，这类内容适合改标题后复拍，不要直接放弃。"
+          },
+          {
+            tone: "good",
+            title: "视频号接下来怎么拍",
+            body: "每条视频号内容都要加一个家长转发理由：孩子为什么要看、家长为什么要收藏、宁波本地升学或年级节点是什么、看完怎么继续把错题发来沟通。"
+          }
+        ];
+        return {
+          badge: "专项可看",
+          tone: rows.length >= 80 ? "good" : "warn",
+          summary: `视频号当前 ${rows.length} 条有效作品，累计播放 ${formatNumber(aggregate.totalViews)}，收藏转发 ${formatNumber(aggregate.saveShare)}，评论 ${formatNumber(aggregate.comments)}。先按信任和私域传播复盘。`,
+          grid,
+          list,
+          topics
+        };
+      }
+
+      function renderChannelsDeepReview() {
+        const badge = byId("channelsReviewBadge");
+        const summary = byId("channelsReviewSummary");
+        const grid = byId("channelsReviewGrid");
+        const list = byId("channelsReviewList");
+        const topics = byId("channelsTopicGrid");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildChannelsDeepReview();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.grid.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.list.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+        if (topics) {
+          topics.innerHTML = data.topics?.length ? data.topics.map((item) => `
+            <div class="topic-performance-card ${escapeHtml(item.tone || "")}">
+              <strong>${escapeHtml(item.label)}</strong>
+              <p>${escapeHtml(`视频号样本 ${item.count} 条，累计播放 ${formatNumber(item.views)}，平均播放 ${formatNumber(Math.round(item.avgViews || 0))}，收藏转发 ${formatNumber(item.saveShare)}。`)}</p>
+              <p>${escapeHtml(item.advice || "适合继续观察题材稳定性。")}</p>
+            </div>
+          `).join("") : "";
+        }
       }
 
       function metricLeaderRows() {
@@ -6013,8 +6367,8 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705x",
-          updatedAt: "2026-07-05",
+          version: "20260706a",
+          updatedAt: "2026-07-06",
           sources: [
             {
               name: "抖音创作者中心",
@@ -6167,9 +6521,11 @@
         const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 todayCommandCenter、weeklyShootingPlan、remakeBookmarkLibrary、platformDiagnosis、crossPlatformComparison、dualPlatformScripts、postPublishReviewLoop、platformMaterialLibrary、dataTrustTiers 和 videoRankings，不要只看混合样本；remakeBookmarkLibrary 是老师人工确认的复拍素材，优先级高于普通候选。高播放视频代表本地影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接，并且同一个选题必须给抖音版和视频号版两套表达。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 collectionAcceptance、channelsDeepReview、todayCommandCenter、weeklyShootingPlan、remakeBookmarkLibrary、platformDiagnosis、crossPlatformComparison、dualPlatformScripts、postPublishReviewLoop、platformMaterialLibrary、dataTrustTiers 和 videoRankings，不要只看混合样本；collectionAcceptance 用于判断数据能信到什么程度，channelsDeepReview 是视频号专项口径，不能按抖音高播放逻辑硬评；remakeBookmarkLibrary 是老师人工确认的复拍素材，优先级高于普通候选。高播放视频代表本地影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；视频号的转发、评论和本地场景代表微信生态信任，不等于抖音爆量；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接，并且同一个选题必须给抖音版和视频号版两套表达。",
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
+          collectionAcceptance: buildCollectionAcceptance(),
+          channelsDeepReview: buildChannelsDeepReview(),
           platformDiagnosis: buildPlatformDiagnosis(),
           roleBriefs: buildRoleBriefs(),
           bossBrief: bossBriefText(),
@@ -6200,6 +6556,8 @@
             bossBrief: bossBriefText(),
             teacherExecutionSheet: teacherExecutionSheetText(),
             todayCommandCenter: buildTodayCommandCenter(),
+            collectionAcceptance: buildCollectionAcceptance(),
+            channelsDeepReview: buildChannelsDeepReview(),
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
             weeklyShootingPlan: buildWeeklyShootingPlan(),
@@ -7761,6 +8119,8 @@
         renderCollectorStatus();
         renderCollectionPlan();
         renderDataReadiness();
+        renderCollectionAcceptance();
+        renderChannelsDeepReview();
         renderOvernightMiningPlan();
         renderRoleBriefs();
         renderTodayCommandCenter();
@@ -7905,6 +8265,8 @@
         renderRemakeBookmarkLibrary();
         renderExecutionLoop();
         renderCollectionPrep();
+        renderCollectionAcceptance();
+        renderChannelsDeepReview();
         renderSignalRankings();
         renderTopicPerformance();
         renderPriorityVideos();
@@ -8285,8 +8647,8 @@
           await navigator.clipboard?.writeText(command);
           byId("videoOpsMessage").textContent = command.includes("channels-trial")
             ? "已复制视频号小样本验证命令。"
-            : command.includes("channels-deep")
-              ? "已复制视频号深度采集命令。"
+            : command.includes("channels-deep") || command.includes("channels-full")
+              ? "已复制视频号全量深度采集命令。"
               : command.includes("own-deep")
                 ? "已复制自有账号整夜深挖命令。"
                 : "已复制日常轻量巡检命令。";
