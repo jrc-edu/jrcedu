@@ -103,6 +103,18 @@
       .decision-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.06); }
       .decision-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.06); }
       .decision-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.05); }
+      .script-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+      .script-card { padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: #fff; }
+      .script-card.good { border-color: rgba(21,128,61,0.18); background: rgba(22,163,74,0.055); }
+      .script-card.warn { border-color: rgba(180,83,9,0.18); background: rgba(180,83,9,0.055); }
+      .script-card.danger { border-color: rgba(185,28,28,0.18); background: rgba(185,28,28,0.045); }
+      .script-card h3 { font-size: 17px; line-height: 1.35; }
+      .script-card .script-meta { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+      .script-card dl { display: grid; gap: 9px; margin: 12px 0 0; }
+      .script-card dt { color: var(--brand-dark); font-size: 12px; font-weight: 900; }
+      .script-card dd { margin: 4px 0 0; color: var(--ink); font-size: 13px; line-height: 1.65; }
+      .method-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+      .method-list li { padding: 10px 12px; border-radius: 13px; background: rgba(13,148,136,0.07); color: var(--ink); font-size: 13px; line-height: 1.6; }
       .command-panel { margin-top: 18px; border-color: rgba(13,148,136,0.20); background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(235,250,246,0.90)); }
       .command-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; margin-top: 12px; }
       .command-text { min-height: 44px; padding: 12px 14px; border-radius: 14px; background: #172132; color: #e5f5f2; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; overflow: auto; }
@@ -237,7 +249,7 @@
         .strategy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .focus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .signal-ranking-grid, .topic-performance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .video-stats, .diagnosis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
@@ -245,7 +257,7 @@
         .page-version-floating { top: 64px; right: 8px; min-height: 28px; padding: 0 9px; font-size: 11px; }
         .topbar { align-items: flex-start; flex-direction: column; }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
-        .strategy-grid, .readiness-grid, .focus-grid, .signal-ranking-grid, .topic-performance-grid { grid-template-columns: 1fr; }
+        .strategy-grid, .readiness-grid, .focus-grid, .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: 1fr; }
         .command-row { grid-template-columns: 1fr; }
         .span-3 { grid-column: auto; }
         .button, .nav-link { width: 100%; min-height: 46px; }
@@ -255,7 +267,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705e</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705f</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -305,6 +317,38 @@
         <p id="shootingCommandSummary" style="margin-top:8px;">把历史视频数据压缩成今天要拍、要复拍、要重剪、要补转化承接的具体动作。</p>
         <div class="signal-ranking-grid" id="shootingCommandGrid"></div>
         <div class="decision-list" id="shootingCommandList"></div>
+      </section>
+
+      <section class="card" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Today Scripts</p>
+            <h2>今日拍摄工作台</h2>
+          </div>
+          <span class="badge" id="dailyScriptBadge">等待数据</span>
+        </div>
+        <p id="dailyScriptSummary" style="margin-top:8px;">把诊断结果直接落成可拍摄的标题、开头、正文结构和结尾承接。</p>
+        <div class="script-grid" id="dailyScriptGrid"></div>
+        <ul class="method-list" id="dailyMethodList"></ul>
+      </section>
+
+      <section class="auxiliary-stack">
+        <details class="panel">
+          <summary>官方方法库与更新计划</summary>
+          <section style="margin-top:18px;">
+            <div class="toolbar" style="justify-content:space-between;">
+              <div>
+                <p class="eyebrow">Method Library</p>
+                <h2>短视频判断口径</h2>
+              </div>
+              <span class="badge" id="methodLibraryVersion">等待加载</span>
+            </div>
+            <p style="margin-top:8px;">这里长期保存系统判断视频好坏的底层方法：官方推荐逻辑、成熟运营方法、教培行业转化和本地化表达。</p>
+            <div class="strategy-grid" id="methodLibraryGrid"></div>
+            <div class="decision-list" id="methodSourceList"></div>
+            <div class="decision-list" id="methodUpdatePlanList"></div>
+          </section>
+        </details>
       </section>
 
       <section class="card" style="margin-top:18px;">
@@ -690,7 +734,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705e";
+        const pageVersion = "20260705f";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -824,7 +868,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705e";
+      const PAGE_VERSION = "20260705f";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -1070,6 +1114,8 @@
           strengths: reportList(source.strengths || source.advantages || source["账号优势"]),
           weaknesses: reportList(source.weaknesses || source.problems || source["主要问题"]),
           remakeDirections: reportList(source.remakeDirections || source.retakeDirections || source["复拍方向"] || source["值得复拍的方向"]),
+          problemSolutions: reportList(source.problemSolutions || source.solutions || source["问题解决方案"] || source["问题到解决方案"]),
+          executableScripts: reportList(source.executableScripts || source.scripts || source["可直接拍摄脚本"] || source["拍摄脚本"]),
           stopDoing: reportList(source.stopDoing || source.stopList || source["停止事项"] || source["需要停止或重做的内容"]),
           weeklyShootingPlan: reportList(source.weeklyShootingPlan || source.shootingPlan || source["下周拍摄清单"]),
           missingData: reportList(source.missingData || source.dataGaps || source["补采字段"] || source["还需要补采哪些字段"]),
@@ -2932,6 +2978,142 @@
         `).join("");
       }
 
+      function scriptTopicFromVideo(row = {}, fallback = "数学培优") {
+        const topic = topicLabelForVideo(row);
+        const tags = videoTags(row);
+        const grade = tags.find((tag) => /初一|初二|初三|小升初|中考|小学奥数/.test(tag)) || "";
+        return [grade, topic].filter(Boolean).join(" · ") || topic || fallback;
+      }
+
+      function titleTemplates(row = {}, purpose = "复拍") {
+        const topic = scriptTopicFromVideo(row);
+        const base = videoShortTitle(row);
+        const local = hasLocalTrafficSignal(row) ? "宁波家长" : "家长";
+        if (purpose === "conversion") {
+          return [
+            `${local}看完这道题，就知道孩子适不适合继续培优`,
+            `${topic}想提分，先别急着刷题，先看这一点`,
+            `这类题孩子老错，真正缺的不是努力`
+          ];
+        }
+        if (purpose === "retention") {
+          return [
+            `${topic}别从头讲，先把答案背后的坑说清楚`,
+            `这道题前 3 秒必须先告诉孩子错在哪里`,
+            `${base}换一种开头，家长更愿意看完`
+          ];
+        }
+        if (purpose === "growth") {
+          return [
+            `${topic}孩子能不能学上去，看这一题就够了`,
+            `很多孩子数学卡住，不是不会算，是不会这样想`,
+            `${local}最该收藏的一个数学判断方法`
+          ];
+        }
+        return [
+          `${topic}同类题再来一道，孩子要学会这个入口`,
+          `${local}收藏：这类题不要硬算，先找结构`,
+          `${base}这条可以复拍，重点保留这个解题角度`
+        ];
+      }
+
+      function buildScriptCard(row = {}, purpose = "remake", fallbackTitle = "今日拍摄") {
+        const diagnosis = diagnoseVideo(row);
+        const plan = remakePlan(row, diagnosis);
+        const topic = scriptTopicFromVideo(row);
+        const titles = titleTemplates(row, purpose);
+        const tags = videoTags(row).slice(0, 4).join(" / ");
+        const lead = purpose === "conversion"
+          ? "你家孩子如果这一步总是想不出来，后面刷再多题也很难稳定提分。"
+          : purpose === "retention"
+            ? "这道题先别急着算，前 3 秒你只要看一个位置。"
+            : purpose === "growth"
+              ? "很多孩子数学学不上去，不是因为笨，而是这一类题的入口没抓住。"
+              : "这类题不要上来就硬算，先看结构，方法一对，后面会快很多。";
+        const body = [
+          `第一步：先点明年级和场景，告诉家长这是 ${topic} 的典型题。`,
+          "第二步：只讲一个核心突破口，别把所有推导都塞进一条视频。",
+          purpose === "conversion"
+            ? "第三步：讲完后明确说适合什么孩子来试听/咨询，别只停留在讲题。"
+            : "第三步：最后用一句话总结可迁移方法，让家长觉得值得收藏。"
+        ];
+        const closing = purpose === "conversion"
+          ? "如果孩子这类题连续错，先别盲目刷题，可以把年级和最近错题发来，我们帮你判断该补基础还是该做培优。"
+          : "想要我继续拆这类题，可以在评论区打年级；我们后面按年级继续讲。";
+        return {
+          tone: purpose === "retention" ? "warn" : "good",
+          label: fallbackTitle,
+          sourceTitle: videoShortTitle(row),
+          metric: compactVideoMetrics(row),
+          topic,
+          tags,
+          titles,
+          lead,
+          body,
+          closing,
+          reason: `${plan.label}。依据：播放 ${formatNumber(row.views)}，收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}，诊断分 ${diagnosis.score}。`
+        };
+      }
+
+      function buildDailyScriptWorkbench() {
+        const leaders = commandCenterLeaders();
+        const cards = [];
+        if (!leaders.rows?.length) {
+          return {
+            badge: "等待数据",
+            summary: "还没有自有视频样本。先采集历史视频，系统再自动生成可拍脚本。",
+            cards: [],
+            methods: [
+              "先保证数据可信：没有播放、互动、留存或转化字段时，不做重拍决策。",
+              "每条视频只服务一个目标：曝光、涨粉、收藏转发或咨询转化，不要一条视频什么都想要。"
+            ]
+          };
+        }
+        if (leaders.remake) cards.push(buildScriptCard(leaders.remake.row, "remake", "第一条：复拍高价值结构"));
+        if (leaders.growth && (!leaders.remake || videoKey(leaders.growth) !== videoKey(leaders.remake.row))) cards.push(buildScriptCard(leaders.growth, "growth", "第二条：做涨粉型内容"));
+        if (leaders.conversion) cards.push(buildScriptCard(leaders.conversion, "conversion", "第三条：补咨询转化承接"));
+        if (cards.length < 3 && leaders.retentionWeak) cards.push(buildScriptCard(leaders.retentionWeak, "retention", "备选：重剪低留存样本"));
+        if (cards.length < 3 && leaders.saveShare) cards.push(buildScriptCard(leaders.saveShare, "remake", "备选：做收藏系列"));
+        const methods = [
+          "平台推荐先看用户行为信号：看完、复看、点赞、评论、转发、关注，比单纯粉丝数更能说明内容能不能继续扩散。",
+          "教培账号不能只追播放：高播放负责本地影响力，收藏转发负责干货价值，涨粉负责长期账号池，咨询/主页访问才负责招生转化。",
+          "每条新视频按四段写：3 秒痛点开头、一个核心方法、一个可迁移总结、一个明确咨询/评论承接。",
+          "本地数学培训要把年级、场景和家长焦虑说清楚，例如小升初、初二分化、中考压轴、宁波本地选拔。"
+        ];
+        return {
+          badge: cards.length ? "可直接拍" : "待补数据",
+          summary: cards.length ? "下面每张卡都能直接交给拍摄老师：照标题、开头、正文三步和结尾承接执行。" : "当前样本不足，先看采集状态。",
+          cards: cards.slice(0, 3),
+          methods
+        };
+      }
+
+      function renderDailyScriptWorkbench() {
+        const badge = byId("dailyScriptBadge");
+        const summary = byId("dailyScriptSummary");
+        const grid = byId("dailyScriptGrid");
+        const methods = byId("dailyMethodList");
+        if (!badge || !summary || !grid || !methods) return;
+        const data = buildDailyScriptWorkbench();
+        badge.textContent = data.badge;
+        badge.className = `badge ${data.cards.length ? "good" : "warn"}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.cards.length ? data.cards.map((card) => `
+          <article class="script-card ${escapeHtml(card.tone || "")}">
+            <h3>${escapeHtml(card.label)}</h3>
+            <div class="script-meta">${escapeHtml(card.sourceTitle)}｜${escapeHtml(card.metric)}${card.tags ? `｜${escapeHtml(card.tags)}` : ""}</div>
+            <dl>
+              <div><dt>推荐标题</dt><dd>${card.titles.map((item) => `《${escapeHtml(item)}》`).join("<br>")}</dd></div>
+              <div><dt>前 3 秒开头</dt><dd>${escapeHtml(card.lead)}</dd></div>
+              <div><dt>正文结构</dt><dd>${card.body.map((item) => escapeHtml(item)).join("<br>")}</dd></div>
+              <div><dt>结尾承接</dt><dd>${escapeHtml(card.closing)}</dd></div>
+              <div><dt>为什么拍</dt><dd>${escapeHtml(card.reason)}</dd></div>
+            </dl>
+          </article>
+        `).join("") : `<div class="empty">还没有足够数据生成拍摄脚本。先让 Mac mini 采集器补齐自有账号历史视频。</div>`;
+        methods.innerHTML = data.methods.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+      }
+
       function metricLeaderRows() {
         const rows = ownVideoRows();
         return {
@@ -3150,6 +3332,115 @@
         return uniqueVideoRows(Object.values(pack.rawRows).flat(), 110);
       }
 
+      function officialVideoMethodology() {
+        return {
+          version: "20260705f",
+          updatedAt: "2026-07-05",
+          sources: [
+            {
+              name: "抖音创作者中心",
+              url: "https://creator.douyin.com/",
+              use: "作为抖音创作者后台、作品数据和账号运营入口，后续重点核验平台字段和创作者课程变化。"
+            },
+            {
+              name: "巨量学",
+              url: "https://school.oceanengine.com/",
+              use: "作为巨量引擎官方学习平台，长期跟踪短视频创意、内容营销、行业案例和投放创意方法。"
+            },
+            {
+              name: "TikTok 官方推荐机制说明",
+              url: "https://newsroom.tiktok.com/en-us/how-tiktok-recommends-videos-for-you",
+              use: "官方公开解释推荐会综合用户互动、视频信息、设备与账号设置；完播、复看、互动、关注等行为是强兴趣信号。"
+            },
+            {
+              name: "TikTok Business Creative Codes",
+              url: "https://www.tiktok.com/business/en-US/blog/creative-codes",
+              use: "官方创意方法参考，用于强化短视频开头、叙事、真实感、互动和行动引导。"
+            },
+            {
+              name: "微信视频号助手",
+              url: "https://channels.weixin.qq.com/platform",
+              use: "作为视频号创作者平台入口，后续用于核验视频号后台数据、账号表现和内容运营规则。"
+            }
+          ],
+          categories: [
+            {
+              label: "推荐信号",
+              value: "优先看用户真实行为：完播、复看、点赞、评论、分享、收藏、关注、主页访问和私信线索。"
+            },
+            {
+              label: "点击与搜索",
+              value: "标题、封面、年级、题型、关键词和本地场景要一眼清楚，方便推荐流和搜索流同时识别。"
+            },
+            {
+              label: "留存完播",
+              value: "前 3 秒必须先抛家长痛点、孩子常错点或结论，中段只讲一个核心突破口，避免铺垫过长。"
+            },
+            {
+              label: "教培转化",
+              value: "播放不等于招生。每条视频要分清曝光、涨粉、收藏干货、咨询转化四类目标，并补评论区、主页、私信和试听承接。"
+            },
+            {
+              label: "本地化",
+              value: "宁波本地、年级、升学节点、暑假规划、中考/小升初、重点高中选拔等场景要具体，增强家长代入感。"
+            },
+            {
+              label: "复拍原则",
+              value: "高播放保留传播结构，高收藏转发做系列，高涨粉强化关注理由，高咨询补承接链路，低留存先重写前 3 秒。"
+            }
+          ],
+          evaluationRules: [
+            "曝光点击：标题、封面、年级和痛点是否一眼清楚；高播放视频单独保留为本地品牌影响力样本。",
+            "留存完播：前 3 秒是否直接抛问题或结论；中段是否只讲一个核心突破口，避免铺垫过长。",
+            "互动收藏：内容是否有家长愿意保存、转发给孩子或评论提问的价值。",
+            "账号增长：视频是否给出关注理由，能不能让家长觉得后续还要继续看。",
+            "招生转化：是否有主页置顶、评论关键词、私信入口、试听/诊断口播，不能只有播放没有承接。",
+            "本地适配：宁波本地、年级、学校/升学场景、暑假/中考/小升初节点要具体。"
+          ],
+          scriptFormula: [
+            "3 秒开头：直接说家长痛点、孩子常错点或结果，不先寒暄。",
+            "主体内容：只讲一个题型入口或一个学习判断方法。",
+            "证明力：用真实题、真实年级、真实错法或前后对比证明专业度。",
+            "结尾承接：引导评论年级、私信错题、查看主页置顶或预约试听诊断。",
+            "复拍原则：高播放保留传播结构，高收藏转发做系列，高涨粉强化关注理由，高咨询补承接链路。"
+          ],
+          updatePlan: [
+            "每周：复核抖音创作者中心、巨量学、视频号助手是否有新的官方课程、推荐口径、数据字段或案例。",
+            "每周：补充 3-5 个国内数学教培优秀账号的标题、开头、转化承接案例，标记为人工案例参考，不和官方规则混在一起。",
+            "每月：把自有账号数据与方法库重新对照，淘汰无效经验，保留真正提升播放、完播、涨粉、收藏或咨询的做法。",
+            "重大平台变化：如果官方推荐机制、创作者后台字段或教育内容规范有明显变化，单独升一个方法库版本并写更新说明。"
+          ]
+        };
+      }
+
+      function renderMethodLibrary() {
+        const library = officialVideoMethodology();
+        const version = byId("methodLibraryVersion");
+        const grid = byId("methodLibraryGrid");
+        const sources = byId("methodSourceList");
+        const updates = byId("methodUpdatePlanList");
+        if (!version || !grid || !sources || !updates) return;
+        version.textContent = `方法库 ${library.version}`;
+        grid.innerHTML = library.categories.map((item) => `
+          <div class="strategy-item">
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(item.value)}</strong>
+          </div>
+        `).join("");
+        sources.innerHTML = `
+          <div class="decision-card good">
+            <strong>长期跟踪来源</strong>
+            <p>${library.sources.map((item) => `${escapeHtml(item.name)}：${escapeHtml(item.use)} ${item.url ? `<br><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.url)}</a>` : ""}`).join("<br><br>")}</p>
+          </div>
+        `;
+        updates.innerHTML = `
+          <div class="decision-card warn">
+            <strong>定期更新机制</strong>
+            <p>${library.updatePlan.map((item, index) => `${index + 1}. ${escapeHtml(item)}`).join("<br>")}</p>
+          </div>
+        `;
+      }
+
       function buildVideoOpsAiInput() {
         const readiness = dataReadinessProfile();
         const accountReports = auditAccountOptions()
@@ -3158,7 +3449,8 @@
         const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营顾问视角，基于以下真实采集数据输出报告。请优先读取 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。数据不足处必须明说，不要编造。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。请优先读取 videoRankings 里的播放榜、涨粉/C粉榜、咨询线索榜、收藏转发榜、复拍清单和复盘清单，不要只看混合样本。高播放视频代表本地品牌影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接。structuredData 里必须尽量返回 problemSolutions 和 executableScripts。",
+          officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
           accounts: state.accounts,
           benchmarkAccounts: benchmarkAccountsFromState(),
@@ -3173,6 +3465,7 @@
           localActionDrafts: {
             morningDecisions: buildMorningDecisions(),
             shootingCommandCenter: buildShootingCommandCenter(),
+            dailyScriptWorkbench: buildDailyScriptWorkbench(),
             shootingTasks: buildShootingTasks(),
             nextTopicPlan: buildNextTopicPlan(),
             advantagePlan: buildAdvantagePlan()
@@ -3217,6 +3510,8 @@
               <p>${escapeHtml([data.accountVerdict, data.dataReadiness].filter(Boolean).join("；"))}</p>
             </div>
           ` : "",
+          reportCardHtml("问题到解决方案", data.problemSolutions, "good"),
+          reportCardHtml("可直接拍摄脚本", data.executableScripts, "good"),
           reportCardHtml("下周拍摄清单", data.weeklyShootingPlan, "good"),
           reportCardHtml("值得复拍的方向", data.remakeDirections, "good"),
           reportCardHtml("主要问题", data.weaknesses, "warn"),
@@ -4609,6 +4904,8 @@
         renderOvernightMiningPlan();
         renderMorningDecisions();
         renderShootingCommandCenter();
+        renderDailyScriptWorkbench();
+        renderMethodLibrary();
         renderAutomationSchedule();
         renderAnalysisClosure();
         renderAiExpertReport();
