@@ -294,7 +294,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260705n</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260705o</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -776,7 +776,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260705n";
+        const pageVersion = "20260705o";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -910,7 +910,7 @@
     <script>
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const MODULE_KEY = "videoOps";
-      const PAGE_VERSION = "20260705n";
+      const PAGE_VERSION = "20260705o";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const BENCHMARK_ACCOUNT_LIBRARY_URLS = [
@@ -2492,6 +2492,26 @@
         return "等待采集";
       }
 
+      function collectorStatusAgeHours(status = {}) {
+        const time = Date.parse(normalizeText(status.updatedAt || status.startedAt));
+        if (!Number.isFinite(time)) return Infinity;
+        return (Date.now() - time) / 36e5;
+      }
+
+      function effectiveCollectorStatus(value = {}) {
+        const status = normalizeCollectorStatus(value || {});
+        const hasImportedData = latestSnapshots().length > 0 || latestAccountAudits().length > 0;
+        if (status.status === "running" && hasImportedData && collectorStatusAgeHours(status) > 2) {
+          return {
+            ...status,
+            status: "warning",
+            stepLabel: "上次采集状态已过期",
+            message: "上次采集状态停留在运行中，但已经超过 2 小时没有更新；当前按本轮采集已结束处理，直接看复盘结果。"
+          };
+        }
+        return status;
+      }
+
       function loginCheckStatusName(status) {
         if (status === "ready") return "已登录";
         if (status === "skipped") return "已跳过";
@@ -2507,7 +2527,7 @@
       }
 
       function renderCollectorStatus() {
-        const status = state.collectorStatus || normalizeCollectorStatus({});
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
         const quality = state.collectionQuality?.summary ? state.collectionQuality : status.collectionQuality || normalizeCollectionQuality({});
         const dot = byId("collectorStatusDot");
         const progress = status.status === "idle" && !status.updatedAt ? 0 : status.progress || 0;
@@ -2580,7 +2600,7 @@
         const ownWithOriginalUrl = ownRows.filter(hasOriginalVideoUrl);
         const withOriginalUrl = latest.filter(hasOriginalVideoUrl);
         const avgCompleteness = average(latest.map((row) => row.dataCompleteness?.score || 0));
-        const status = state.collectorStatus || {};
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
         const total = latest.length;
         const ownCount = ownRows.length;
         const peerCount = peerRows.length;
@@ -2749,7 +2769,7 @@
         if (commandBox) commandBox.textContent = OVERNIGHT_COMMAND;
         if (!grid || !actions) return;
         const rows = ownVideoRows();
-        const status = state.collectorStatus || {};
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
         const plan = currentCollectionPlan();
         const target = Math.max(500, Number(plan.targetPerAccount || 0));
         const withCore = rows.filter((row) => row.views || row.likes || row.comments || row.favorites || row.shares).length;
@@ -2778,7 +2798,7 @@
         } else if (rows.length < 300) {
           nextActions.push({ tone: "good", title: "等待补采补齐数据", body: "采集器启动后会重建可信数据，最多每个自有账号采 500 条，并自动写入网站；页面会自动更新。" });
         } else {
-          nextActions.push({ tone: "good", title: "已具备深度复盘基础", body: "样本已经足够看账号方向。下一步重点看：题材归因、涨粉/C粉、咨询线索、收藏转发和本地曝光。" });
+          nextActions.push({ tone: "good", title: "抖音深采已具备复盘基础", body: `当前已采到 ${rows.length} 条自有账号视频。下一步不是继续等采集，而是看题材归因、涨粉/C粉、咨询线索、收藏转发和本地曝光。` });
         }
         if (withTraffic < 15) nextActions.push({ tone: "warn", title: "重点补流量来源", body: "如果创作者中心能看到来源/搜索词/同城数据，系统会单独入库。它决定我们是靠推荐爆、搜索来、粉丝看，还是本地影响扩散。" });
         if (withConversion < 20) nextActions.push({ tone: "warn", title: "重点补转化字段", body: "主页访问、私信、线索、涨粉字段越完整，系统越能判断哪类视频真正带来招生机会。" });
@@ -2795,7 +2815,7 @@
         const actions = byId("automationScheduleActions");
         if (!grid || !actions) return;
         const rows = ownVideoRows();
-        const status = state.collectorStatus || {};
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
         const plan = currentCollectionPlan();
         const last = [state.snapshots[0]?.capturedAt, state.accountAudits[0]?.capturedAt, status.updatedAt]
           .filter(Boolean)
@@ -2866,7 +2886,7 @@
       function buildMorningDecisions() {
         const rows = ownVideoRows();
         const profile = dataReadinessProfile();
-        const status = state.collectorStatus || {};
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
         const quality = state.collectionQuality?.summary ? state.collectionQuality : status.collectionQuality || normalizeCollectionQuality({});
         const report = normalizeAiReport(state.aiReport || {});
         const diagnostics = rows.map((row) => ({ row, diagnosis: diagnoseVideo(row), remake: null }));
@@ -2921,26 +2941,26 @@
         }
         list.push({
           tone: "good",
-          title: "明早先看：最该复拍 3 条",
+          title: "复盘先看：最该复拍 3 条",
           body: rankedDecisionText(remakeTop, (row) => `播放 ${formatNumber(row.views)}，收藏转发 ${formatNumber((row.favorites || 0) + (row.shares || 0))}`)
         });
         list.push({
           tone: "danger",
-          title: "明早先看：最该重剪 3 条",
+          title: "复盘先看：最该重剪 3 条",
           body: rankedDecisionText(rewriteTop, (row) => `诊断分 ${diagnoseVideo(row).score}，播放 ${formatNumber(row.views)}`)
         });
         list.push({
           tone: "warn",
-          title: "明早先看：最有招生转化 3 条",
+          title: "复盘先看：最有招生转化 3 条",
           body: rankedDecisionText(conversionTop, (row) => `主页/线索 ${formatNumber(visitConversionCount(row))}，每万播放 ${perWan(visitConversionRate(row))}`)
         });
         list.push({
           tone: "good",
-          title: "明早先看：最能涨粉/C粉 3 条",
+          title: "复盘先看：最能涨粉/C粉 3 条",
           body: rankedDecisionText(fansTop, (row) => `涨粉 ${formatNumber(row.followersGained)}，每万播放 ${perWan(followerRate(row))}`)
         });
         const summary = ready
-          ? "明早优先看四个榜单：复拍、重剪、招生转化、涨粉/C粉。"
+          ? "现在优先看四个榜单：复拍、重剪、招生转化、涨粉/C粉。"
           : `当前自有视频 ${rows.length} 条，能做初步判断；继续补采后结论会更稳。`;
         return {
           badge: status.status === "running" ? "正在采集" : ready ? "可直接看" : "初步可看",
@@ -3681,7 +3701,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260705n",
+          version: "20260705o",
           updatedAt: "2026-07-05",
           sources: [
             {
@@ -3934,7 +3954,7 @@
         const summary = byId("analysisClosureSummary");
         const grid = byId("analysisClosureGrid");
         if (!badge || !summary || !grid) return;
-        const collector = state.collectorStatus || {};
+        const collector = effectiveCollectorStatus(state.collectorStatus || {});
         const analysis = state.analysisStatus || {};
         const quality = state.collectionQuality?.summary ? state.collectionQuality : collector.collectionQuality || normalizeCollectionQuality({});
         const report = normalizeAiReport(state.aiReport || {});
@@ -3948,7 +3968,7 @@
         badge.textContent = running ? "正在采集" : ready ? "可直接看" : imported ? "数据已入库" : failed ? "需要检查" : "等待采集";
         badge.className = `badge ${ready ? "good" : failed ? "danger" : imported || running ? "warn" : ""}`;
         summary.textContent = ready
-          ? "数据已经自动导入，DeepSeek 专家报告也已经回写到短视频系统。你明天打开页面可以直接看账号判断、复拍方向和下周拍摄清单。"
+          ? "数据已经自动导入，DeepSeek 专家报告也已经回写到短视频系统。现在可以直接看账号判断、复拍方向和下周拍摄清单。"
           : running
             ? "Mac mini 正在采集。采集完成后会自动推送云端，并继续自动生成专家报告。"
             : imported
@@ -4013,7 +4033,7 @@
       function canAutoGenerateAiReport() {
         if (autoAiReportRunning) return false;
         if (!window.JRC_CLOUD?.aiAssistant) return false;
-        const status = state.collectorStatus || {};
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
         if (status.status === "running" || status.status === "failed") return false;
         const report = normalizeAiReport(state.aiReport || {});
         const reportTime = Date.parse(report.generatedAt || "");
@@ -4279,7 +4299,7 @@
       function executiveCards() {
         const rows = latestSnapshots().filter((row) => row.accountType !== "同行账号");
         const audits = latestAccountAudits();
-        const status = state.collectorStatus || {};
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
         const cards = [];
         if (status.status === "running") {
           cards.push({ tone: "good", title: "采集器正在工作", body: `${status.stepLabel || "正在采集"}。先等这轮跑完，再看视频诊断会更准。` });
@@ -5871,7 +5891,7 @@
         .finally(() => loadBenchmarkAccountLibrary({ persist: false }));
       setInterval(() => {
         if (document.hidden) return;
-        const running = state.collectorStatus?.status === "running";
+        const running = effectiveCollectorStatus(state.collectorStatus || {}).status === "running";
         const elapsed = Date.now() - lastCloudHydrateAt;
         if (running || elapsed >= 90000) hydrateCloud({ silent: !running });
       }, 20000);
