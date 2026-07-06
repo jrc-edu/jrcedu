@@ -320,6 +320,49 @@
         gap: 8px;
         justify-content: flex-end;
       }
+      .today-command-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .today-command-main,
+      .today-command-list {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255,255,255,0.9);
+      }
+      .today-command-main strong {
+        display: block;
+        font-size: 18px;
+      }
+      .today-command-main p {
+        margin-top: 7px;
+      }
+      .today-command-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .today-command-stat {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(13,148,136,0.06);
+      }
+      .today-command-stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .today-command-stat b {
+        display: block;
+        margin-top: 5px;
+        color: var(--ink);
+        font-size: 21px;
+      }
       .launch-status-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1054,6 +1097,9 @@
         .schedule-workflow,
         .read-guide,
         .pending-pool-grid,
+        .today-command-panel,
+        .today-command-stats,
+        .launch-detail-grid,
         .launch-head,
         .launch-status-grid,
         .launch-form-grid,
@@ -1128,14 +1174,15 @@
         <div class="launch-head">
           <div>
             <p class="eyebrow">正式投运</p>
-            <strong>Excel并网与正式排课</strong>
-            <span>以原 Excel 课表为基准录入数据；系统自动同步云端、检查冲突和未写教室。日常临时新增、调课、停课，也在这里直接处理。</span>
+            <strong>今日排课工作台</strong>
+            <span>先处理待办，再看老师课表。上传 Excel 后先预览，确认无误再并网。</span>
           </div>
           <div class="launch-actions">
             <button class="button" type="button" data-requires-permission="paike.edit" id="paikeLaunchImportButton">批量上传Excel并网</button>
             <button class="button secondary" type="button" data-requires-permission="paike.edit" id="openScheduleFormButton">新增 / 调课 / 停课</button>
           </div>
         </div>
+        <div class="today-command-panel" id="paikeTodayCommandPanel"></div>
         <div class="launch-status-grid" id="paikeLaunchStatusGrid"></div>
         <div class="launch-import-drop" id="paikeLaunchImportDrop">
           <strong>并网操作方式：</strong>可以一次选择多个老师 Excel，也可以一个 Excel 里放多个 sheet。系统会逐个老师表读取横向课表、写入正式课表、检查冲突。复杂核对只放后台，不要求老师操作。
@@ -1244,18 +1291,21 @@
           <button class="button secondary" type="button" data-teacher-sheet-quick="rooms">看教室表</button>
         </div>
         <div class="teacher-workbench-panel" id="teacherWorkbenchPanel" aria-label="老师排课工作台"></div>
-        <div class="schedule-workflow" aria-label="排课负责人核对路径">
-          <div class="schedule-workflow-item"><strong>老师能不能上</strong>先看当前老师课表，空格才可能排。</div>
-          <div class="schedule-workflow-item"><strong>教室能不能用</strong>再点“看教室表”，确认同时间教室空着。</div>
-          <div class="schedule-workflow-item"><strong>资料是否完整</strong>点“未写教室”集中补教室，不在长表里找。</div>
-          <div class="schedule-workflow-item"><strong>试运行核对</strong>排课表只做系统试算，和老师原表不一致就回源表核。</div>
-        </div>
-        <div class="read-guide" aria-label="排课读表说明">
-          <div class="read-guide-item"><strong>横向看日期</strong>每一列是一天下的排课。</div>
-          <div class="read-guide-item"><strong>纵向看时间</strong>每一行是一个上课时间段。</div>
-          <div class="read-guide-item"><strong>空格可排</strong>显示“可排”表示该老师此时间没有课。</div>
-          <div class="read-guide-item"><strong>先核教室</strong>排新课还要再看下方教室使用表。</div>
-        </div>
+        <details class="admin-details">
+          <summary>查看读表说明</summary>
+          <div class="schedule-workflow" aria-label="排课负责人核对路径">
+            <div class="schedule-workflow-item"><strong>老师能不能上</strong>先看当前老师课表，空格才可能排。</div>
+            <div class="schedule-workflow-item"><strong>教室能不能用</strong>再点“看教室表”，确认同时间教室空着。</div>
+            <div class="schedule-workflow-item"><strong>资料是否完整</strong>点“未写教室”集中补教室，不在长表里找。</div>
+            <div class="schedule-workflow-item"><strong>试运行核对</strong>排课表只做系统试算，和老师原表不一致就回源表核。</div>
+          </div>
+          <div class="read-guide" aria-label="排课读表说明">
+            <div class="read-guide-item"><strong>横向看日期</strong>每一列是一天下的排课。</div>
+            <div class="read-guide-item"><strong>纵向看时间</strong>每一行是一个上课时间段。</div>
+            <div class="read-guide-item"><strong>空格可排</strong>显示“可排”表示该老师此时间没有课。</div>
+            <div class="read-guide-item"><strong>先核教室</strong>排新课还要再看下方教室使用表。</div>
+          </div>
+        </details>
         <div class="teacher-card-grid" id="teacherSheetTeacherCards" aria-label="老师课表入口"></div>
         <div class="admission-link-panel" id="admissionSchedulePanel" hidden>
           <div class="admission-link-head">
@@ -1837,13 +1887,20 @@
         const teachers = Array.from(new Set(data.entries.map((row) => row.teacherName || row.teacher).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
         const periods = Array.from(new Set(data.entries.map((row) => row.period || String(row.date || "").slice(0, 7)).filter(Boolean))).sort();
         const sampleRows = data.entries.slice(0, 6);
+        const hasWarning = data.summary.conflictCount || data.summary.missingRoom || data.summary.missingEndTime || data.warningText;
+        const decision = data.entries.length < Math.max(3, data.fileCount) || !teachers.length
+          ? { label: "不建议并网", tone: "warn", text: "识别数量偏少或老师姓名异常，建议先检查 Excel 格式。" }
+          : hasWarning
+            ? { label: "需要注意", tone: "warn", text: "可以并网，但建议并网后先处理冲突、教室或结束时间问题。" }
+            : { label: "可以并网", tone: "", text: "识别结果正常，可直接确认并网。" };
+        const reportText = `本次预读取 ${data.fileCount} 个文件，识别 ${data.entries.length} 节课，涉及 ${teachers.length} 位老师。${decision.label}：冲突 ${data.summary.conflictCount}，未写教室 ${data.summary.missingRoom}，未写结束时间 ${data.summary.missingEndTime}${data.warningText ? `，${data.warningText}` : ""}。`;
         panel.hidden = false;
         panel.innerHTML = `
           <div class="section-heading-row">
             <div>
               <p class="eyebrow">上传确认</p>
-              <h2>先确认识别结果，再正式并网</h2>
-              <p>本次还没有改动正式课表。确认无误后再写入云端；如果文件选错，直接取消。</p>
+              <h2>${escapeHtml(decision.label)}</h2>
+              <p>${escapeHtml(decision.text)} 本次还没有改动正式课表。</p>
             </div>
             <div class="section-actions">
               <button class="button" type="button" id="confirmFormalImportButton">确认并网</button>
@@ -1855,6 +1912,15 @@
             <div class="launch-status-card"><span>识别课程</span><strong>${escapeHtml(data.entries.length)}</strong><p>${escapeHtml(periods.join("、") || "-")}</p></div>
             <div class="launch-status-card"><span>老师</span><strong>${escapeHtml(teachers.length)}</strong><p>${escapeHtml(teachers.slice(0, 8).join("、") || "-")}</p></div>
             <div class="launch-status-card"><span>检查结果</span><strong>${escapeHtml(data.summary.conflictCount)}</strong><p>冲突；未写教室 ${escapeHtml(data.summary.missingRoom)}；未写结束时间 ${escapeHtml(data.summary.missingEndTime)}</p></div>
+          </div>
+          <div class="launch-mini-row" style="margin-top:12px;">
+            <div>
+              <strong>一句话汇报</strong>
+              <span id="formalImportReportText">${escapeHtml(reportText)}</span>
+            </div>
+            <div class="launch-mini-actions">
+              <button class="button secondary" type="button" id="copyFormalImportReportButton">复制</button>
+            </div>
           </div>
           ${data.warningText ? `<div class="launch-warning" style="margin-top:12px;">${escapeHtml(data.warningText)}</div>` : ""}
           <div class="launch-mini-list">
@@ -2554,6 +2620,7 @@
         }
         await initPaikeDashboard();
         setTeacherSheetMessage(`已补写教室：${row.teacher || "-"} ${dateLabel(row.date)} ${timeSlotLabel(row)} -> ${roomName}`);
+        renderTodayCommandPanel();
       }
 
       function renderPendingSchedulePool() {
@@ -3786,6 +3853,80 @@
         `).join("");
       }
 
+      function renderTodayCommandPanel() {
+        const holder = byId("paikeTodayCommandPanel");
+        if (!holder) return;
+        const period = selectedPeriod();
+        const todayRows = paikeRows.filter((row) => dateKey(row.date) === localDateText());
+        const conflictItems = buildScheduleConflicts(period, "");
+        const missingRoomRows = paikeRows.filter((row) => row.period === period && (!String(row.room || "").trim() || row.room === "-"));
+        const pendingAdmissionRows = pendingAdmissionScheduleRows();
+        const pendingAttendanceRows = paikeRows
+          .filter((row) => row.period === period)
+          .filter((row) => /待点名|异常|待处理|待核对/.test(scheduleStatus(row).label));
+        const tasks = [
+          ...conflictItems.slice(0, 3).map((item) => ({
+            tone: "warn",
+            label: "处理冲突",
+            title: `${dateLabel(item.date)}｜${item.target || "-"}`,
+            detail: `${item.label}｜${item.time}`,
+            action: "conflicts"
+          })),
+          ...missingRoomRows.slice(0, 3).map((row) => ({
+            tone: "warn",
+            label: "补教室",
+            title: `${dateLabel(row.date)}｜${timeSlotLabel(row)}`,
+            detail: `${row.teacher || "-"}｜${row.student || row.lessonType || "-"}`,
+            action: "missing-room"
+          })),
+          ...pendingAdmissionRows.slice(0, 2).map((lead) => ({
+            tone: "warn",
+            label: "新生待排课",
+            title: lead.studentName || lead.name || "未填学生",
+            detail: [lead.grade || "", lead.courseProduct || lead.enrolledCourse || lead.trialClass || ""].filter(Boolean).join("｜") || "已报名但未匹配课表",
+            action: "admissions"
+          })),
+          ...pendingAttendanceRows.slice(0, 2).map((row) => ({
+            tone: "warn",
+            label: "点名异常",
+            title: `${dateLabel(row.date)}｜${timeSlotLabel(row)}`,
+            detail: `${row.teacher || "-"}｜${row.student || row.lessonType || "-"}`,
+            href: attendanceHrefForRow(row)
+          }))
+        ].slice(0, 6);
+        const mainText = tasks.length
+          ? `当前有 ${tasks.length} 个优先待办，建议先处理再通知老师使用。`
+          : "当前没有紧急待办，可以正常查看课表、排新课或上传新 Excel。";
+        holder.innerHTML = `
+          <div class="today-command-main">
+            <strong>${escapeHtml(tasks.length ? "今天先处理这些事" : "排课状态正常")}</strong>
+            <p>${escapeHtml(mainText)}</p>
+            <div class="today-command-stats">
+              <div class="today-command-stat"><span>今天课程</span><b>${todayRows.length}</b></div>
+              <div class="today-command-stat"><span>疑似冲突</span><b>${conflictItems.length}</b></div>
+              <div class="today-command-stat"><span>未写教室</span><b>${missingRoomRows.length}</b></div>
+              <div class="today-command-stat"><span>新生待排</span><b>${pendingAdmissionRows.length}</b></div>
+            </div>
+          </div>
+          <div class="today-command-list">
+            <h3 style="margin:0 0 8px;font-size:16px;">排课待办清单</h3>
+            <div class="launch-mini-list">
+              ${tasks.length ? tasks.map((task) => `
+                <div class="launch-mini-row">
+                  <div>
+                    <strong>${escapeHtml(task.label)}｜${escapeHtml(task.title)}</strong>
+                    <span>${escapeHtml(task.detail)}</span>
+                  </div>
+                  <div class="launch-mini-actions">
+                    ${task.href ? `<a class="button secondary" href="${escapeHtml(task.href)}">处理</a>` : `<button class="button secondary" type="button" data-paike-todo-action="${escapeHtml(task.action || "")}">处理</button>`}
+                  </div>
+                </div>
+              `).join("") : `<div class="empty">暂无必须处理的排课待办。</div>`}
+            </div>
+          </div>
+        `;
+      }
+
       function renderLaunchAssistPanels() {
         const conflictList = byId("paikeConflictDetailList");
         if (conflictList) {
@@ -4027,6 +4168,7 @@
         renderCommandCenter();
         renderStatus({ reviewRows: safeReviewRows, regularEntries, scheduleSessions });
         renderDataSourceStatus({ regularEntries, scheduleSessions });
+        renderTodayCommandPanel();
         renderLaunchPanel({ regularEntries });
         renderLaunchAssistPanels();
         renderLaunchDatalists();
@@ -4199,7 +4341,21 @@
       byId("closeScheduleFormButton")?.addEventListener("click", closeScheduleEntryForm);
       byId("resetScheduleEntryButton")?.addEventListener("click", resetScheduleEntryForm);
       byId("saveScheduleEntryButton")?.addEventListener("click", saveManualScheduleEntry);
+      byId("paikeTodayCommandPanel")?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-paike-todo-action]");
+        if (!button) return;
+        const action = button.getAttribute("data-paike-todo-action") || "";
+        if (action === "conflicts") applyTeacherSheetQuick("conflicts");
+        if (action === "missing-room") applyTeacherSheetQuick("missing-room");
+        if (action === "admissions") byId("admissionSchedulePanel")?.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
       byId("paikeImportReviewPanel")?.addEventListener("click", async (event) => {
+        if (event.target.closest("#copyFormalImportReportButton")) {
+          const text = byId("formalImportReportText")?.textContent || "";
+          await navigator.clipboard?.writeText(text);
+          setFormalImportMessage("已复制本次并网预览汇报。");
+          return;
+        }
         if (event.target.closest("#confirmFormalImportButton")) {
           await confirmPendingFormalImport();
           return;
