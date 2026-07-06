@@ -1711,7 +1711,7 @@
       }
 
       function normalizeTimeText(value) {
-        const text = String(value || "").trim().replace(/：/g, ":");
+        const text = String(value || "").trim().replace(/[：;]/g, ":");
         const match = text.match(/(\d{1,2}):(\d{1,2})/);
         if (!match) return text;
         return `${String(match[1]).padStart(2, "0")}:${String(match[2]).padStart(2, "0")}`;
@@ -1775,6 +1775,8 @@
         const source = `${fileName || ""} ${sheetName || ""} ${matrix.slice(0, 6).flat().join(" ")}`;
         const matched = knownTeacherNames().find((name) => name && source.includes(name));
         if (matched) return matched;
+        const bracketName = String(fileName || "").match(/[（(]([^（）()]{2,8}?)(?:老师)?[）)]/);
+        if (bracketName?.[1]) return bracketName[1].replace(/老师$/g, "").trim();
         const explicit = source.match(/(?:老师|教师|任课老师|姓名)[:：\s]*([\u4e00-\u9fa5]{2,4})/);
         return explicit ? explicit[1] : String(sheetName || fileName || "").replace(/\.(xlsx|xls|csv)$/i, "").trim();
       }
@@ -1787,60 +1789,97 @@
         const text = cellText(value);
         if (!text) return false;
         if (/^(可排|空|无|无课|休息|请假|停课|日期|时间|星期|周[一二三四五六日天])$/.test(text)) return false;
-        if (/^\d{1,2}[:：]\d{2}/.test(text)) return false;
+        const withoutTime = text.replace(/\d{1,2}\s*[:：;]\s*\d{1,2}\s*[-~至到]\s*\d{1,2}\s*[:：;]\s*\d{1,2}/g, "").trim();
+        if (!withoutTime || /^(可排|空|无|无课|休息|请假|停课)$/.test(withoutTime)) return false;
         return /[\u4e00-\u9fa5A-Za-z0-9]/.test(text);
       }
 
-      function findHorizontalDateHeader(matrix) {
-        let best = null;
-        matrix.slice(0, 14).forEach((row, rowIndex) => {
+      function extractMonthFromText(value) {
+        const text = String(value || "");
+        const match = text.match(/(?:2026|26)?\s*年?\s*([1-9]|1[0-2])\s*月/);
+        return match ? Number(match[1]) : 0;
+      }
+
+      function hasTimeRowsBelow(matrix, rowIndex, dateStartColumn) {
+        return matrix.slice(rowIndex + 1, rowIndex + 13).filter((row) => timeRangeFromGridRow(row, dateStartColumn).startTime).length >= 1;
+      }
+
+      function findHorizontalDateHeaders(matrix, sheetName = "") {
+        const headers = [];
+        let contextMonth = extractMonthFromText(sheetName);
+        matrix.forEach((row, rowIndex) => {
+          const rowMonth = extractMonthFromText(row.map(cellText).filter(Boolean).join(" "));
+          if (rowMonth) contextMonth = rowMonth;
           const dates = [];
           row.forEach((value, columnIndex) => {
-            const parsed = dateKey(value);
+            const parsed = dateKey(value, { contextMonth, allowDayOnly: true });
             if (parsed) dates.push({ columnIndex, date: parsed, raw: cellText(value) });
           });
-          if (dates.length >= 2 && (!best || dates.length > best.dates.length)) {
-            best = { rowIndex, dates };
+          if (dates.length >= 2 && hasTimeRowsBelow(matrix, rowIndex, Math.min(...dates.map((item) => item.columnIndex)))) {
+            const previous = headers[headers.length - 1];
+            if (previous && rowIndex - previous.rowIndex <= 1) {
+              if (dates.length > previous.dates.length) previous.dates = dates;
+              return;
+            }
+            headers.push({ rowIndex, dates });
           }
         });
-        return best;
+        return headers;
+      }
+
+      function findHorizontalDateHeader(matrix) {
+        return findHorizontalDateHeaders(matrix)[0] || null;
       }
 
       function timeRangeFromGridRow(row, dateStartColumn) {
-        const leftText = row.slice(0, Math.max(dateStartColumn, 1)).map(cellText).filter(Boolean).join(" ");
-        const match = leftText.match(/(\d{1,2}[:：]\d{1,2})\s*[-~至到]\s*(\d{1,2}[:：]\d{1,2})/);
+        const leftText = row.slice(0, Math.max(dateStartColumn, 1)).map(cellText).filter(Boolean).join(" ").replace(/[：;]/g, ":");
+        const match = leftText.match(/(\d{1,2}:\d{1,2})\s*[-~至到]\s*(\d{1,2}:\d{1,2})/);
         if (match) return { startTime: normalizeTimeText(match[1]), endTime: normalizeTimeText(match[2]) };
-        const first = leftText.match(/(\d{1,2}[:：]\d{1,2})/);
+        const first = leftText.match(/(\d{1,2}:\d{1,2})/);
         return { startTime: first ? normalizeTimeText(first[1]) : "", endTime: "" };
       }
 
+      function timeRangeFromCourseText(value) {
+        const text = cellText(value).replace(/[：;]/g, ":");
+        const match = text.match(/(\d{1,2}:\d{1,2})\s*[-~至到]\s*(\d{1,2}:\d{1,2})/);
+        return match ? { startTime: normalizeTimeText(match[1]), endTime: normalizeTimeText(match[2]) } : { startTime: "", endTime: "" };
+      }
+
       function extractHorizontalScheduleEntries(matrix, fileName, sheetName) {
-        const header = findHorizontalDateHeader(matrix);
-        if (!header) return [];
+        const headers = findHorizontalDateHeaders(matrix, sheetName);
+        if (!headers.length) return [];
         const teacherName = inferTeacherNameFromSheet(fileName, sheetName, matrix);
-        const dateStartColumn = Math.min(...header.dates.map((item) => item.columnIndex));
         const entries = [];
-        matrix.slice(header.rowIndex + 1).forEach((row, offset) => {
+        headers.forEach((header, blockIndex) => {
+          const nextHeader = headers[blockIndex + 1];
+          const dateStartColumn = Math.min(...header.dates.map((item) => item.columnIndex));
+          const blockRows = matrix.slice(header.rowIndex + 1, nextHeader ? nextHeader.rowIndex : matrix.length);
+          blockRows.forEach((row, offset) => {
           const rowIndex = header.rowIndex + 1 + offset;
           const { startTime, endTime } = timeRangeFromGridRow(row, dateStartColumn);
-          if (!startTime) return;
           header.dates.forEach(({ columnIndex, date }) => {
             const rawText = cellText(row[columnIndex]);
             if (!isScheduleCellContent(rawText)) return;
-            const roomName = inferRoomFromText(rawText);
+            const cellTime = timeRangeFromCourseText(rawText);
+            const finalStartTime = cellTime.startTime || startTime;
+            const finalEndTime = cellTime.endTime || endTime;
+            if (!finalStartTime) return;
+            const headerText = [matrix[header.rowIndex - 1]?.[columnIndex], matrix[header.rowIndex]?.[columnIndex]].map(cellText).filter(Boolean).join(" ");
+            const roomName = inferRoomFromText(rawText) || inferRoomFromText(headerText);
             const className = rawText
+              .replace(/\d{1,2}\s*[:：;]\s*\d{1,2}\s*[-~至到]\s*\d{1,2}\s*[:：;]\s*\d{1,2}/g, "")
               .replace(/([一二三四五六七八九十\d]+楼\s*[一二三四五六七八九十\d]+号|[一二三四五六七八九十\d]+楼[一二三四五六七八九十\d]+号)/g, "")
               .trim() || rawText;
             entries.push({
-              id: `grid-${fileName}-${sheetName}-${date}-${startTime}-${rowIndex}-${columnIndex}`.replace(/[^\w\u4e00-\u9fa5-]/g, ""),
+              id: `grid-${fileName}-${sheetName}-${date}-${finalStartTime}-${blockIndex}-${rowIndex}-${columnIndex}`.replace(/[^\w\u4e00-\u9fa5-]/g, ""),
               teacherName,
               className,
               studentName: className,
               date,
               courseDate: date,
               period: date.slice(0, 7),
-              startTime,
-              endTime,
+              startTime: finalStartTime,
+              endTime: finalEndTime,
               classroomName: roomName,
               roomName,
               lessonTypeRaw: rawText,
@@ -1856,11 +1895,17 @@
             });
           });
         });
+        });
         return entries;
       }
 
       function uniqueScheduleEntries(entries) {
         return mergeRows("formal-import", entries).map((entry) => ({ ...entry }));
+      }
+
+      function shouldSkipScheduleSheet(fileName, sheetName) {
+        const source = `${fileName || ""} ${sheetName || ""}`;
+        return /工资表|工资|产值|日常|消费|课程大纲/.test(source);
       }
 
       async function readFormalScheduleFile(file) {
@@ -1869,6 +1914,7 @@
           if (!window.XLSX) throw new Error("Excel 解析组件还没加载完成，请稍后重试。");
           const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
           const entries = workbook.SheetNames.flatMap((sheetName) => {
+            if (shouldSkipScheduleSheet(file.name, sheetName)) return [];
             const sheet = workbook.Sheets[sheetName];
             const records = parseCsvText(window.XLSX.utils.sheet_to_csv(sheet));
             const standardRows = records
@@ -2383,18 +2429,60 @@
         });
       }
 
-      function dateKey(value) {
-        const text = String(value || "").trim().replace(/\./g, "-").replace(/\//g, "-");
-        const match = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-        if (match) return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
-        const compact = text.match(/(\d{4})(\d{2})(\d{2})/);
-        if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
-        const fallbackPeriod = typeof selectedPeriod === "function" ? selectedPeriod() : localMonthText();
+      function validMonthDay(month, day) {
+        return Number.isFinite(month) && Number.isFinite(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+      }
+
+      function excelSerialDateKey(value) {
+        const raw = String(value ?? "").trim();
+        if (!/^\d{4,5}(?:\.0+)?$/.test(raw)) return "";
+        const serial = Number(raw);
+        if (!Number.isFinite(serial) || serial < 20000 || serial > 60000) return "";
+        const base = new Date(Date.UTC(1899, 11, 30));
+        base.setUTCDate(base.getUTCDate() + Math.floor(serial));
+        const year = base.getUTCFullYear();
+        const month = String(base.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(base.getUTCDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function dateKey(value, options = {}) {
+        const serialDate = excelSerialDateKey(value);
+        if (serialDate) return serialDate;
+        const raw = String(value || "").trim();
+        const normalized = raw.replace(/[年月]/g, "-").replace(/[日号]/g, "").replace(/\./g, "-").replace(/\//g, "-").replace(/\s+/g, "");
+        const match = normalized.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (match) {
+          const month = Number(match[2]);
+          const day = Number(match[3]);
+          return validMonthDay(month, day) ? `${match[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : "";
+        }
+        const compact = normalized.match(/^(\d{4})(\d{2})(\d{2})$/);
+        if (compact) {
+          const month = Number(compact[2]);
+          const day = Number(compact[3]);
+          return validMonthDay(month, day) ? `${compact[1]}-${compact[2]}-${compact[3]}` : "";
+        }
+        if (/[：:;]/.test(raw)) return "";
+        const fallbackPeriod = options.fallbackPeriod || (typeof selectedPeriod === "function" ? selectedPeriod() : localMonthText());
         const year = String(fallbackPeriod || localMonthText()).slice(0, 4);
-        const monthDay = text.match(/(?:^|[^\d])(\d{1,2})[-月](\d{1,2})(?:日|号)?(?:$|[^\d])/);
-        if (monthDay) return `${year}-${String(monthDay[1]).padStart(2, "0")}-${String(monthDay[2]).padStart(2, "0")}`;
-        const dayOnly = text.match(/(?:^|[^\d])(\d{1,2})(?:日|号)(?:$|[^\d])/);
-        if (dayOnly && /^\d{4}-\d{2}$/.test(fallbackPeriod)) return `${fallbackPeriod}-${String(dayOnly[1]).padStart(2, "0")}`;
+        const monthDay = normalized.match(/(?:^|[^\d])(\d{1,2})-(\d{1,2})(?:-\d{2,4})?(?:$|[^\d])/);
+        if (monthDay) {
+          const month = Number(monthDay[1]);
+          const day = Number(monthDay[2]);
+          return validMonthDay(month, day) ? `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : "";
+        }
+        const dayOnly = normalized.match(/^(\d{1,2})$/);
+        if (dayOnly && options.allowDayOnly && options.contextMonth) {
+          const month = Number(options.contextMonth);
+          const day = Number(dayOnly[1]);
+          return validMonthDay(month, day) ? `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : "";
+        }
+        const explicitDayOnly = normalized.match(/(?:^|[^\d])(\d{1,2})(?:$|[^\d])/);
+        if (explicitDayOnly && /[日号]/.test(raw) && /^\d{4}-\d{2}$/.test(fallbackPeriod)) {
+          const day = Number(explicitDayOnly[1]);
+          return day >= 1 && day <= 31 ? `${fallbackPeriod}-${String(day).padStart(2, "0")}` : "";
+        }
         return "";
       }
 
