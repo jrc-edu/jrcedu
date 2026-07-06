@@ -1,6 +1,7 @@
 const JRC_AUTH_STORAGE_KEY = "jrc-portal-auth-session";
 const JRC_EMPLOYEE_DIRECTORY_STORAGE_KEY = "jrc-employee-directory-extra";
 const JRC_DATA_FOUNDATION_RESET_KEY = "jrc-data-foundation-reset-20260622a";
+const JRC_WORKFLOW_AUTOPILOT_KEY = "jrc-workflow-autopilot-v1";
 const JRC_TEMP_AUTO_LOGIN_USERNAME = "";
 const JRC_INITIAL_PASSWORD = "10281028";
 function jrcBeijingDateParts(date = new Date()) {
@@ -955,8 +956,14 @@ function jrcCollectAdmissionsRows() {
   const state = jrcReadJsonStore("advice-system-stage-prototype", {});
   const leads = Array.isArray(state.leads) ? state.leads : [];
   return leads.map((lead) => ({
+    id: lead.id || lead.leadId || "",
     studentName: String(lead.studentName || "").trim(),
+    studentPhone: String(lead.studentPhone || "").trim(),
     parentPhone: String(lead.parentPhone || "").trim(),
+    phone: String(lead.phone || lead.mobile || lead.contactPhone || "").trim(),
+    mobile: String(lead.mobile || "").trim(),
+    contactPhone: String(lead.contactPhone || "").trim(),
+    guardianPhone: String(lead.guardianPhone || "").trim(),
     status: String(lead.status || "").trim(),
     owner: String(lead.owner || "").trim(),
     trialTeacher: String(lead.trialTeacher || "").trim(),
@@ -964,7 +971,14 @@ function jrcCollectAdmissionsRows() {
     period: jrcMonthFromDate(lead.trialTime || lead.trial || lead.createdAt),
     channel: String(lead.channel || "").trim(),
     referrerName: String(lead.referrerName || "").trim(),
-    enrolledAmount: jrcToNumber(lead.enrolledAmount)
+    enrolledAmount: jrcToNumber(lead.enrolledAmount),
+    courseProduct: String(lead.courseProduct || lead.courseName || lead.productName || lead.courseType || "").trim(),
+    grade: String(lead.grade || lead.studentGrade || "").trim(),
+    startDate: lead.startDate || lead.courseStartDate || lead.createdAt || "",
+    createdAt: lead.createdAt || "",
+    updatedAt: lead.updatedAt || "",
+    requiresPaike: lead.requiresPaike,
+    requiresFinance: lead.requiresFinance
   }));
 }
 
@@ -1008,11 +1022,349 @@ function jrcCollectTeachingQualityRows() {
   });
 }
 
+function jrcNormalizeStudentNameToken(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[（(][^（）()]{0,20}[）)]/g, "")
+    .replace(/\s+/g, "");
+}
+
+function jrcIsGenericStudentToken(value) {
+  const text = jrcNormalizeStudentNameToken(value);
+  if (!text) return true;
+  return /排课课程|小班课|一对一|科学|数学|语文|英语|物理|化学|年级|初一|初二|初三|小学|初中|班课|课程|暑假|秋季|寒假|春季|教室|待定/.test(text);
+}
+
+function jrcSplitStudentNameTokens(...values) {
+  const names = new Set();
+  values.flat().forEach((value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return;
+    const normalized = jrcNormalizeStudentNameToken(raw);
+    if (normalized && !jrcIsGenericStudentToken(normalized)) names.add(normalized);
+    raw.split(/[、,，;；/／+＋\s]+/)
+      .map(jrcNormalizeStudentNameToken)
+      .filter((item) => item && !jrcIsGenericStudentToken(item))
+      .forEach((item) => names.add(item));
+  });
+  return [...names];
+}
+
+function jrcNormalizePhoneToken(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length < 7) return "";
+  return digits.length > 11 ? digits.slice(-11) : digits;
+}
+
+function jrcIdentityKeysFromRecord(row, nameFields, phoneFields) {
+  const keys = new Set();
+  jrcSplitStudentNameTokens(...nameFields.map((field) => row?.[field])).forEach((name) => keys.add(`name:${name}`));
+  phoneFields.map((field) => jrcNormalizePhoneToken(row?.[field])).filter(Boolean).forEach((phone) => keys.add(`phone:${phone}`));
+  return [...keys];
+}
+
+function jrcLeadIdentityKeys(lead) {
+  return jrcIdentityKeysFromRecord(
+    lead || {},
+    ["studentName", "student", "name", "childName"],
+    ["studentPhone", "parentPhone", "phone", "mobile", "contactPhone", "guardianPhone"]
+  );
+}
+
+function jrcScheduleIdentityKeys(row) {
+  return jrcIdentityKeysFromRecord(
+    row || {},
+    ["studentName", "student", "name", "className"],
+    ["studentPhone", "parentPhone", "phone", "mobile", "contactPhone", "guardianPhone"]
+  );
+}
+
+function jrcStudentServiceIdentityKeys(row) {
+  return jrcIdentityKeysFromRecord(
+    row || {},
+    ["student", "studentName", "name", "childName"],
+    ["studentPhone", "parentPhone", "phone", "mobile", "contactPhone", "guardianPhone"]
+  );
+}
+
+function jrcIdentitySet(rows, keyBuilder) {
+  const set = new Set();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    keyBuilder(row).forEach((key) => set.add(key));
+  });
+  return set;
+}
+
+function jrcRecordMatchesIdentitySet(row, keyBuilder, identitySet) {
+  const keys = keyBuilder(row);
+  return keys.length > 0 && keys.some((key) => identitySet.has(key));
+}
+
+function jrcIsEnrolledLead(lead) {
+  return String(lead?.status || "").includes("报名") || jrcToNumber(lead?.enrolledAmount) > 0;
+}
+
+function jrcLeadRequiresPaike(lead) {
+  if (!lead) return false;
+  if (lead.requiresPaike === false) return false;
+  return !/程老师班课|科学班课/.test(String(lead.courseProduct || "").trim());
+}
+
+function jrcLeadRequiresFinance(lead) {
+  if (!lead) return false;
+  if (lead.requiresFinance === false) return false;
+  return !/程老师班课|科学班课/.test(String(lead.courseProduct || "").trim());
+}
+
+function jrcCollectStudentServiceRows() {
+  const rows = jrcReadJsonStore("jrc-student-service-v2", []);
+  return Array.isArray(rows) ? rows : [];
+}
+
+function jrcCollectAttendanceSessions() {
+  const rows = jrcReadJsonStore("jrc-class-attendance-v1", []);
+  return Array.isArray(rows) ? rows : [];
+}
+
+function jrcCollectParentRiskRows() {
+  const state = jrcReadJsonStore("advice-system-stage-prototype", {});
+  const rows = Array.isArray(state.parentRiskRecords)
+    ? state.parentRiskRecords
+    : Array.isArray(state.parentRisks)
+      ? state.parentRisks
+      : [];
+  return rows.filter((row) => row && row.status !== "已处理");
+}
+
+function jrcFlattenAttendanceRows(sessions) {
+  const rows = [];
+  (Array.isArray(sessions) ? sessions : []).forEach((session) => {
+    (Array.isArray(session?.rows) ? session.rows : []).forEach((row) => {
+      rows.push({
+        sessionId: session.id || "",
+        date: session.date || "",
+        period: jrcMonthFromDate(session.date),
+        teacherName: session.teacher || session.teacherName || "",
+        className: session.className || session.courseName || "",
+        studentName: row.studentName || row.student || "",
+        status: row.status || "",
+        exitScore: row.exitScore,
+        followup: row.followup || row.followupStatus || "",
+        followupHandled: row.followupHandled === true || row.followupStatus === "已处理",
+        raw: row
+      });
+    });
+  });
+  return rows;
+}
+
+function jrcIsEffectiveAttendanceRow(row) {
+  return ["到课", "迟到"].includes(row?.status) || String(row?.exitScore ?? "").trim() !== "";
+}
+
+function jrcNeedsAttendanceResolution(row) {
+  return !jrcIsEffectiveAttendanceRow(row) || row?.followup === "待联系家长";
+}
+
+function jrcParentRiskMatchesLead(record, lead) {
+  if (!record || !lead || record.status === "已处理") return false;
+  const eventPhones = String(record.eventRecord || "").match(/\d{7,}/g) || [];
+  const riskKeys = [
+    ...jrcIdentityKeysFromRecord(record, ["studentName", "student", "name"], ["contact", "phone", "parentPhone"]),
+    ...eventPhones.map((phone) => `phone:${jrcNormalizePhoneToken(phone)}`).filter((item) => item !== "phone:")
+  ];
+  const leadKeys = jrcLeadIdentityKeys(lead);
+  return riskKeys.some((key) => leadKeys.includes(key));
+}
+
+function jrcBuildExitScoreWarnings(attendanceRows) {
+  const byStudent = new Map();
+  (Array.isArray(attendanceRows) ? attendanceRows : []).forEach((row) => {
+    const score = jrcToNumber(row.exitScore);
+    if (!row.studentName || !Number.isFinite(score) || String(row.exitScore ?? "").trim() === "") return;
+    const key = jrcNormalizeStudentNameToken(row.studentName);
+    if (!byStudent.has(key)) byStudent.set(key, { studentName: row.studentName, rows: [] });
+    byStudent.get(key).rows.push({ ...row, score });
+  });
+  const warnings = [];
+  byStudent.forEach((profile) => {
+    const rows = profile.rows.sort((left, right) => String(left.date || "").localeCompare(String(right.date || "")));
+    const latest = rows[rows.length - 1];
+    const previous = rows[rows.length - 2];
+    const recent = rows.slice(-3);
+    const avg = Math.round((recent.reduce((sum, row) => sum + row.score, 0) / recent.length) * 10) / 10;
+    const drop = previous ? Math.round((latest.score - previous.score) * 10) / 10 : 0;
+    const lowTwice = recent.slice(-2).length === 2 && recent.slice(-2).every((row) => row.score < 70);
+    const obviousDrop = previous && drop <= -8;
+    if (!lowTwice && !obviousDrop && latest.score >= 70) return;
+    warnings.push({
+      studentName: profile.studentName,
+      latestScore: latest.score,
+      previousScore: previous?.score ?? "",
+      averageRecentScore: avg,
+      drop,
+      lessonCount: rows.length,
+      teacherName: latest.teacherName,
+      className: latest.className,
+      date: latest.date,
+      risk: lowTwice ? "连续两次偏低" : obviousDrop ? "明显下滑" : "低分关注",
+      action: "建议学管结合课堂反馈联系家长，说明近期状态和下一步补救。"
+    });
+  });
+  return warnings.sort((left, right) => Math.abs(right.drop || 0) - Math.abs(left.drop || 0) || Number(left.latestScore) - Number(right.latestScore));
+}
+
+function jrcWorkflowAutopilotFingerprint(workflow) {
+  const compactRows = (rows, fields) => (Array.isArray(rows) ? rows : []).slice(0, 120).map((row) => {
+    return fields.map((field) => String(row?.[field] ?? "").trim()).join("|");
+  });
+  return JSON.stringify({
+    counts: workflow?.counts || {},
+    studentProfile: compactRows(workflow?.studentProfileCandidates, ["studentName", "parentPhone", "owner", "status"]),
+    paike: compactRows(workflow?.paikeCandidates, ["studentName", "courseProduct", "owner", "status"]),
+    attendance: compactRows(workflow?.attendanceExceptionRows, ["date", "teacherName", "studentName", "status", "followup"]),
+    finance: compactRows(workflow?.monthlyFinanceCandidates, ["period", "teacherName", "effectiveLessons", "unresolvedRows"]),
+    scores: compactRows(workflow?.exitScoreWarnings, ["studentName", "date", "latestScore", "risk"]),
+    parentRisks: compactRows(workflow?.parentRiskGuards, ["studentName", "level", "reason"])
+  });
+}
+
+function jrcPersistWorkflowAutopilotSnapshot(workflow) {
+  if (!workflow || typeof workflow !== "object") return;
+  let previous = null;
+  try {
+    previous = JSON.parse(jrcSafeStorageGet(JRC_WORKFLOW_AUTOPILOT_KEY) || "null");
+  } catch {
+    previous = null;
+  }
+  if (previous?.fingerprint === workflow.fingerprint) return;
+  jrcSafeStorageSet(JRC_WORKFLOW_AUTOPILOT_KEY, JSON.stringify(workflow));
+  if (window.JRC_CLOUD?.writeModuleData) {
+    window.JRC_CLOUD.writeModuleData(JRC_WORKFLOW_AUTOPILOT_KEY, "workflowAutopilot", workflow, { replaceMode: "replace" }).catch((error) => {
+      console.warn("Failed to sync workflow autopilot", error);
+    });
+  }
+}
+
+function jrcBuildWorkflowAutopilot() {
+  const schedules = jrcCollectScheduleRows();
+  const admissions = jrcCollectAdmissionsRows();
+  const studentServiceRows = jrcCollectStudentServiceRows();
+  const attendanceSessions = jrcCollectAttendanceSessions();
+  const attendanceRows = jrcFlattenAttendanceRows(attendanceSessions);
+  const parentRisks = jrcCollectParentRiskRows();
+  const preimportFinance = jrcCollectPreimportFinanceRows();
+  const scheduleIdentities = jrcIdentitySet(schedules, jrcScheduleIdentityKeys);
+  const serviceIdentities = jrcIdentitySet(studentServiceRows, jrcStudentServiceIdentityKeys);
+  const enrolled = admissions.filter(jrcIsEnrolledLead);
+  const studentProfileCandidates = enrolled.filter((lead) => !jrcRecordMatchesIdentitySet(lead, jrcLeadIdentityKeys, serviceIdentities));
+  const paikeCandidates = enrolled.filter((lead) => jrcLeadRequiresPaike(lead) && !jrcRecordMatchesIdentitySet(lead, jrcLeadIdentityKeys, scheduleIdentities));
+  const financeAttributionCandidates = enrolled.filter((lead) => jrcLeadRequiresFinance(lead) && jrcToNumber(lead.enrolledAmount) > 0);
+  const effectiveAttendanceRows = attendanceRows.filter(jrcIsEffectiveAttendanceRow);
+  const attendanceExceptionRows = attendanceRows.filter(jrcNeedsAttendanceResolution);
+  const exitScoreWarnings = jrcBuildExitScoreWarnings(attendanceRows);
+  const parentRiskGuards = enrolled.flatMap((lead) => parentRisks
+    .filter((risk) => jrcParentRiskMatchesLead(risk, lead))
+    .map((risk) => ({
+      studentName: lead.studentName || risk.studentName || "",
+      owner: lead.owner || "",
+      level: risk.level || "建议谨慎续报",
+      reason: risk.reason || risk.eventRecord || risk.note || "",
+      action: risk.level === "建议逐步劝退" ? "续费、扩科、排课前先由管理员复核，建议逐步劝退。" : "续报前提醒负责人谨慎判断。"
+    })));
+  const monthMap = new Map();
+  effectiveAttendanceRows.forEach((row) => {
+    const teacherName = row.teacherName || "未匹配老师";
+    const period = row.period || jrcMonthFromDate(row.date) || "待定月份";
+    const key = `${teacherName}|${period}`;
+    if (!monthMap.has(key)) {
+      monthMap.set(key, {
+        teacherName,
+        period,
+        effectiveLessons: 0,
+        exitScoreRows: 0,
+        unresolvedRows: 0,
+        financeScope: JRC_FINANCE_EXCLUDED_TEACHERS.includes(teacherName) ? "单独核算" : "进入财务月结候选"
+      });
+    }
+    const item = monthMap.get(key);
+    item.effectiveLessons += 1;
+    if (String(row.exitScore ?? "").trim()) item.exitScoreRows += 1;
+  });
+  attendanceExceptionRows.forEach((row) => {
+    const key = `${row.teacherName || "未匹配老师"}|${row.period || jrcMonthFromDate(row.date) || "待定月份"}`;
+    if (!monthMap.has(key)) {
+      monthMap.set(key, {
+        teacherName: row.teacherName || "未匹配老师",
+        period: row.period || jrcMonthFromDate(row.date) || "待定月份",
+        effectiveLessons: 0,
+        exitScoreRows: 0,
+        unresolvedRows: 0,
+        financeScope: JRC_FINANCE_EXCLUDED_TEACHERS.includes(row.teacherName) ? "单独核算" : "进入财务月结候选"
+      });
+    }
+    monthMap.get(key).unresolvedRows += 1;
+  });
+  const monthlyFinanceCandidates = [...monthMap.values()]
+    .filter((row) => row.financeScope !== "单独核算")
+    .sort((left, right) => String(right.period || "").localeCompare(String(left.period || "")) || String(left.teacherName || "").localeCompare(String(right.teacherName || ""), "zh-CN"));
+  const preimportHighIssues = preimportFinance.teacherMonthPrecheck?.reduce((sum, row) => sum + jrcToNumber(row.highPriorityDifferences), 0) || 0;
+  const counts = {
+    enrolled: enrolled.length,
+    studentProfileCandidates: studentProfileCandidates.length,
+    paikeCandidates: paikeCandidates.length,
+    effectiveAttendanceRows: effectiveAttendanceRows.length,
+    attendanceExceptionRows: attendanceExceptionRows.length,
+    monthlyFinanceCandidates: monthlyFinanceCandidates.length,
+    financeAttributionCandidates: financeAttributionCandidates.length,
+    exitScoreWarnings: exitScoreWarnings.length,
+    parentRiskGuards: parentRiskGuards.length,
+    preimportScheduleSessions: preimportFinance.summary?.scheduleSessionCount || 0,
+    preimportHighIssues
+  };
+  const roleWorkbenches = {
+    admin: [
+      `报名未建档 ${studentProfileCandidates.length}`,
+      `报名未排课 ${paikeCandidates.length}`,
+      `课消异常 ${attendanceExceptionRows.length}`,
+      `出门测预警 ${exitScoreWarnings.length}`
+    ],
+    paike: [`排课候选 ${paikeCandidates.length}`, `Excel并网高优先差异 ${preimportHighIssues}`],
+    studentService: [`待建档 ${studentProfileCandidates.length}`, `缺勤/未点名 ${attendanceExceptionRows.length}`, `出门测预警 ${exitScoreWarnings.length}`],
+    finance: [`月结候选 ${monthlyFinanceCandidates.length}`, `课消候选 ${effectiveAttendanceRows.length}`, `财务归因 ${financeAttributionCandidates.length}`],
+    admissions: [`风险续报提醒 ${parentRiskGuards.length}`, `报名进档候选 ${studentProfileCandidates.length}`]
+  };
+  const workflow = {
+    generatedAt: new Date().toISOString(),
+    key: JRC_WORKFLOW_AUTOPILOT_KEY,
+    counts,
+    studentProfileCandidates,
+    paikeCandidates,
+    effectiveAttendanceRows: effectiveAttendanceRows.slice(0, 300),
+    attendanceExceptionRows: attendanceExceptionRows.slice(0, 300),
+    monthlyFinanceCandidates,
+    financeAttributionCandidates,
+    exitScoreWarnings: exitScoreWarnings.slice(0, 80),
+    parentRiskGuards: parentRiskGuards.slice(0, 80),
+    roleWorkbenches,
+    principles: [
+      "系统自动生成候选，不直接替老师确认高风险结果。",
+      "老师不负责大规模核对，只处理系统收敛后的少量关键问题。",
+      "财务、人事、权限、删除等高风险动作必须保留人工确认。",
+      "程老师班课和科学班课按独立班课口径处理，不进入普通排课财务自动流。"
+    ]
+  };
+  workflow.fingerprint = jrcWorkflowAutopilotFingerprint(workflow);
+  jrcPersistWorkflowAutopilotSnapshot(workflow);
+  return workflow;
+}
+
 function jrcDeriveSystemLinks() {
   const schedules = jrcCollectScheduleRows();
   const admissions = jrcCollectAdmissionsRows();
   const quality = jrcCollectTeachingQualityRows();
   const preimportFinance = jrcCollectPreimportFinanceRows();
+  const workflowAutopilot = jrcBuildWorkflowAutopilot();
   const effectiveTeacherMonthPrecheck = jrcBuildDerivedTeacherMonthPrecheck(schedules, preimportFinance);
   const employees = jrcGetAllEmployees();
   const qualityByTeacher = new Map(quality.map((row) => [row.teacherName, row]));
@@ -1080,7 +1432,13 @@ function jrcDeriveSystemLinks() {
       preimportScheduleSessions: preimportFinance.summary?.scheduleSessionCount || 0,
       preimportSalaryMarkers: preimportFinance.salaryAttendance?.length || preimportFinance.summary?.salaryAttendanceCount || 0,
       preimportExpenseRows: preimportFinance.summary?.expenseRowCount || 0,
-      preimportHighIssues: effectiveTeacherMonthPrecheck.reduce((sum, row) => sum + jrcToNumber(row.highPriorityDifferences), 0)
+      preimportHighIssues: effectiveTeacherMonthPrecheck.reduce((sum, row) => sum + jrcToNumber(row.highPriorityDifferences), 0),
+      workflowStudentProfileCandidates: workflowAutopilot.counts.studentProfileCandidates,
+      workflowPaikeCandidates: workflowAutopilot.counts.paikeCandidates,
+      workflowAttendanceExceptions: workflowAutopilot.counts.attendanceExceptionRows,
+      workflowFinanceCandidates: workflowAutopilot.counts.monthlyFinanceCandidates,
+      workflowExitScoreWarnings: workflowAutopilot.counts.exitScoreWarnings,
+      workflowParentRiskGuards: workflowAutopilot.counts.parentRiskGuards
     },
     teacherMonthRows: Array.from(teacherMonth.values()).map((row) => ({
       ...row,
@@ -1097,6 +1455,7 @@ function jrcDeriveSystemLinks() {
       preimportFinanceExpenses: preimportFinance.expenses,
       preimportReconciliationIssues: preimportFinance.issues
     },
+    workflowAutopilot,
     preimport: {
       ...preimportFinance,
       teacherMonthPrecheck: effectiveTeacherMonthPrecheck
@@ -1111,6 +1470,7 @@ function jrcExposeDataFoundation() {
     linkRules: JSON.parse(JSON.stringify(JRC_DATA_LINK_RULES)),
     contracts: JSON.parse(JSON.stringify(JRC_DATA_CONTRACTS)),
     deriveSystemLinks: jrcDeriveSystemLinks,
+    deriveWorkflowAutopilot: jrcBuildWorkflowAutopilot,
     readResetState() {
       try {
         return JSON.parse(localStorage.getItem(JRC_DATA_FOUNDATION_RESET_KEY) || "null");
