@@ -386,6 +386,181 @@
         color: var(--ink);
         font-size: 24px;
       }
+      .production-overview-panel,
+      .activation-report-panel {
+        display: grid;
+        gap: 12px;
+      }
+      .production-head-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid rgba(13,148,136,0.18);
+        border-radius: 18px;
+        background: rgba(13,148,136,0.06);
+      }
+      .production-head-card strong,
+      .activation-head strong {
+        display: block;
+        color: var(--ink);
+        font-size: 20px;
+      }
+      .production-head-card p,
+      .activation-head p {
+        margin-top: 6px;
+        font-size: 13px;
+      }
+      .production-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-content: flex-start;
+        justify-content: flex-end;
+      }
+      .production-metric-grid,
+      .activation-metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .production-metric,
+      .activation-metric {
+        padding: 13px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255,255,255,0.9);
+      }
+      .production-metric span,
+      .activation-metric span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .production-metric strong,
+      .activation-metric strong {
+        display: block;
+        margin-top: 5px;
+        color: var(--ink);
+        font-size: 22px;
+      }
+      .production-metric small,
+      .activation-metric small {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .production-principles {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .production-principle {
+        padding: 12px;
+        border: 1px solid rgba(13,148,136,0.16);
+        border-radius: 14px;
+        background: rgba(255,255,255,0.78);
+      }
+      .production-principle strong {
+        display: block;
+        color: var(--ink);
+        font-size: 14px;
+      }
+      .production-principle span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .month-teacher-matrix {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 8px;
+      }
+      .month-teacher-cell {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255,255,255,0.84);
+      }
+      .month-teacher-cell span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .month-teacher-cell strong {
+        display: block;
+        margin-top: 4px;
+        color: var(--ink);
+        font-size: 16px;
+      }
+      .activation-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 15px;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 18px;
+        background: rgba(37,99,235,0.06);
+      }
+      .review-pool-list {
+        display: grid;
+        gap: 8px;
+      }
+      .review-pool-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+      }
+      .review-pool-row b {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        height: 28px;
+        border-radius: 999px;
+        background: rgba(180,83,9,0.1);
+        color: var(--warn);
+        font-size: 12px;
+      }
+      .review-pool-row strong {
+        display: block;
+        color: var(--ink);
+        font-size: 13px;
+      }
+      .review-pool-row span,
+      .review-pool-row small {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .activation-report-text {
+        max-height: 260px;
+        overflow: auto;
+        white-space: pre-wrap;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255,255,255,0.86);
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.7;
+      }
+      .launch-detail-toggle .month-teacher-matrix,
+      .launch-detail-toggle .activation-report-text {
+        margin: 0 14px 14px;
+      }
       .launch-detail-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
@@ -1202,10 +1377,16 @@
         .launch-detail-grid,
         .launch-head,
         .launch-status-grid,
+        .production-head-card,
+        .production-metric-grid,
+        .activation-metric-grid,
+        .production-principles,
+        .activation-head,
         .launch-form-grid,
         .admission-link-item {
           grid-template-columns: 1fr;
         }
+        .production-actions { justify-content: stretch; }
         .admission-link-actions { justify-content: stretch; }
         .admission-link-head { flex-direction: column; }
       }
@@ -1284,6 +1465,8 @@
         </div>
         <div class="today-command-panel" id="paikeTodayCommandPanel"></div>
         <div class="launch-status-grid" id="paikeLaunchStatusGrid"></div>
+        <div class="production-overview-panel" id="paikeProductionOverview"></div>
+        <div class="activation-report-panel" id="paikeHistoricalActivationPanel"></div>
         <div class="launch-import-drop" id="paikeLaunchImportDrop">
           <strong>并网操作方式：</strong>可以一次选择多个老师 Excel，也可以一个 Excel 里放多个 sheet。系统会逐个老师表读取横向课表、写入正式课表、检查冲突。复杂核对只放后台，不要求老师操作。
         </div>
@@ -1610,12 +1793,14 @@
         attendance: "jrc-class-attendance-v1",
         admissions: "advice-system-stage-prototype",
         pendingPool: "jrc-paike-pending-pool-v1",
-        launchBackup: "jrc-paike-launch-backup-v1"
+        launchBackup: "jrc-paike-launch-backup-v1",
+        historicalActivation: "paike-historical-activation-v1"
       };
       let paikeRows = [];
       let paikeReviewRows = [];
       let paikeAttendanceRows = [];
       let paikeAdmissionState = {};
+      let paikeHistoricalActivation = {};
       let activePaikeView = "week";
       let activePendingScheduleId = "";
       let activeEditingScheduleId = "";
@@ -3256,7 +3441,8 @@
         const periodSelect = byId("teacherSheetPeriod");
         const teacherSelect = byId("teacherSheetTeacher");
         if (periodSelect) {
-          const current = periodSelect.value || (periods.includes("2026-06") ? "2026-06" : periods[periods.length - 1] || "");
+          const currentMonth = localMonthText();
+          const current = periodSelect.value || (periods.includes(currentMonth) ? currentMonth : periods[periods.length - 1] || periods[0] || "");
           periodSelect.innerHTML = periods.map((period) => `<option value="${escapeHtml(period)}">${escapeHtml(period)}</option>`).join("");
           if (periods.includes(current)) periodSelect.value = current;
         }
@@ -4253,7 +4439,7 @@
           ...regularEntries.map((row) => row.teacherName || row.teacher)
         ].filter(Boolean)).size;
         const cards = [
-          ["待确认问题", reviewRows.length, reviewRows.length ? "还有导入疑问或命名不一致，需要排课老师拍板。" : "暂无待确认项。", reviewRows.length ? "warn" : ""],
+          ["系统复核池", reviewRows.length, reviewRows.length ? "导入疑问已进入管理员复核池，不要求老师逐条核对。" : "暂无导入复核项。", reviewRows.length ? "warn" : ""],
           ["六月/平时数据", juneRows, juneRows ? "已读到六月或平时模式数据。" : "如果老师说六月没数据，先查上传总表和平时模式入口。", juneRows ? "" : "warn"],
           ["暑假数据", summerRows, summerRows ? "已读到七八月暑假数据。" : "暑假模式为空时，先查是否已导入七八月表。", summerRows ? "" : "warn"],
           ["涉及老师", teacherCount, teacherCount ? "排课明细里已有老师字段。" : "暂未从云端明细识别到老师。", teacherCount ? "" : "warn"]
@@ -4315,8 +4501,245 @@
           } else if (pendingAdmissionCount) {
             tip.textContent = `当前有 ${pendingAdmissionCount} 名招生报名学生未匹配课表。先在上方“招生报名待排课”里确认，再按老师课表和教室表安排。`;
           } else {
-            tip.textContent = "排课数据来源已接入。日常先看老师月课表；有问题再展开原始明细核对。";
+          tip.textContent = "排课数据来源已接入。日常先看老师月课表；有问题再由管理员打开高级后台处理。";
           }
+        }
+      }
+
+      function numberText(value) {
+        const number = Number(value || 0);
+        if (!Number.isFinite(number)) return "0";
+        return Math.round(number).toLocaleString("zh-CN");
+      }
+
+      function activationDetailCount(name) {
+        const stores = Array.isArray(paikeHistoricalActivation?.detailStores) ? paikeHistoricalActivation.detailStores : [];
+        return stores
+          .filter((item) => item?.name === name)
+          .reduce((sum, item) => sum + Number(item.rows || 0), 0);
+      }
+
+      function activationSupportCount(summary = {}) {
+        return activationDetailCount("supportTasks") ||
+          Number(summary.supportTaskCount || 0) + Number(summary.trialOrMarketingCount || 0);
+      }
+
+      function periodRangeText(periods) {
+        const list = Array.from(new Set((periods || []).filter(Boolean))).sort();
+        if (!list.length) return "-";
+        if (list.length === 1) return list[0];
+        return `${list[0]} 至 ${list[list.length - 1]}`;
+      }
+
+      function summarizeTeacherMonthRows(rows) {
+        const periods = Array.from(new Set(rows.map((row) => row.period).filter(Boolean))).sort();
+        return periods.map((period) => {
+          const periodRows = rows.filter((row) => row.period === period);
+          const teachers = new Set(periodRows.map((row) => row.teacher).filter(Boolean)).size;
+          return { period, count: periodRows.length, teachers };
+        });
+      }
+
+      function riskSeverityLabel(value) {
+        const key = String(value || "").toLowerCase();
+        if (key === "high") return "高";
+        if (key === "medium") return "中";
+        if (key === "low") return "低";
+        return value || "待定";
+      }
+
+      function riskDetailText(risk) {
+        const raw = String(risk?.detail || "").trim();
+        if (!raw) return "";
+        try {
+          const data = JSON.parse(raw);
+          const parts = [
+            data.teacherName || data.teacher || "",
+            data.roomName || data.room || "",
+            data.date || "",
+            data.time || "",
+            Array.isArray(data.samples) ? data.samples.slice(0, 2).join("；") : ""
+          ].filter(Boolean);
+          if (parts.length) return parts.join("｜");
+        } catch (error) {
+          // 原始风险详情可能只是普通文字。
+        }
+        return raw;
+      }
+
+      function reportExcerpt(text) {
+        const lines = String(text || "")
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .filter((line) => !/^[-*] 文件清单|^[-*] 统一排课|^[-*] 财务识别|^[-*] 工资明细|^[-*] 自动对账|^[-*] 风险清单/.test(line));
+        return lines.slice(0, 42).join("\n");
+      }
+
+      function renderProductionOverview({ regularEntries = [] } = {}) {
+        const holder = byId("paikeProductionOverview");
+        if (!holder) return;
+        const periods = Array.from(new Set(paikeRows.map((row) => row.period).filter(Boolean))).sort();
+        const teachers = Array.from(new Set(paikeRows.map((row) => row.teacher).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+        const currentPeriod = selectedPeriod();
+        const currentRows = paikeRows.filter((row) => row.period === currentPeriod);
+        const currentConflicts = buildScheduleConflicts(currentPeriod, "");
+        const currentMissingRooms = currentRows.filter((row) => !String(row.room || "").trim() || row.room === "-");
+        const pendingCount = readPendingSchedulePool().filter((row) => row.status !== "已排课").length;
+        const historicalFormalCount = Number(paikeHistoricalActivation?.formalImport?.formalLessonCount || paikeHistoricalActivation?.summary?.formalLessonCount || 0);
+        const financeDetailCount = Number(paikeHistoricalActivation?.summary?.financeDetailRowCount || activationDetailCount("financeDetailRows") || 0);
+        const reconciliationCount = Number(paikeHistoricalActivation?.summary?.reconciliationStudentMatchCount || activationDetailCount("reconciliationStudentMatches") || 0);
+        const riskCount = Number(paikeHistoricalActivation?.summary?.riskCount || (Array.isArray(paikeHistoricalActivation?.risks) ? paikeHistoricalActivation.risks.length : 0));
+        const matrix = summarizeTeacherMonthRows(paikeRows);
+        const blockingCount = currentConflicts.length + pendingCount;
+        holder.innerHTML = `
+          <div class="production-head-card">
+            <div>
+              <strong>${regularEntries.length ? "排课数据已进入试运行" : "排课数据等待并网"}</strong>
+              <p>${regularEntries.length
+                ? `当前正式课表已读到 ${numberText(regularEntries.length)} 节课，覆盖 ${escapeHtml(periodRangeText(periods))}，日常可以先按老师横向月课表使用。`
+                : "还没有读到正式课表。请先批量上传老师 Excel，系统会自动解析、并网、备份和生成复核池。"}
+              </p>
+              <p>${blockingCount
+                ? `系统自动发现 ${numberText(blockingCount)} 个优先处理点：疑似冲突 ${numberText(currentConflicts.length)}，待排课 ${numberText(pendingCount)}。`
+                : "当前没有阻塞投用的排课待办。缺教室这类历史信息不阻塞并网，排新课时再补。"}
+              </p>
+            </div>
+            <div class="production-actions">
+              <button class="button" type="button" data-production-action="teacher">看老师月课表</button>
+              <button class="button secondary" type="button" data-production-action="issues">处理关键复核池</button>
+              <button class="button secondary" type="button" data-production-action="today">看今天课程</button>
+              <button class="button secondary" type="button" data-production-action="finance">去财务系统</button>
+            </div>
+          </div>
+          <div class="production-metric-grid">
+            <div class="production-metric"><span>正式课表</span><strong>${numberText(regularEntries.length || historicalFormalCount)}</strong><small>${teachers.length} 位老师｜${escapeHtml(periodRangeText(periods))}</small></div>
+            <div class="production-metric"><span>当前月份</span><strong>${escapeHtml(currentPeriod || "-")}</strong><small>${numberText(currentRows.length)} 节课｜${new Set(currentRows.map((row) => row.teacher).filter(Boolean)).size} 位老师｜缺教室 ${numberText(currentMissingRooms.length)}</small></div>
+            <div class="production-metric"><span>业财联动</span><strong>${numberText(financeDetailCount)}</strong><small>工资明细 ${numberText(financeDetailCount)}｜学生对账 ${numberText(reconciliationCount)}</small></div>
+            <div class="production-metric"><span>关键复核池</span><strong>${numberText(riskCount)}</strong><small>系统自动归类，不要求老师逐条核对</small></div>
+          </div>
+          <div class="production-principles">
+            <div class="production-principle"><strong>1. 老师按表使用</strong><span>前台只看横向月课表、空档、教室和今日待办。</span></div>
+            <div class="production-principle"><strong>2. 系统自动吃数据</strong><span>Excel、历史工资、对账差异由系统先归类，不把长表推给老师。</span></div>
+            <div class="production-principle"><strong>3. 财务按月闭环</strong><span>历史月份走月结锁定；后续变更走补录、修正和版本记录。</span></div>
+            <div class="production-principle"><strong>4. 少量问题上收</strong><span>只有冲突、结算大差异、误传删除这类关键点进入管理员复核池。</span></div>
+          </div>
+          <details class="launch-detail-toggle">
+            <summary>按月份查看已导入课表覆盖</summary>
+            <div class="month-teacher-matrix">
+              ${matrix.length ? matrix.map((item) => `
+                <div class="month-teacher-cell">
+                  <span>${escapeHtml(item.period)}</span>
+                  <strong>${numberText(item.count)} 节</strong>
+                  <span>${numberText(item.teachers)} 位老师</span>
+                </div>
+              `).join("") : `<div class="empty">暂无月份覆盖数据。</div>`}
+            </div>
+          </details>
+        `;
+      }
+
+      function renderHistoricalActivationPanel() {
+        const holder = byId("paikeHistoricalActivationPanel");
+        if (!holder) return;
+        const state = paikeHistoricalActivation && typeof paikeHistoricalActivation === "object" ? paikeHistoricalActivation : {};
+        const summary = state.summary || {};
+        const formal = state.formalImport || {};
+        const formalCount = Number(formal.formalLessonCount || summary.formalLessonCount || 0);
+        if (!formalCount && !Object.keys(summary).length) {
+          holder.innerHTML = `
+            <div class="activation-head">
+              <div>
+                <strong>历史数据盘活报告未读取到</strong>
+                <p>正式课表可以继续使用；历史工资、对账、风险池报告还没有同步到当前浏览器。</p>
+              </div>
+              <span class="status-pill warn">待同步</span>
+            </div>
+          `;
+          return;
+        }
+        const supportCount = activationSupportCount(summary);
+        const financeDetailCount = Number(summary.financeDetailRowCount || activationDetailCount("financeDetailRows") || 0);
+        const reconciliationCount = Number(summary.reconciliationStudentMatchCount || activationDetailCount("reconciliationStudentMatches") || 0);
+        const risks = Array.isArray(state.risks) ? state.risks : [];
+        const riskCount = Number(summary.riskCount || risks.length || 0);
+        const auto = summary.reconciliationAutoDecisionSummary || {};
+        const topRisks = risks.slice().sort((left, right) => {
+          const order = { high: 0, medium: 1, low: 2 };
+          return (order[String(left.severity || "").toLowerCase()] ?? 9) - (order[String(right.severity || "").toLowerCase()] ?? 9);
+        }).slice(0, 6);
+        const generated = state.generatedAt
+          ? (window.JRC_TIME?.formatBeijingDateTime?.(state.generatedAt, { seconds: false }) || String(state.generatedAt).replace("T", " ").slice(0, 16))
+          : "";
+        holder.innerHTML = `
+          <div class="activation-head">
+            <div>
+              <strong>历史数据盘活结论</strong>
+              <p>系统已把老师课表、工资明细和学生对账先自动跑通。原则是不让老师逐条核对，无法完全确定的内容降置信度后进入管理员复核池。</p>
+              ${generated ? `<p>生成时间：${escapeHtml(generated)}</p>` : ""}
+            </div>
+            <span class="status-pill">已自动处理</span>
+          </div>
+          <div class="activation-metric-grid">
+            <div class="activation-metric"><span>正式课程</span><strong>${numberText(formalCount)}</strong><small>${numberText(formal.teacherCount || summary.teacherCount || 0)} 位老师｜${escapeHtml(periodRangeText(formal.periods || summary.periods || []))}</small></div>
+            <div class="activation-metric"><span>辅助/试听</span><strong>${numberText(supportCount)}</strong><small>不进入正式课时核算，只作为运营线索保留</small></div>
+            <div class="activation-metric"><span>工资明细</span><strong>${numberText(financeDetailCount)}</strong><small>结算凭证优先按工资明细保留</small></div>
+            <div class="activation-metric"><span>学生对账</span><strong>${numberText(reconciliationCount)}</strong><small>匹配 ${numberText(auto.matched)}｜小差异 ${numberText(auto.minor_diff)}｜大差异 ${numberText(auto.major_diff)}</small></div>
+          </div>
+          <div class="launch-detail-grid">
+            <div class="launch-detail-card">
+              <h3>关键复核池</h3>
+              <p>这里不是让老师核对长表，只给管理员看少量高影响问题。系统已先保留课程和结算凭证，不阻塞投产。</p>
+              <div class="review-pool-list">
+                ${topRisks.length ? topRisks.map((risk) => `
+                  <div class="review-pool-row">
+                    <b>${escapeHtml(riskSeverityLabel(risk.severity))}</b>
+                    <div>
+                      <strong>${escapeHtml(risk.area || "复核")}｜${escapeHtml(risk.title || "")}</strong>
+                      <span>${escapeHtml(riskDetailText(risk)).slice(0, 160)}</span>
+                      <small>${escapeHtml(risk.action || "系统已保留数据，等待管理员集中处理。")}</small>
+                    </div>
+                  </div>
+                `).join("") : `<div class="empty">暂无关键复核问题。</div>`}
+              </div>
+            </div>
+            <div class="launch-detail-card">
+              <h3>自动对账口径</h3>
+              <p>成熟教培系统的做法是先让排课、课消、工资、财务按月互证；数据不完美时不阻断业务，而是保留凭证和差异解释。</p>
+              <div class="production-principles" style="grid-template-columns: 1fr;">
+                <div class="production-principle"><strong>系统直接通过</strong><span>排课表和工资明细能互证的记录，直接进入历史结算依据。</span></div>
+                <div class="production-principle"><strong>系统自动解释</strong><span>小金额、小次数差异先记录原因，不让老师逐条找。</span></div>
+                <div class="production-principle"><strong>只上收关键点</strong><span>大差异、同时间冲突、影响财务的内容进入管理员复核池。</span></div>
+              </div>
+            </div>
+          </div>
+          <details class="launch-detail-toggle">
+            <summary>查看历史盘活报告摘要</summary>
+            <div class="activation-report-text">${escapeHtml(reportExcerpt(state.reportMarkdown || ""))}</div>
+          </details>
+        `;
+      }
+
+      function handleProductionAction(action) {
+        if (action === "teacher") {
+          byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        if (action === "today") {
+          if (byId("teacherSheetMode")) byId("teacherSheetMode").value = "today";
+          renderTeacherSheet();
+          byId("teacherWorkbenchPanel")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        if (action === "issues") {
+          byId("paikeExceptionDetails")?.setAttribute("open", "");
+          if (byId("teacherSheetMode")) byId("teacherSheetMode").value = "conflicts";
+          renderTeacherSheet();
+          byId("paikeExceptionDetails")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        if (action === "finance") {
+          window.location.href = "/jrcedu/portal/finance.html";
         }
       }
 
@@ -4326,21 +4749,21 @@
         const officialCount = regularEntries.length;
         const excelCount = regularEntries.filter((row) => row.importedByExcel || row.sourceFileName).length;
         const conflictCount = buildScheduleConflicts(selectedPeriod(), "").length;
-        const missingRoomCount = paikeRows.filter((row) => !String(row.room || "").trim() || row.room === "-").length;
+        const currentPeriodRows = paikeRows.filter((row) => row.period === selectedPeriod());
+        const missingRoomCount = currentPeriodRows.filter((row) => !String(row.room || "").trim() || row.room === "-").length;
         const pendingCount = readPendingSchedulePool().filter((row) => row.status !== "已排课").length;
         const todayCount = paikeRows.filter((row) => dateKey(row.date) === localDateText()).length;
-        const todoCount = conflictCount + missingRoomCount + pendingCount;
+        const todoCount = conflictCount + pendingCount;
         const launchWarnings = [
           !officialCount ? "未导入正式课表" : "",
           conflictCount ? `${conflictCount}项冲突` : "",
-          missingRoomCount ? `${missingRoomCount}节未写教室` : "",
           pendingCount ? `${pendingCount}条待排课` : ""
         ].filter(Boolean);
         const cards = [
           ["投用检查", launchWarnings.length ? `${launchWarnings.length}项` : "通过", launchWarnings.length ? launchWarnings.join("、") : "可进入日常排课使用", launchWarnings.length ? "warn" : ""],
+          ["正式课表", officialCount, excelCount ? `已并网 ${excelCount} 节 Excel 课程` : (officialCount ? "已接入正式课表" : "待并网"), officialCount ? "" : "warn"],
           ["今天课程", todayCount, todayCount ? "今天有课" : "今天暂无课", ""],
-          ["待处理", todoCount, todoCount ? `冲突${conflictCount} / 教室${missingRoomCount} / 待排${pendingCount}` : "暂无紧急待办", todoCount ? "warn" : ""],
-          ["正式课表", officialCount, excelCount ? `已并网 ${excelCount} 节 Excel 课程` : (officialCount ? "已接入正式课表" : "待并网"), officialCount ? "" : "warn"]
+          ["待处理", todoCount, todoCount ? `冲突${conflictCount} / 待排${pendingCount}` : (missingRoomCount ? `紧急待办暂无；当前月 ${missingRoomCount} 节缺教室，不阻塞使用` : "暂无紧急待办"), todoCount ? "warn" : ""]
         ];
         grid.innerHTML = cards.map(([label, value, note, tone]) => `
           <div class="launch-status-card">
@@ -4651,12 +5074,13 @@
       }
 
       async function initPaikeDashboard() {
-        const [reviewRows, regularData, preimportData, attendanceData, admissionsData] = await Promise.all([
+        const [reviewRows, regularData, preimportData, attendanceData, admissionsData, historicalActivationData] = await Promise.all([
           readCloud(stores.importReview, []),
           readCloud(stores.regular, {}),
           readCloud(stores.preimport, window.JRC_PREIMPORT_SUMMARY || {}),
           readCloud(stores.attendance, []),
-          readCloud(stores.admissions, {})
+          readCloud(stores.admissions, {}),
+          readCloud(stores.historicalActivation, {})
         ]);
         const safeReviewRows = Array.isArray(reviewRows) ? reviewRows : [];
         const regularEntries = scheduleEntriesFromRegular(regularData);
@@ -4664,6 +5088,7 @@
         paikeReviewRows = safeReviewRows;
         paikeAttendanceRows = attendanceRowsFromData(attendanceData);
         paikeAdmissionState = admissionsData && typeof admissionsData === "object" ? admissionsData : {};
+        paikeHistoricalActivation = historicalActivationData && typeof historicalActivationData === "object" ? historicalActivationData : {};
         paikeRows = normalizedScheduleRows({ regularEntries, scheduleSessions });
         setupTeacherSheetFilters();
         renderTeacherSheet();
@@ -4675,6 +5100,8 @@
         renderDataSourceStatus({ regularEntries, scheduleSessions });
         renderTodayCommandPanel();
         renderLaunchPanel({ regularEntries });
+        renderProductionOverview({ regularEntries });
+        renderHistoricalActivationPanel();
         renderLaunchAssistPanels();
         renderLaunchDatalists();
         renderPreview({ regularEntries, scheduleSessions });
@@ -4701,6 +5128,11 @@
         if (action === "week") activatePaikeView("week", { range: "week", clearFilters: true });
         if (action === "issues") activatePaikeView("issues", { range: "all", clearFilters: true });
         if (action === "data") byId(paikeRows.length ? "paikeStatusGrid" : "paikePreviewBody")?.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
+      byId("paikeProductionOverview")?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-production-action]");
+        if (!button) return;
+        handleProductionAction(button.getAttribute("data-production-action") || "");
       });
       ["paikeRangeFilter", "paikeTeacherFilter", "paikeClassFilter", "paikeKeywordFilter"].forEach((id) => {
         byId(id)?.addEventListener("input", renderWorkbench);
