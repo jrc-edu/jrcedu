@@ -237,6 +237,131 @@
       .teacher-next-item button {
         margin-top: 8px;
       }
+      .launch-panel {
+        display: grid;
+        gap: 16px;
+        margin-top: 18px;
+      }
+      .launch-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: flex-start;
+      }
+      .launch-head strong {
+        display: block;
+        font-size: 22px;
+        color: var(--ink);
+      }
+      .launch-head span {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .launch-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .launch-status-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .launch-status-card {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255,255,255,0.9);
+      }
+      .launch-status-card span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .launch-status-card strong {
+        display: block;
+        margin-top: 6px;
+        color: var(--ink);
+        font-size: 24px;
+      }
+      .launch-form {
+        display: none;
+        padding: 16px;
+        border: 1px solid rgba(13,148,136,0.2);
+        border-radius: 18px;
+        background: rgba(13,148,136,0.06);
+      }
+      .launch-form.active {
+        display: block;
+      }
+      .launch-form-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .launch-form-grid label {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .launch-form-grid input,
+      .launch-form-grid select,
+      .launch-form-grid textarea {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 9px 11px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+      }
+      .launch-form-grid textarea {
+        min-height: 72px;
+        resize: vertical;
+      }
+      .launch-form-grid input[type="checkbox"] {
+        width: auto;
+        min-height: auto;
+        margin-right: 6px;
+      }
+      .launch-form-grid .wide {
+        grid-column: span 2;
+      }
+      .launch-form-grid .full {
+        grid-column: 1 / -1;
+      }
+      .launch-warning {
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px solid rgba(180,83,9,0.22);
+        border-radius: 14px;
+        background: rgba(255,251,235,0.85);
+        color: var(--warn);
+        line-height: 1.7;
+        font-weight: 700;
+      }
+      .launch-warning ul {
+        margin: 8px 0 0 18px;
+        padding: 0;
+      }
+      .launch-import-drop {
+        padding: 16px;
+        border: 1px dashed rgba(13,148,136,0.42);
+        border-radius: 16px;
+        background: rgba(255,255,255,0.78);
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .launch-import-drop strong {
+        color: var(--ink);
+      }
       .schedule-conflict-panel {
         margin-top: 14px;
         padding: 14px;
@@ -796,6 +921,9 @@
         .schedule-workflow,
         .read-guide,
         .pending-pool-grid,
+        .launch-head,
+        .launch-status-grid,
+        .launch-form-grid,
         .admission-link-item {
           grid-template-columns: 1fr;
         }
@@ -820,6 +948,10 @@
         .card { padding: 18px; border-radius: 18px; }
         .button,
         .nav-link { width: 100%; }
+        .launch-form-grid .wide,
+        .launch-form-grid .full {
+          grid-column: 1;
+        }
       }
     </style>
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
@@ -857,6 +989,68 @@
             <div class="path-card"><span>3</span><strong>看教室占用</strong><p>老师有空、教室也有空，才算能排。</p></div>
           </div>
         </aside>
+      </section>
+
+      <section class="card launch-panel" id="paikeLaunchPanel">
+        <div class="launch-head">
+          <div>
+            <p class="eyebrow">正式投运</p>
+            <strong>排课并网工作台</strong>
+            <span>新 Excel 表格直接上传并网；系统自动识别、同步云端、检查冲突和未写教室。日常临时新增、调课、停课，也在这里直接处理。</span>
+          </div>
+          <div class="launch-actions">
+            <button class="button" type="button" data-requires-permission="paike.edit" id="paikeLaunchImportButton">上传新Excel并网</button>
+            <button class="button secondary" type="button" data-requires-permission="paike.edit" id="openScheduleFormButton">新增 / 调课 / 停课</button>
+          </div>
+        </div>
+        <div class="launch-status-grid" id="paikeLaunchStatusGrid"></div>
+        <div class="launch-import-drop" id="paikeLaunchImportDrop">
+          <strong>并网操作方式：</strong>把新的排课 Excel 交给我处理，或者排课负责人在这里上传。系统会自动写入正式排课数据；原来的复杂“数据核对区”只作为管理员后台，不要求老师操作。
+        </div>
+        <div class="launch-form" id="scheduleEntryFormPanel" aria-label="正式排课维护表单">
+          <div class="section-heading-row">
+            <div>
+              <p class="eyebrow">排课维护</p>
+              <h2 id="scheduleEntryFormTitle">新增一节正式课程</h2>
+            </div>
+            <button class="button secondary" type="button" id="closeScheduleFormButton">收起</button>
+          </div>
+          <div class="launch-form-grid" style="margin-top:12px;">
+            <label>操作类型
+              <select id="scheduleEntryType">
+                <option value="scheduled">正常排课</option>
+                <option value="adjusted">调课</option>
+                <option value="makeup">补课</option>
+                <option value="leave">停课 / 请假</option>
+              </select>
+            </label>
+            <label>日期<input id="scheduleEntryDate" type="date"></label>
+            <label>开始时间<input id="scheduleEntryStart" type="time"></label>
+            <label>结束时间<input id="scheduleEntryEnd" type="time"></label>
+            <label>老师<input id="scheduleEntryTeacher" list="paikeTeacherDatalist" placeholder="选择或输入老师"></label>
+            <label class="wide">学生 / 班级<input id="scheduleEntryClass" placeholder="例如：五年级数学A班 / 张同学"></label>
+            <label>教室<input id="scheduleEntryRoom" list="paikeRoomDatalist" placeholder="例如：三楼1号教室"></label>
+            <label>课程类型
+              <select id="scheduleEntryCourseType">
+                <option>数学小班课</option>
+                <option>科学小班课</option>
+                <option>程老师班课</option>
+                <option>数学一对一</option>
+                <option>科学一对一</option>
+                <option>其他</option>
+              </select>
+            </label>
+            <label class="full">备注<textarea id="scheduleEntryNotes" placeholder="写清调课原因、家长确认情况、特殊说明。"></textarea></label>
+            <label class="full"><span><input id="scheduleEntryOverride" type="checkbox"> 已人工确认，仍要保存疑似冲突课程</span></label>
+          </div>
+          <datalist id="paikeTeacherDatalist"></datalist>
+          <datalist id="paikeRoomDatalist"></datalist>
+          <div class="launch-warning" id="scheduleEntryConflictBox" hidden></div>
+          <div class="section-actions" style="margin-top:12px;">
+            <button class="button" type="button" id="saveScheduleEntryButton">保存到正式课表</button>
+            <button class="button secondary" type="button" id="resetScheduleEntryButton">清空重填</button>
+          </div>
+        </div>
       </section>
 
       <section class="card">
@@ -1094,13 +1288,15 @@
         preimport: "jrc-paike-finance-preimport-2026-06-22",
         attendance: "jrc-class-attendance-v1",
         admissions: "advice-system-stage-prototype",
-        pendingPool: "jrc-paike-pending-pool-v1"
+        pendingPool: "jrc-paike-pending-pool-v1",
+        launchBackup: "jrc-paike-launch-backup-v1"
       };
       let paikeRows = [];
       let paikeReviewRows = [];
       let paikeAttendanceRows = [];
       let paikeAdmissionState = {};
       let activePaikeView = "week";
+      let activePendingScheduleId = "";
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1226,15 +1422,19 @@
           id: `formal-${courseDate}-${teacherName}-${startTime}-${className}-${index}`.replace(/\s+/g, ""),
           teacherName,
           className,
+          date: courseDate,
           courseDate,
+          period: courseDate.slice(0, 7),
           slotIndex: Number(rowValueByAliases(row, ["节次", "slot", "slot_index", "slotIndex"]) || 0),
           startTime,
           endTime,
           classroomName,
+          roomName: classroomName,
           scheduleStatus: normalizeScheduleStatus(rowValueByAliases(row, ["状态", "排课状态", "schedule_status", "scheduleStatus"])),
           confirmationStatus: normalizeConfirmationStatus(rowValueByAliases(row, ["确认状态", "confirmation_status", "confirmationStatus"])),
           notes: [notes, sourceFileName ? `导入：${sourceFileName}` : ""].filter(Boolean).join(" / "),
           importedAt: new Date().toISOString(),
+          importedByExcel: true,
           sourceFileName
         };
       }
@@ -1258,7 +1458,95 @@
         };
       }
 
-      async function saveFormalScheduleEntries(entries, fileName) {
+      function writeLaunchBackup(state, reason) {
+        const backups = readLocal(stores.launchBackup, []);
+        const nextBackups = [
+          {
+            id: `backup-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            reason: reason || "排课并网前备份",
+            createdAt: new Date().toISOString(),
+            createdBy: window.JRC_CURRENT_EMPLOYEE?.name || "未登录",
+            entryCount: Array.isArray(state?.scheduleEntries) ? state.scheduleEntries.length : 0,
+            state
+          },
+          ...(Array.isArray(backups) ? backups : [])
+        ].slice(0, 12);
+        localStorage.setItem(stores.launchBackup, JSON.stringify(nextBackups));
+        window.JRC_CLOUD?.writeModuleData?.(stores.launchBackup, "paike", nextBackups, { replaceMode: "replace" }).catch(() => {});
+      }
+
+      function formalEntryToScheduleRow(entry) {
+        return {
+          source: entry.sourceFileName || entry.source || "正式排课",
+          period: entry.period || String(entry.date || entry.courseDate || "").slice(0, 7),
+          date: entry.date || entry.courseDate || "",
+          teacher: entry.teacher || entry.teacherName || "",
+          student: entry.studentName || entry.student || entry.className || "",
+          time: entry.time || (entry.startTime && entry.endTime ? `${entry.startTime}-${entry.endTime}` : entry.startTime || ""),
+          room: entry.classroomName || entry.roomName || "",
+          rawText: entry.rawText || entry.notes || "",
+          lessonType: entry.lessonTypeRaw || entry.lessonType || entry.courseType || "",
+          startTime: entry.startTime || "",
+          endTime: entry.endTime || "",
+          status: entry.scheduleStatus || entry.status || "scheduled",
+          id: entry.id || ""
+        };
+      }
+
+      function buildCandidateConflicts(candidate, existingRows = paikeRows) {
+        const row = formalEntryToScheduleRow(candidate);
+        if (!row.date || !row.startTime || !row.teacher) return [];
+        const checks = [
+          { type: "teacher", label: "老师同时间已有课程" },
+          { type: "room", label: "教室同时间已被占用" },
+          { type: "student", label: "学生/班级同时间已有课程" }
+        ];
+        const conflicts = [];
+        existingRows.forEach((existing) => {
+          if (!existing || existing.date !== row.date) return;
+          if (candidate.id && existing.id && candidate.id === existing.id) return;
+          if (!scheduleTimesOverlap(row, existing)) return;
+          checks.forEach(({ type, label }) => {
+            if (!sameScheduleConflictTarget(type, row, existing)) return;
+            conflicts.push({
+              type,
+              label,
+              date: row.date,
+              time: `${timeSlotLabel(row)} / ${timeSlotLabel(existing)}`,
+              target: type === "teacher" ? row.teacher : type === "room" ? row.room : row.student,
+              detail: `${existing.teacher || "-"}｜${existing.student || existing.lessonType || "-"}｜${existing.room || "未写教室"}`
+            });
+          });
+        });
+        const unique = new Map();
+        conflicts.forEach((item) => unique.set([item.type, item.date, item.time, item.target, item.detail].join("|"), item));
+        return [...unique.values()];
+      }
+
+      function summarizeImportedEntries(entries) {
+        const missingRoom = entries.filter((entry) => !String(entry.classroomName || entry.roomName || "").trim()).length;
+        const missingEndTime = entries.filter((entry) => !String(entry.endTime || "").trim()).length;
+        const importedRows = entries.map(formalEntryToScheduleRow);
+        const conflictKeys = new Set();
+        const checks = ["teacher", "room", "student"];
+        for (let i = 0; i < importedRows.length; i += 1) {
+          for (let j = i + 1; j < importedRows.length; j += 1) {
+            const left = importedRows[i];
+            const right = importedRows[j];
+            if (!left.date || left.date !== right.date) continue;
+            if (!scheduleTimesOverlap(left, right)) continue;
+            checks.forEach((type) => {
+              if (sameScheduleConflictTarget(type, left, right)) {
+                conflictKeys.add([type, left.date, timeSlotLabel(left), timeSlotLabel(right), left.teacher, left.room, left.student, right.teacher, right.room, right.student].join("|"));
+              }
+            });
+          }
+        }
+        const conflictCount = conflictKeys.size;
+        return { missingRoom, missingEndTime, conflictCount };
+      }
+
+      async function saveFormalScheduleEntries(entries, fileName, options = {}) {
         const localState = normalizeRegularState(readLocal(stores.regular, {}));
         let remoteState = {};
         try {
@@ -1267,14 +1555,20 @@
         } catch (error) {
           console.warn("读取正式排课云端数据失败", error);
         }
-        const mergedEntries = mergeRows("formal", remoteState.scheduleEntries || [], localState.scheduleEntries || [], entries);
+        const currentEntries = mergeRows("formal", remoteState.scheduleEntries || [], localState.scheduleEntries || []);
+        writeLaunchBackup({ ...remoteState, ...localState, scheduleEntries: currentEntries }, options.backupReason || `导入前备份：${fileName || "手工排课"}`);
+        const preservedEntries = options.replaceExcelImports
+          ? currentEntries.filter((row) => !(row.importedByExcel || row.sourceFileName))
+          : currentEntries;
+        const mergedEntries = mergeRows("formal", preservedEntries, entries);
         const nextState = {
           ...remoteState,
           ...localState,
           scheduleEntries: mergedEntries,
           updatedAt: new Date().toISOString(),
           lastImportFileName: fileName || "",
-          lastImportCount: entries.length
+          lastImportCount: entries.length,
+          lastImportMode: options.replaceExcelImports ? "replace-excel-imports" : "merge"
         };
         localStorage.setItem(stores.regular, JSON.stringify(nextState));
         if (window.JRC_CLOUD?.writeModuleData) {
@@ -1296,11 +1590,14 @@
             setFormalImportMessage("没有识别到可导入的排课明细。请使用模板字段：日期、开始时间、结束时间、老师、学生/班级、教室、状态、备注。");
             return;
           }
-          await saveFormalScheduleEntries(entries, file.name);
-          setFormalImportMessage(`已导入正式排课明细 ${entries.length} 行，并同步到云端。`);
+          const summary = summarizeImportedEntries(entries);
+          await saveFormalScheduleEntries(entries, file.name, { replaceExcelImports: true, backupReason: `新Excel并网前备份：${file.name}` });
+          setFormalImportMessage(`已并网 ${entries.length} 行正式排课，并同步云端。系统自动检查：疑似冲突 ${summary.conflictCount} 项，未写教室 ${summary.missingRoom} 项，未写结束时间 ${summary.missingEndTime} 项。`);
+          setTeacherSheetMessage(`新Excel已并网：${entries.length} 行。疑似冲突 ${summary.conflictCount} 项，未写教室 ${summary.missingRoom} 项。`);
           await initPaikeDashboard();
         } catch (error) {
           setFormalImportMessage(`正式排课明细导入失败：${error.message || error}`);
+          setTeacherSheetMessage(`新Excel并网失败：${error.message || error}`);
         } finally {
           if (byId("paikeFormalImportInput")) byId("paikeFormalImportInput").value = "";
         }
@@ -1548,8 +1845,8 @@
       function normalizedScheduleRows({ regularEntries, scheduleSessions }) {
         const regularRows = regularEntries.map((row) => ({
           source: "平时模式",
-          period: row.period || String(row.date || "").slice(0, 7) || "-",
-          date: row.date || "-",
+          period: row.period || String(row.date || row.courseDate || "").slice(0, 7) || "-",
+          date: row.date || row.courseDate || "-",
           teacher: row.teacher || row.teacherName || "-",
           student: row.studentName || row.student || row.className || "-",
           time: row.time || row.startTime || row.hours || "-",
@@ -1890,7 +2187,8 @@
             </div>
             <div class="admission-link-actions">
               <button class="button secondary" type="button" data-pending-schedule-locate="${escapeHtml(row.id)}">定位老师课表</button>
-              <button class="button secondary" type="button" data-pending-schedule-done="${escapeHtml(row.id)}">标记已排</button>
+              <button class="button" type="button" data-pending-schedule-plan="${escapeHtml(row.id)}">安排成正式课</button>
+              <button class="button secondary" type="button" data-pending-schedule-done="${escapeHtml(row.id)}">仅标记完成</button>
             </div>
           </article>
         `).join("");
@@ -2884,6 +3182,164 @@
         }
       }
 
+      function renderLaunchPanel({ regularEntries = [] } = {}) {
+        const grid = byId("paikeLaunchStatusGrid");
+        if (!grid) return;
+        const officialCount = regularEntries.length;
+        const excelCount = regularEntries.filter((row) => row.importedByExcel || row.sourceFileName).length;
+        const manualCount = regularEntries.filter((row) => row.manualEntry || (!row.importedByExcel && !row.sourceFileName)).length;
+        const conflictCount = buildScheduleConflicts(selectedPeriod(), "").length;
+        const missingRoomCount = paikeRows.filter((row) => !String(row.room || "").trim() || row.room === "-").length;
+        const pendingCount = readPendingSchedulePool().filter((row) => row.status !== "已排课").length;
+        const cards = [
+          ["正式课表", officialCount, officialCount ? "已接入" : "待并网", officialCount ? "" : "warn"],
+          ["Excel并网", excelCount, excelCount ? "上一批已保存" : "暂无正式导入", excelCount ? "" : "warn"],
+          ["手工维护", manualCount, "新增/调课/停课记录", ""],
+          ["疑似冲突", conflictCount, conflictCount ? "需要排课负责人确认" : "当前未发现", conflictCount ? "warn" : ""],
+          ["未写教室", missingRoomCount, missingRoomCount ? "建议补齐" : "已较完整", missingRoomCount ? "warn" : ""],
+          ["待排课池", pendingCount, pendingCount ? "可转正式课" : "暂无待排", pendingCount ? "warn" : ""]
+        ];
+        grid.innerHTML = cards.map(([label, value, note, tone]) => `
+          <div class="launch-status-card">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value)}</strong>
+            <p><span class="status-pill ${escapeHtml(tone)}">${escapeHtml(note)}</span></p>
+          </div>
+        `).join("");
+      }
+
+      function renderLaunchDatalists() {
+        const teacherList = byId("paikeTeacherDatalist");
+        const roomList = byId("paikeRoomDatalist");
+        const teachers = Array.from(new Set(paikeRows.map((row) => row.teacher).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+        const rooms = Array.from(new Set(paikeRows.map((row) => row.room).filter((room) => room && room !== "-"))).sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+        if (teacherList) teacherList.innerHTML = teachers.map((teacher) => `<option value="${escapeHtml(teacher)}"></option>`).join("");
+        if (roomList) roomList.innerHTML = rooms.map((room) => `<option value="${escapeHtml(room)}"></option>`).join("");
+      }
+
+      function openScheduleEntryForm(prefill = {}) {
+        if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
+          setTeacherSheetMessage("当前账号没有排课修改权限，只能查看课表。");
+          return;
+        }
+        const panel = byId("scheduleEntryFormPanel");
+        if (!panel) return;
+        panel.classList.add("active");
+        byId("scheduleEntryFormTitle").textContent = prefill.title || "新增一节正式课程";
+        byId("scheduleEntryType").value = prefill.scheduleStatus || "scheduled";
+        byId("scheduleEntryDate").value = prefill.date || localDateText();
+        byId("scheduleEntryStart").value = prefill.startTime || "";
+        byId("scheduleEntryEnd").value = prefill.endTime || "";
+        byId("scheduleEntryTeacher").value = prefill.teacherName || prefill.teacher || "";
+        byId("scheduleEntryClass").value = prefill.className || prefill.studentName || "";
+        byId("scheduleEntryRoom").value = prefill.classroomName || prefill.roomName || "";
+        byId("scheduleEntryCourseType").value = prefill.courseType || "数学小班课";
+        byId("scheduleEntryNotes").value = prefill.notes || "";
+        byId("scheduleEntryOverride").checked = false;
+        byId("scheduleEntryConflictBox").hidden = true;
+        panel.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+
+      function closeScheduleEntryForm() {
+        byId("scheduleEntryFormPanel")?.classList.remove("active");
+        activePendingScheduleId = "";
+      }
+
+      function resetScheduleEntryForm() {
+        activePendingScheduleId = "";
+        openScheduleEntryForm({ title: "新增一节正式课程" });
+      }
+
+      function parseTimeRangeText(value) {
+        const parts = String(value || "").replace(/：/g, ":").split(/[-~至到]/).map((part) => normalizeTimeText(part)).filter(Boolean);
+        return { startTime: parts[0] || "", endTime: parts[1] || "" };
+      }
+
+      function buildManualScheduleEntry() {
+        const courseDate = dateKey(byId("scheduleEntryDate")?.value || "");
+        const startTime = normalizeTimeText(byId("scheduleEntryStart")?.value || "");
+        const endTime = normalizeTimeText(byId("scheduleEntryEnd")?.value || "");
+        const teacherName = String(byId("scheduleEntryTeacher")?.value || "").trim();
+        const className = String(byId("scheduleEntryClass")?.value || "").trim();
+        const classroomName = String(byId("scheduleEntryRoom")?.value || "").trim();
+        const courseType = String(byId("scheduleEntryCourseType")?.value || "").trim();
+        const scheduleStatus = byId("scheduleEntryType")?.value || "scheduled";
+        const notes = String(byId("scheduleEntryNotes")?.value || "").trim();
+        if (!courseDate || !startTime || !teacherName || !className) {
+          throw new Error("请至少填写日期、开始时间、老师、学生/班级。");
+        }
+        return {
+          id: `manual-${courseDate}-${teacherName}-${startTime}-${className}-${Date.now()}`.replace(/\s+/g, ""),
+          teacherName,
+          teacher: teacherName,
+          className,
+          studentName: className,
+          date: courseDate,
+          courseDate,
+          period: courseDate.slice(0, 7),
+          startTime,
+          endTime,
+          classroomName,
+          roomName: classroomName,
+          courseType,
+          lessonType: courseType,
+          lessonTypeRaw: courseType,
+          scheduleStatus,
+          confirmationStatus: "confirmed",
+          notes,
+          manualEntry: true,
+          createdAt: new Date().toISOString(),
+          createdBy: window.JRC_CURRENT_EMPLOYEE?.name || "未登录",
+          sourceFileName: ""
+        };
+      }
+
+      function renderCandidateConflictBox(conflicts) {
+        const box = byId("scheduleEntryConflictBox");
+        if (!box) return;
+        if (!conflicts.length) {
+          box.hidden = true;
+          box.innerHTML = "";
+          return;
+        }
+        box.hidden = false;
+        box.innerHTML = `
+          <strong>系统发现 ${conflicts.length} 个疑似冲突：</strong>
+          <ul>
+            ${conflicts.slice(0, 8).map((item) => `<li>${escapeHtml(item.label)}：${escapeHtml(item.date)} ${escapeHtml(item.time)}｜${escapeHtml(item.target || "-")}｜${escapeHtml(item.detail || "")}</li>`).join("")}
+          </ul>
+          <div style="margin-top:8px;">如果确实是特殊情况，请勾选“已人工确认，仍要保存疑似冲突课程”。</div>
+        `;
+      }
+
+      async function saveManualScheduleEntry() {
+        if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
+          setTeacherSheetMessage("当前账号没有排课修改权限，不能保存排课。");
+          return;
+        }
+        try {
+          const entry = buildManualScheduleEntry();
+          const conflicts = buildCandidateConflicts(entry);
+          const override = byId("scheduleEntryOverride")?.checked;
+          if (conflicts.length && !override) {
+            renderCandidateConflictBox(conflicts);
+            setTeacherSheetMessage("发现疑似排课冲突，已暂停保存。请调整时间/教室，或确认后勾选仍要保存。");
+            return;
+          }
+          await saveFormalScheduleEntries([entry], "手工排课", { backupReason: "手工排课保存前备份" });
+          if (activePendingScheduleId) {
+            const rows = readPendingSchedulePool();
+            writePendingSchedulePool(rows.map((row) => row.id === activePendingScheduleId ? { ...row, status: "已排课", completedAt: new Date().toISOString(), linkedScheduleId: entry.id } : row));
+            activePendingScheduleId = "";
+          }
+          closeScheduleEntryForm();
+          setTeacherSheetMessage(`已保存到正式课表：${entry.teacherName} ${entry.date} ${entry.startTime}${entry.endTime ? `-${entry.endTime}` : ""} ${entry.className}`);
+          await initPaikeDashboard();
+        } catch (error) {
+          setTeacherSheetMessage(`保存正式课表失败：${error.message || error}`);
+        }
+      }
+
       async function initPaikeDashboard() {
         const [reviewRows, regularData, preimportData, attendanceData, admissionsData] = await Promise.all([
           readCloud(stores.importReview, []),
@@ -2907,6 +3363,8 @@
         renderCommandCenter();
         renderStatus({ reviewRows: safeReviewRows, regularEntries, scheduleSessions });
         renderDataSourceStatus({ regularEntries, scheduleSessions });
+        renderLaunchPanel({ regularEntries });
+        renderLaunchDatalists();
         renderPreview({ regularEntries, scheduleSessions });
       }
 
@@ -3015,8 +3473,9 @@
       });
       byId("pendingSchedulePoolList")?.addEventListener("click", (event) => {
         const locateButton = event.target.closest("[data-pending-schedule-locate]");
+        const planButton = event.target.closest("[data-pending-schedule-plan]");
         const doneButton = event.target.closest("[data-pending-schedule-done]");
-        const id = locateButton?.getAttribute("data-pending-schedule-locate") || doneButton?.getAttribute("data-pending-schedule-done") || "";
+        const id = locateButton?.getAttribute("data-pending-schedule-locate") || planButton?.getAttribute("data-pending-schedule-plan") || doneButton?.getAttribute("data-pending-schedule-done") || "";
         if (!id) return;
         const rows = readPendingSchedulePool();
         const target = rows.find((row) => row.id === id);
@@ -3026,6 +3485,20 @@
           renderPendingSchedulePool();
           return;
         }
+        if (planButton) {
+          activePendingScheduleId = id;
+          const parsedTime = parseTimeRangeText(target.availableTime || "");
+          openScheduleEntryForm({
+            title: `安排待排课：${target.studentName || ""}`,
+            teacherName: target.targetTeacher || "",
+            className: target.studentName || "",
+            courseType: target.courseType || "数学小班课",
+            startTime: parsedTime.startTime,
+            endTime: parsedTime.endTime,
+            notes: [target.learningContent, target.note].filter(Boolean).join(" / ")
+          });
+          return;
+        }
         if (target.targetTeacher) selectTeacherSheetTeacher(target.targetTeacher, { scroll: false });
         byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
         setTeacherSheetMessage(`${target.studentName} 待排课：先看 ${target.targetTeacher || "目标老师"} 课表空档，再看教室表。`);
@@ -3033,6 +3506,34 @@
       byId("exportTeacherSheetButton")?.addEventListener("click", exportTeacherSheet);
       byId("exportTeacherDayButton")?.addEventListener("click", exportTeacherDay);
       byId("exportRoomUsageButton")?.addEventListener("click", exportRoomUsage);
+      byId("paikeLaunchImportButton")?.addEventListener("click", () => {
+        if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
+          setTeacherSheetMessage("当前账号没有排课修改权限，不能并网新Excel。");
+          return;
+        }
+        byId("paikeFormalImportInput")?.click();
+      });
+      byId("openScheduleFormButton")?.addEventListener("click", () => openScheduleEntryForm());
+      byId("closeScheduleFormButton")?.addEventListener("click", closeScheduleEntryForm);
+      byId("resetScheduleEntryButton")?.addEventListener("click", resetScheduleEntryForm);
+      byId("saveScheduleEntryButton")?.addEventListener("click", saveManualScheduleEntry);
+      byId("paikeLaunchImportDrop")?.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.currentTarget.style.borderColor = "rgba(13,148,136,0.82)";
+      });
+      byId("paikeLaunchImportDrop")?.addEventListener("dragleave", (event) => {
+        event.currentTarget.style.borderColor = "";
+      });
+      byId("paikeLaunchImportDrop")?.addEventListener("drop", (event) => {
+        event.preventDefault();
+        event.currentTarget.style.borderColor = "";
+        if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
+          setTeacherSheetMessage("当前账号没有排课修改权限，不能并网新Excel。");
+          return;
+        }
+        const file = event.dataTransfer?.files?.[0];
+        if (file) importFormalScheduleFile(file);
+      });
       byId("paikeFormalImportButton")?.addEventListener("click", () => {
         if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
           setFormalImportMessage("当前账号没有排课修改权限，不能导入正式排课明细。");
