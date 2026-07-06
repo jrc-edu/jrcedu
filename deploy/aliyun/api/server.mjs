@@ -542,6 +542,24 @@ function stableSerialize(value) {
   }, {});
 }
 
+function compactModuleAuditData(value, storeKey) {
+  if (value == null) return null;
+  const objectValue = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    compacted: true,
+    storeKey,
+    payloadType: Array.isArray(value) ? "array" : typeof value,
+    topLevelKeys: Object.keys(objectValue).slice(0, 40),
+    itemCount: Array.isArray(value) ? value.length : 0,
+    scheduleEntryCount: Array.isArray(objectValue.scheduleEntries) ? objectValue.scheduleEntries.length : 0,
+    updatedAt: objectValue.updatedAt || "",
+    lastImportFileName: objectValue.lastImportFileName || "",
+    lastImportCount: objectValue.lastImportCount || 0,
+    lastImportRemovedCount: objectValue.lastImportRemovedCount || 0,
+    lastImportMode: objectValue.lastImportMode || ""
+  };
+}
+
 function buildModuleMergeId(prefix, row) {
   const explicitId = [
     row?.rowId,
@@ -1073,6 +1091,7 @@ async function handlePutModuleData(req, res, headers) {
   const mergedPayload = previousRow && !replaceMode
     ? mergeStructuredPayload(previousRow.payload, payload, storeKey)
     : payload;
+  const mergedPayloadJson = JSON.stringify(mergedPayload);
   const result = await pool.query(`
     insert into module_data_store (
       store_key, module_key, payload, version, updated_by_name, updated_by_username, updated_at
@@ -1086,8 +1105,11 @@ async function handlePutModuleData(req, res, headers) {
       updated_by_username = excluded.updated_by_username,
       updated_at = now()
     returning store_key, module_key, version, updated_at
-  `, [storeKey, moduleKey, JSON.stringify(mergedPayload), operatorName, operatorUsername]);
+  `, [storeKey, moduleKey, mergedPayloadJson, operatorName, operatorUsername]);
   const nextVersion = result.rows[0].version;
+  const compactAudit = storeKey === "paike-june-system-v1" || mergedPayloadJson.length > 500000;
+  const beforeAuditData = compactAudit ? compactModuleAuditData(previousRow?.payload ?? null, storeKey) : (previousRow?.payload ?? null);
+  const afterAuditData = compactAudit ? compactModuleAuditData(mergedPayload, storeKey) : mergedPayload;
   await pool.query(`
     insert into audit_logs (
       module_key,
@@ -1107,9 +1129,9 @@ async function handlePutModuleData(req, res, headers) {
     previousRow ? "module-data-update" : "module-data-create",
     "module_store",
     storeKey,
-    `${storeKey} 保存至 v${nextVersion}`,
-    JSON.stringify(previousRow?.payload ?? null),
-    JSON.stringify(mergedPayload),
+    compactAudit ? `${storeKey} 保存至 v${nextVersion}（大数据仅记录摘要）` : `${storeKey} 保存至 v${nextVersion}`,
+    JSON.stringify(beforeAuditData),
+    JSON.stringify(afterAuditData),
     operatorName,
     operatorUsername,
     moduleKey

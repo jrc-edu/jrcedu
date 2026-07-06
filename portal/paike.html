@@ -2206,6 +2206,8 @@
       }
 
       async function saveFormalScheduleEntries(entries, fileName, options = {}) {
+        const reportProgress = typeof options.onProgress === "function" ? options.onProgress : () => {};
+        reportProgress("正在读取云端旧课表。");
         const localState = normalizeRegularState(readLocal(stores.regular, {}));
         let remoteState = {};
         let remoteFound = false;
@@ -2218,6 +2220,7 @@
         } catch (error) {
           console.warn("读取正式排课云端数据失败", error);
         }
+        reportProgress("正在整理本次并网数据。");
         const currentEntries = remoteFound
           ? mergeRows("formal", remoteState.scheduleEntries || [])
           : mergeRows("formal", remoteState.scheduleEntries || [], localState.scheduleEntries || []);
@@ -2261,9 +2264,17 @@
         };
         let cloudSynced = false;
         if (window.JRC_CLOUD?.writeModuleData) {
-          await window.JRC_CLOUD.writeModuleData(stores.regular, "paike", nextState, { replaceMode: "replace" });
+          reportProgress(`正在同步云端：${mergedEntries.length} 节正式课。`);
+          const cloudResult = await window.JRC_CLOUD.writeModuleData(stores.regular, "paike", nextState, { replaceMode: "replace", timeoutMs: 45000 });
+          if (!cloudResult?.ok) {
+            const detail = typeof cloudResult?.data === "string"
+              ? cloudResult.data
+              : (cloudResult?.data?.error || cloudResult?.error || "");
+            throw new Error(`云端同步失败${cloudResult?.status ? ` HTTP ${cloudResult.status}` : ""}${detail ? `：${detail}` : ""}`);
+          }
           cloudSynced = true;
         }
+        reportProgress("云端已保存，正在更新本机缓存。");
         const localCached = safeLocalSet(stores.regular, nextState);
         window.JRC_PAIKE_LAST_SAVE_META = { cloudSynced, localCached, savedAt: new Date().toISOString() };
         if (!cloudSynced && !localCached) throw new Error("浏览器本地存储空间不足，且云端同步接口不可用，正式课表没有保存成功。");
@@ -2334,7 +2345,11 @@
           await saveFormalScheduleEntries(data.entries, data.fileLabel, {
             replaceExcelImports: true,
             replaceUploadedTeacherExcelImports: true,
-            backupReason: `新Excel批量并网前备份：${data.fileLabel}`
+            backupReason: `新Excel批量并网前备份：${data.fileLabel}`,
+            onProgress: (message) => {
+              setFormalImportMessage(message);
+              setTeacherSheetMessage(message);
+            }
           });
           const warningLine = data.warningText ? ` ${data.warningText}。` : "";
           const localCacheLine = window.JRC_PAIKE_LAST_SAVE_META?.localCached === false

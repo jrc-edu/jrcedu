@@ -112,20 +112,36 @@
     };
     if (config.apiToken) headers.Authorization = `Bearer ${config.apiToken}`;
 
-    const response = await fetch(`${config.apiBaseUrl}${path}`, {
-      method: options.method || "GET",
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      credentials: "include"
-    });
+    const method = options.method || "GET";
+    const timeoutMs = Math.max(2500, Number(options.timeoutMs || (method === "GET" ? 15000 : 30000)));
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const response = await fetch(`${config.apiBaseUrl}${path}`, {
+        method,
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        credentials: "include",
+        signal: controller?.signal
+      });
 
-    const text = await response.text();
-    const data = text ? safeJsonParse(text, text) : null;
-    return {
-      ok: response.ok,
-      status: response.status,
-      data
-    };
+      const text = await response.text();
+      const data = text ? safeJsonParse(text, text) : null;
+      return {
+        ok: response.ok,
+        status: response.status,
+        data
+      };
+    } catch (error) {
+      const timedOut = error?.name === "AbortError";
+      return {
+        ok: false,
+        status: timedOut ? 408 : 0,
+        error: timedOut ? `请求超过 ${Math.round(timeoutMs / 1000)} 秒未返回` : String(error?.message || error)
+      };
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
   }
 
   function buildAuditPayload(entry) {
@@ -240,13 +256,14 @@
   }
 
   async function readModuleData(storeKey) {
-    return request(`/module-data?storeKey=${encodeURIComponent(storeKey)}`);
+    return request(`/module-data?storeKey=${encodeURIComponent(storeKey)}`, { timeoutMs: 15000 });
   }
 
   async function writeModuleData(storeKey, moduleKey, payload, context = {}) {
     const operator = context.operator || window.JRC_CURRENT_EMPLOYEE || {};
     return request("/module-data", {
       method: "PUT",
+      timeoutMs: context.timeoutMs || 45000,
       body: {
         storeKey,
         moduleKey,
