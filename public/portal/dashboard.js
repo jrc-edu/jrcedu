@@ -8,6 +8,8 @@
   const attendanceKey = "jrc-class-attendance-v1";
   const studentServiceKey = "jrc-student-service-v2";
   const financeKey = "jrc-finance-ledger-v1";
+  const historicalActivationKey = "paike-historical-activation-v1";
+  const videoOpsKey = "jrc-video-ops-monitor-v1";
   const specialDelegatedTeachers = ["程志豪", "海滢滢", "姚老师"];
   const studentServiceFallbackOwner = { name: "高芳燕", username: "gaofangyan" };
   const primarySchoolServiceOwner = { name: "颜雨涵", username: "yanyuhan" };
@@ -1423,6 +1425,277 @@
     }
   }
 
+  function acceptanceBadgeClass(status) {
+    if (status === "ok") return "status-ok";
+    if (status === "danger") return "status-danger";
+    return "status-warn";
+  }
+
+  function acceptanceLabel(status) {
+    if (status === "ok") return "可试运行";
+    if (status === "danger") return "需先处理";
+    return "待补数据";
+  }
+
+  function countArrayRows(value) {
+    return Array.isArray(value) ? value.length : 0;
+  }
+
+  function videoSnapshotCount(videoState) {
+    if (Array.isArray(videoState?.snapshots)) return videoState.snapshots.length;
+    if (Array.isArray(videoState?.videos)) return videoState.videos.length;
+    if (Array.isArray(videoState?.items)) return videoState.items.length;
+    return 0;
+  }
+
+  function financePeriodCount(financeState) {
+    return financeState?.periods && typeof financeState.periods === "object" ? Object.keys(financeState.periods).length : 0;
+  }
+
+  function financeExpenseCount(financeState) {
+    return Array.isArray(financeState?.expenses) ? financeState.expenses.length : 0;
+  }
+
+  function qualityRecordCount(qualityState) {
+    return [
+      qualityState?.teachers,
+      qualityState?.tickets,
+      qualityState?.inspections,
+      qualityState?.studentSurveys,
+      qualityState?.parentSurveys,
+      qualityState?.objectiveMetrics
+    ].reduce((sum, rows) => sum + countArrayRows(rows), 0);
+  }
+
+  function attendanceSummary(sessions) {
+    const rows = [];
+    (Array.isArray(sessions) ? sessions : []).forEach((session) => {
+      (Array.isArray(session?.rows) ? session.rows : []).forEach((row) => rows.push({ session, row }));
+    });
+    return {
+      sessions: Array.isArray(sessions) ? sessions.length : 0,
+      rows: rows.length,
+      effective: rows.filter(({ row }) => isEffectiveAttendance(row)).length,
+      unresolved: rows.filter(({ row }) => needsAttendanceResolution(row)).length
+    };
+  }
+
+  function parentRiskRowsFromAdmissions(admissionsState) {
+    return Array.isArray(admissionsState?.parentRiskRecords)
+      ? admissionsState.parentRiskRecords
+      : Array.isArray(admissionsState?.parentRisks)
+        ? admissionsState.parentRisks
+        : [];
+  }
+
+  function studentRiskRows(studentRows) {
+    return (Array.isArray(studentRows) ? studentRows : []).filter((row) => {
+      const risk = String(row?.risk || row?.riskLevel || "").trim();
+      return risk && !["正常", "无", "低"].includes(risk);
+    });
+  }
+
+  function historicalRiskCount(historicalState) {
+    return Number(historicalState?.summary?.riskCount || (Array.isArray(historicalState?.risks) ? historicalState.risks.length : 0) || 0);
+  }
+
+  function historicalFinanceCount(historicalState) {
+    const detailRows = Array.isArray(historicalState?.detailStores)
+      ? historicalState.detailStores.filter((item) => item?.name === "financeDetailRows").reduce((sum, item) => sum + Number(item.rows || 0), 0)
+      : 0;
+    return Number(historicalState?.summary?.financeDetailRowCount || detailRows || 0);
+  }
+
+  function laneCardHtml(lane) {
+    return `
+      <div class="acceptance-lane">
+        <span>${escapeHtml(lane.eyebrow)}</span>
+        <strong>${escapeHtml(lane.value)}</strong>
+        <span class="badge ${acceptanceBadgeClass(lane.status)}">${acceptanceLabel(lane.status)}</span>
+        <p>${escapeHtml(lane.note)}</p>
+        <a class="text-link" href="${escapeHtml(lane.href)}">${escapeHtml(lane.action)}</a>
+      </div>
+    `;
+  }
+
+  function acceptanceActionHtml(item) {
+    return `
+      <div class="acceptance-action">
+        <span>${escapeHtml(item.level)}</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <p>${escapeHtml(item.detail)}</p>
+        <a href="${escapeHtml(item.href)}">${escapeHtml(item.action)}</a>
+      </div>
+    `;
+  }
+
+  async function renderOperatingAcceptance() {
+    const panel = $("portalOperatingAcceptance");
+    if (!panel) return;
+    panel.hidden = !isAdminLike();
+    if (!isAdminLike()) return;
+    const summaryHolder = $("portalOperatingAcceptanceSummary");
+    const lanesHolder = $("portalOperatingAcceptanceLanes");
+    const actionsHolder = $("portalOperatingAcceptanceActions");
+    if (summaryHolder) {
+      summaryHolder.innerHTML = `
+        <div class="acceptance-summary-card"><span>读取中</span><strong>...</strong><p>正在读取招生、排课、点名、财务、风险和报表数据。</p></div>
+      `;
+    }
+    const [admissionsState, paikeRegular, paikePreimport, attendanceSessions, studentRows, financeState, qualityState, feedbackRows, suggestionRows, historicalState, videoState] = await Promise.all([
+      readLinkedStore(admissionsKey, {}),
+      readLinkedStore(paikeRegularKey, {}),
+      readLinkedStore(paikePreimportKey, {}),
+      readLinkedStore(attendanceKey, []),
+      readLinkedStore(studentServiceKey, []),
+      readLinkedStore(financeKey, {}),
+      readLinkedStore("jrc-teaching-quality-system-v2-demo", {}),
+      readLinkedStore(siteFeedbackKey, []),
+      readLinkedStore(suggestionsKey, []),
+      readLinkedStore(historicalActivationKey, {}),
+      readLinkedStore(videoOpsKey, {})
+    ]);
+    const preimportBundle = mergeLinkedStoreValue(window.JRC_PREIMPORT_BUNDLE || window.JRC_PREIMPORT_SUMMARY || {}, paikePreimport || {});
+    const scheduleRows = mergeScheduleRows(
+      normalizeScheduleRowsFromRegular(paikeRegular),
+      normalizeScheduleRowsFromPreimport(preimportBundle)
+    );
+    const leads = Array.isArray(admissionsState?.leads) ? admissionsState.leads : [];
+    const enrolled = enrolledLeadRows(admissionsState);
+    const parentRisks = parentRiskRowsFromAdmissions(admissionsState);
+    const attendance = attendanceSummary(attendanceSessions);
+    const financePeriods = financePeriodCount(financeState);
+    const financeExpenses = financeExpenseCount(financeState);
+    const studentRisks = studentRiskRows(studentRows);
+    const historicalRisks = historicalRiskCount(historicalState);
+    const financeHistoryRows = historicalFinanceCount(historicalState);
+    const openFeedback = (Array.isArray(feedbackRows) ? feedbackRows : []).filter((row) => !siteFeedbackIsClosed(row));
+    const openTasks = (Array.isArray(suggestionRows) ? suggestionRows : []).filter(isOpenTask);
+    const qualityCount = qualityRecordCount(qualityState);
+    const videoCount = videoSnapshotCount(videoState);
+    const teacherCount = new Set(scheduleRows.map((row) => row.teacherName).filter(Boolean)).size;
+    const periods = Array.from(new Set(scheduleRows.map((row) => String(row.date || "").slice(0, 7)).filter(Boolean))).sort();
+    const scheduleNames = scheduleStudentNameSet(scheduleRows);
+    const unscheduledEnrolled = enrolled.filter((lead) => {
+      const name = normalizePersonName(lead.studentName);
+      return name && admissionLeadRequiresPaike(lead) && !scheduleNames.has(name);
+    });
+    const studentNames = studentServiceNameSet(studentRows);
+    const unfiledEnrolled = enrolled.filter((lead) => {
+      const name = normalizePersonName(lead.studentName);
+      return name && !studentNames.has(name);
+    });
+    const reportsReady = [
+      leads.length > 0,
+      scheduleRows.length > 0,
+      attendance.sessions > 0,
+      financePeriods > 0 || financeHistoryRows > 0,
+      qualityCount > 0,
+      videoCount > 0
+    ].filter(Boolean).length;
+    const lanes = [
+      {
+        eyebrow: "CRM招生",
+        value: `${leads.length} 条线索`,
+        status: leads.length ? "ok" : "warn",
+        note: `已报名/实收 ${enrolled.length} 人；家长风险 ${parentRisks.length} 条。报名后要进入建档和排课。`,
+        href: "/jrcedu/advice-system/index.html",
+        action: "进入招生"
+      },
+      {
+        eyebrow: "教务排课",
+        value: `${scheduleRows.length} 节课`,
+        status: scheduleRows.length ? (unscheduledEnrolled.length ? "warn" : "ok") : "danger",
+        note: `${teacherCount} 位老师，覆盖 ${periods[0] || "-"} 至 ${periods[periods.length - 1] || "-"}；报名未排课 ${unscheduledEnrolled.length} 人。`,
+        href: "./paike.html",
+        action: "进入排课"
+      },
+      {
+        eyebrow: "点名课消",
+        value: `${attendance.sessions} 节点名`,
+        status: attendance.sessions ? (attendance.unresolved ? "warn" : "ok") : "warn",
+        note: `到课/有效 ${attendance.effective} 人次；未点名、缺勤或待联系 ${attendance.unresolved} 人次。`,
+        href: "./student-service.html",
+        action: "进入学生服务"
+      },
+      {
+        eyebrow: "财务月结",
+        value: `${financePeriods || 0} 个月份`,
+        status: financePeriods || financeHistoryRows ? (attendance.unresolved ? "warn" : "ok") : "warn",
+        note: `历史工资明细 ${financeHistoryRows} 行；日常支出 ${financeExpenses} 条；未闭环课消会暂缓月结确认。`,
+        href: "./finance.html",
+        action: "进入财务"
+      },
+      {
+        eyebrow: "风险标签",
+        value: `${parentRisks.length + studentRisks.length + historicalRisks} 条`,
+        status: parentRisks.length || studentRisks.length || historicalRisks ? "ok" : "warn",
+        note: `家长风险 ${parentRisks.length}，学生服务风险 ${studentRisks.length}，排课/财务复核池 ${historicalRisks}。`,
+        href: "/jrcedu/advice-system/index.html#parent-risk",
+        action: "看风险池"
+      },
+      {
+        eyebrow: "经营报表",
+        value: `${reportsReady}/6 类`,
+        status: reportsReady >= 4 ? "ok" : "warn",
+        note: `招生、排课、课消、财务、教学质量、短视频是当前经营报表基础；短视频样本 ${videoCount} 条。`,
+        href: "./finance.html",
+        action: "看报表"
+      },
+      {
+        eyebrow: "数据链路",
+        value: `${openTasks.length} 个任务`,
+        status: openTasks.length || openFeedback.length ? "warn" : "ok",
+        note: `开放任务 ${openTasks.length}；反馈未闭环 ${openFeedback.length}。断点应进入任务闭环，不靠口头提醒。`,
+        href: "./suggestions.html",
+        action: "看任务"
+      }
+    ];
+    const okCount = lanes.filter((lane) => lane.status === "ok").length;
+    const dangerCount = lanes.filter((lane) => lane.status === "danger").length;
+    const warnCount = lanes.length - okCount - dangerCount;
+    const overallStatus = dangerCount ? "danger" : warnCount ? "warn" : "ok";
+    if ($("portalOperatingAcceptanceBadge")) {
+      $("portalOperatingAcceptanceBadge").className = `badge ${acceptanceBadgeClass(overallStatus)}`;
+      $("portalOperatingAcceptanceBadge").textContent = dangerCount ? `${dangerCount} 项需先处理` : warnCount ? `${warnCount} 项待补` : "可试运行";
+    }
+    if (summaryHolder) {
+      summaryHolder.innerHTML = `
+        <div class="acceptance-summary-card"><span>一体化成熟度</span><strong>${okCount}/${lanes.length}</strong><p>${dangerCount ? "还有基础断点需先处理。" : warnCount ? "可以试运行，同时继续补数据。" : "七条主线均具备试运行条件。"}</p></div>
+        <div class="acceptance-summary-card"><span>主链路数据</span><strong>${leads.length + scheduleRows.length + attendance.rows}</strong><p>线索 ${leads.length}｜排课 ${scheduleRows.length}｜点名人次 ${attendance.rows}</p></div>
+        <div class="acceptance-summary-card"><span>业财基础</span><strong>${financePeriods || financeHistoryRows ? "已接入" : "待补"}</strong><p>月结 ${financePeriods} 个月｜历史工资 ${financeHistoryRows} 行</p></div>
+        <div class="acceptance-summary-card"><span>风险与任务</span><strong>${parentRisks.length + studentRisks.length + historicalRisks + openTasks.length}</strong><p>风险标签和待办统一进入管理视图。</p></div>
+      `;
+    }
+    if (lanesHolder) lanesHolder.innerHTML = lanes.map(laneCardHtml).join("");
+    const actions = [];
+    if (!scheduleRows.length) {
+      actions.push({ level: "优先", title: "先把排课作为教务底座", detail: "排课为空会影响点名、课消、财务和教学质量。", href: "./paike.html", action: "打开排课" });
+    }
+    if (unscheduledEnrolled.length) {
+      actions.push({ level: "优先", title: `${unscheduledEnrolled.length} 名报名学生待排课`, detail: "招生成交后必须进入排课或写清暂不排课原因。", href: "./paike.html", action: "处理排课" });
+    }
+    if (unfiledEnrolled.length) {
+      actions.push({ level: "补档", title: `${unfiledEnrolled.length} 名报名学生待建档`, detail: "建档后才能跟踪课堂反馈、家长沟通和续费风险。", href: "./student-service.html", action: "补学生档案" });
+    }
+    if (attendance.unresolved) {
+      actions.push({ level: "课消", title: `${attendance.unresolved} 人次点名异常`, detail: "未点名、缺勤、请假、待联系会影响课销和财务月结。", href: "./student-service.html", action: "处理缺勤" });
+    }
+    if (!financePeriods && !financeHistoryRows) {
+      actions.push({ level: "财务", title: "补齐月结或历史工资依据", detail: "没有财务月结基础时，经营报表只能看趋势，不能验收利润。", href: "./finance.html", action: "打开财务" });
+    }
+    if (!parentRisks.length && !studentRisks.length) {
+      actions.push({ level: "风险", title: "风险标签开始沉淀", detail: "家长风险、续费风险、缺勤风险要在续报和排课前提示。", href: "/jrcedu/advice-system/index.html#parent-risk", action: "打开风险池" });
+    }
+    if (openFeedback.length) {
+      actions.push({ level: "闭环", title: `${openFeedback.length} 条反馈未闭环`, detail: "所有试用反馈应进入任务或复核，不再散落在口头沟通里。", href: "./trial-feedback.html", action: "看反馈" });
+    }
+    if (!actions.length) {
+      actions.push({ level: "正常", title: "当前可继续试运行", detail: "继续让老师按真实业务使用，系统会用真实数据逐步提高判断质量。", href: "./suggestions.html", action: "看任务台账" });
+    }
+    if (actionsHolder) actionsHolder.innerHTML = actions.slice(0, 6).map(acceptanceActionHtml).join("");
+  }
+
   function renderPortalDashboard() {
     setRoleCopy();
     renderQuickEntries();
@@ -1494,6 +1767,15 @@
     if (holder) holder.innerHTML = todos.join("");
     renderMyTasks();
     renderMyFeedback();
+    renderOperatingAcceptance().catch((error) => {
+      console.warn("Failed to render operating acceptance", error);
+      const holder = $("portalOperatingAcceptanceSummary");
+      if (holder) {
+        holder.innerHTML = `
+          <div class="acceptance-summary-card"><span>读取失败</span><strong>待刷新</strong><p>经营协同验收台暂时没有读到完整数据，请刷新或稍后再试。</p></div>
+        `;
+      }
+    });
 
     if ($("portalAdminDiagnostics")?.open) {
       renderAdminDiagnosticsOnce(true);

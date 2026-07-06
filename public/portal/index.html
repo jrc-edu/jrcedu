@@ -334,6 +334,125 @@
         font-size: 12px;
         line-height: 1.45;
       }
+      .acceptance-panel {
+        margin-top: 20px;
+      }
+      .acceptance-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: flex-start;
+      }
+      .acceptance-head p {
+        margin-top: 8px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .acceptance-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .acceptance-summary-card,
+      .acceptance-lane,
+      .acceptance-action,
+      .acceptance-principle {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.78);
+        padding: 14px;
+      }
+      .acceptance-summary-card span,
+      .acceptance-lane span,
+      .acceptance-action span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .acceptance-summary-card strong,
+      .acceptance-lane strong {
+        display: block;
+        margin-top: 6px;
+        color: var(--ink);
+        font-size: 22px;
+      }
+      .acceptance-summary-card p,
+      .acceptance-lane p,
+      .acceptance-action p,
+      .acceptance-principle p {
+        margin-top: 7px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .acceptance-lane-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .acceptance-lane {
+        display: grid;
+        gap: 7px;
+        min-height: 170px;
+      }
+      .acceptance-lane .badge {
+        width: fit-content;
+      }
+      .acceptance-flow {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .acceptance-flow-step {
+        position: relative;
+        padding: 12px;
+        border: 1px solid rgba(13, 148, 136, 0.18);
+        border-radius: 14px;
+        background: rgba(13, 148, 136, 0.07);
+      }
+      .acceptance-flow-step strong {
+        display: block;
+        color: var(--ink);
+        font-size: 13px;
+      }
+      .acceptance-flow-step span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .acceptance-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .acceptance-action {
+        display: grid;
+        gap: 7px;
+      }
+      .acceptance-action a {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+      .acceptance-principles {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .acceptance-principle strong {
+        display: block;
+        color: var(--ink);
+        font-size: 14px;
+      }
       .role-welcome {
         margin-top: 12px;
         padding: 14px 16px;
@@ -547,7 +666,12 @@
         .data-sync-grid,
         .data-state-list,
         .cloud-readiness-list,
-        .data-sync-tools {
+        .data-sync-tools,
+        .acceptance-summary,
+        .acceptance-lane-grid,
+        .acceptance-flow,
+        .acceptance-actions,
+        .acceptance-principles {
           grid-template-columns: 1fr;
         }
         .quick-entry-grid {
@@ -588,6 +712,9 @@
           min-height: 42px;
         }
         .workbench-kpi {
+          grid-template-columns: 1fr;
+        }
+        .acceptance-head {
           grid-template-columns: 1fr;
         }
         .quick-entry-grid {
@@ -694,6 +821,34 @@
           </div>
         </article>
 
+      </section>
+
+      <section class="card acceptance-panel" id="portalOperatingAcceptance" data-requires-permission-card="admin.access">
+        <div class="acceptance-head">
+          <div>
+            <p class="eyebrow">一体化验收</p>
+            <h2>经营协同验收台</h2>
+            <p>参考成熟教培系统的方向，把工作台按“CRM招生、教务排课、点名课消、财务月结、风险标签、经营报表、数据链路”统一验收。这里不替代各系统，只负责发现断点、明确下一步。</p>
+          </div>
+          <span class="badge" id="portalOperatingAcceptanceBadge">读取中</span>
+        </div>
+        <div class="acceptance-summary" id="portalOperatingAcceptanceSummary"></div>
+        <div class="acceptance-lane-grid" id="portalOperatingAcceptanceLanes"></div>
+        <div class="acceptance-flow" aria-label="教培经营主链路">
+          <div class="acceptance-flow-step"><strong>1. 招生线索</strong><span>线索、试听、报名、渠道和转介绍。</span></div>
+          <div class="acceptance-flow-step"><strong>2. 建档排课</strong><span>报名进入学生档案和正式课表。</span></div>
+          <div class="acceptance-flow-step"><strong>3. 点名课消</strong><span>每节课形成到课、缺勤、出门测和反馈。</span></div>
+          <div class="acceptance-flow-step"><strong>4. 财务月结</strong><span>课消、工资、成本、利润进入月结复核。</span></div>
+          <div class="acceptance-flow-step"><strong>5. 风险标签</strong><span>学生、家长、教学、财务风险沉淀到决策。</span></div>
+          <div class="acceptance-flow-step"><strong>6. 经营报表</strong><span>招生、课消、财务、质量、短视频统一复盘。</span></div>
+        </div>
+        <div class="acceptance-actions" id="portalOperatingAcceptanceActions"></div>
+        <div class="acceptance-principles">
+          <div class="acceptance-principle"><strong>数据同源</strong><p>学生、老师、课程、金额、课次尽量只维护一次，各系统读取同一口径。</p></div>
+          <div class="acceptance-principle"><strong>业务闭环</strong><p>报名后必须能排课，排课后必须能点名，点名后才能进入课消和财务候选。</p></div>
+          <div class="acceptance-principle"><strong>风险前置</strong><p>家长风险、缺勤风险、教学质量风险、财务差异都要在续费和月结前提醒。</p></div>
+          <div class="acceptance-principle"><strong>报表验收</strong><p>报表不是摆设，要能反推今天该补哪条数据、哪个负责人处理。</p></div>
+        </div>
       </section>
 
       <section class="grid">
@@ -1038,7 +1193,7 @@
     <script src="/jrcedu/portal/preimport-data.js?v=20260622a"></script>
     <script src="/jrcedu/portal/auth.js?v=20260703b"></script>
     <script src="/jrcedu/portal/feedback-review-plan.js?v=20260629b"></script>
-    <script src="/jrcedu/portal/dashboard.js?v=20260704ai"></script>
+    <script src="/jrcedu/portal/dashboard.js?v=20260707ops"></script>
     <script src="/jrcedu/portal/business-ai.js?v=20260705a"></script>
     <script src="/jrcedu/portal/mobile-unified.js?v=20260704ai"></script>
   </body>
