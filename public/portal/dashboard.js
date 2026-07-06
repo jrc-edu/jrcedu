@@ -10,6 +10,7 @@
   const financeKey = "jrc-finance-ledger-v1";
   const historicalActivationKey = "paike-historical-activation-v1";
   const videoOpsKey = "jrc-video-ops-monitor-v1";
+  const businessLinkSnapshotKey = "jrc-business-link-snapshot-v1";
   const specialDelegatedTeachers = ["程志豪", "海滢滢", "姚老师"];
   const studentServiceFallbackOwner = { name: "高芳燕", username: "gaofangyan" };
   const primarySchoolServiceOwner = { name: "颜雨涵", username: "yanyuhan" };
@@ -419,19 +420,30 @@
   function scheduleStudentNameSet(scheduleRows) {
     const names = new Set();
     (Array.isArray(scheduleRows) ? scheduleRows : []).forEach((row) => {
-      const name = normalizePersonName(row.studentName || row.student || row.className);
-      if (name && !/排课课程|小班课|一对一|科学|数学/.test(name)) names.add(name);
+      splitStudentNameCandidates(row.studentName, row.student, row.className).forEach((name) => names.add(name));
     });
     return names;
+  }
+
+  function scheduleStudentIdentitySet(scheduleRows) {
+    const identities = new Set();
+    (Array.isArray(scheduleRows) ? scheduleRows : []).forEach((row) => {
+      scheduleStudentIdentityKeys(row).forEach((key) => identities.add(key));
+    });
+    return identities;
+  }
+
+  function leadMatchesIdentitySet(lead, identitySet) {
+    const keys = leadStudentIdentityKeys(lead);
+    return keys.length > 0 && keys.some((key) => identitySet.has(key));
   }
 
   function buildOperationalTasks({ admissionsState, scheduleRows, attendanceSessions }) {
     const today = todayKey();
     const enrolled = enrolledLeadRows(admissionsState);
-    const scheduleNames = scheduleStudentNameSet(scheduleRows);
+    const scheduleIdentities = scheduleStudentIdentitySet(scheduleRows);
     const unscheduledLeads = enrolled.filter((lead) => {
-      const name = normalizePersonName(lead.studentName);
-      return name && admissionLeadRequiresPaike(lead) && !scheduleNames.has(name);
+      return admissionLeadRequiresPaike(lead) && !leadMatchesIdentitySet(lead, scheduleIdentities);
     });
     const todayScheduleRows = scheduleRows.filter((row) => row.date === today);
     const attendanceKeys = new Set((Array.isArray(attendanceSessions) ? attendanceSessions : []).map(attendanceSessionKey).filter(Boolean));
@@ -1506,6 +1518,66 @@
     return Number(historicalState?.summary?.financeDetailRowCount || detailRows || 0);
   }
 
+  function businessLinkContracts() {
+    return [
+      { from: "招生CRM", to: "学生档案", rule: "已报名或有实收的学生必须形成学生服务档案。" },
+      { from: "招生CRM", to: "教务排课", rule: "普通课程报名后必须进入正式排课；程老师班课和科学班课按独立班课口径处理。" },
+      { from: "教务排课", to: "点名课消", rule: "有排课就应有点名；未点名、请假、缺勤必须进入异常处理。" },
+      { from: "点名课消", to: "财务月结", rule: "只有有效到课或明确处理口径的课次，才进入财务结算候选。" },
+      { from: "学生服务", to: "风险标签", rule: "家长风险、缺勤风险、学习下滑和反馈异常要进入续费与淘汰提醒。" },
+      { from: "教学质量", to: "绩效候选", rule: "巡课、问卷、整改只作为内部绩效候选，不公开排名刺激老师。" },
+      { from: "短视频系统", to: "招生经营", rule: "短视频只输出选题、复拍和账号优化建议，不直接改招生财务数据。" }
+    ];
+  }
+
+  function normalizeBusinessIssue(issue) {
+    if (!issue || typeof issue !== "object") return null;
+    return {
+      level: String(issue.level || issue.impact || "提醒"),
+      flow: String(issue.flow || issue.title || issue.system || "业务链路"),
+      owner: String(issue.owner || "系统判断"),
+      system: String(issue.system || ""),
+      text: String(issue.text || issue.detail || ""),
+      href: String(issue.href || ""),
+      actionText: String(issue.actionText || issue.action || "去处理")
+    };
+  }
+
+  function buildBusinessLinkSnapshot({ source, counts, checks, issues }) {
+    const normalizedIssues = (Array.isArray(issues) ? issues : []).map(normalizeBusinessIssue).filter(Boolean);
+    const snapshotCore = {
+      version: "20260707-link-contract",
+      source: source || "portal",
+      counts: counts || {},
+      checks: checks || {},
+      issues: normalizedIssues,
+      contracts: businessLinkContracts()
+    };
+    const fingerprint = JSON.stringify({
+      counts: snapshotCore.counts,
+      checks: snapshotCore.checks,
+      issues: normalizedIssues.map((item) => [item.level, item.flow, item.owner, item.system, item.text])
+    });
+    return {
+      ...snapshotCore,
+      fingerprint,
+      status: normalizedIssues.length ? "warn" : "ok",
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function persistBusinessLinkSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== "object") return;
+    const previous = safeParse(localStorage.getItem(businessLinkSnapshotKey), null);
+    if (previous?.fingerprint === snapshot.fingerprint) return;
+    localStorage.setItem(businessLinkSnapshotKey, JSON.stringify(snapshot));
+    if (window.JRC_CLOUD?.writeModuleData) {
+      window.JRC_CLOUD.writeModuleData(businessLinkSnapshotKey, "businessLinkSnapshot", snapshot, { replaceMode: "replace" }).catch((error) => {
+        console.warn("Failed to sync business link snapshot", error);
+      });
+    }
+  }
+
   function laneCardHtml(lane) {
     return `
       <div class="acceptance-lane">
@@ -1575,15 +1647,13 @@
     const videoCount = videoSnapshotCount(videoState);
     const teacherCount = new Set(scheduleRows.map((row) => row.teacherName).filter(Boolean)).size;
     const periods = Array.from(new Set(scheduleRows.map((row) => String(row.date || "").slice(0, 7)).filter(Boolean))).sort();
-    const scheduleNames = scheduleStudentNameSet(scheduleRows);
+    const scheduleIdentities = scheduleStudentIdentitySet(scheduleRows);
     const unscheduledEnrolled = enrolled.filter((lead) => {
-      const name = normalizePersonName(lead.studentName);
-      return name && admissionLeadRequiresPaike(lead) && !scheduleNames.has(name);
+      return admissionLeadRequiresPaike(lead) && !leadMatchesIdentitySet(lead, scheduleIdentities);
     });
-    const studentNames = studentServiceNameSet(studentRows);
+    const studentIdentities = studentServiceIdentitySet(studentRows);
     const unfiledEnrolled = enrolled.filter((lead) => {
-      const name = normalizePersonName(lead.studentName);
-      return name && !studentNames.has(name);
+      return !leadMatchesIdentitySet(lead, studentIdentities);
     });
     const reportsReady = [
       leads.length > 0,
@@ -1693,6 +1763,44 @@
     if (!actions.length) {
       actions.push({ level: "正常", title: "当前可继续试运行", detail: "继续让老师按真实业务使用，系统会用真实数据逐步提高判断质量。", href: "./suggestions.html", action: "看任务台账" });
     }
+    persistBusinessLinkSnapshot(buildBusinessLinkSnapshot({
+      source: "operating-acceptance",
+      counts: {
+        leads: leads.length,
+        enrolled: enrolled.length,
+        scheduleRows: scheduleRows.length,
+        attendanceSessions: attendance.sessions,
+        attendanceRows: attendance.rows,
+        attendanceEffective: attendance.effective,
+        attendanceUnresolved: attendance.unresolved,
+        financePeriods,
+        financeHistoryRows,
+        parentRisks: parentRisks.length,
+        studentRisks: studentRisks.length,
+        historicalRisks,
+        openTasks: openTasks.length,
+        openFeedback: openFeedback.length,
+        qualityRecords: qualityCount,
+        videoSnapshots: videoCount
+      },
+      checks: {
+        maturity: `${okCount}/${lanes.length}`,
+        dangerCount,
+        warnCount,
+        reportsReady,
+        unfiledEnrolled: unfiledEnrolled.length,
+        unscheduledEnrolled: unscheduledEnrolled.length
+      },
+      issues: actions.map((item) => ({
+        level: item.level,
+        flow: item.title,
+        owner: "系统自动判断",
+        system: item.action,
+        text: item.detail,
+        href: item.href,
+        actionText: item.action
+      }))
+    }));
     if (actionsHolder) actionsHolder.innerHTML = actions.slice(0, 6).map(acceptanceActionHtml).join("");
   }
 
@@ -1971,14 +2079,82 @@
   }
 
   function normalizePersonName(value) {
-    return String(value || "").trim().replace(/\s+/g, "");
+    return String(value || "")
+      .trim()
+      .replace(/[（(][^（）()]{0,20}[）)]/g, "")
+      .replace(/\s+/g, "");
+  }
+
+  function isGenericStudentLabel(value) {
+    const text = normalizePersonName(value);
+    if (!text) return true;
+    return /排课课程|小班课|一对一|科学|数学|语文|英语|物理|化学|年级|初一|初二|初三|小学|初中|班课|课程|暑假|秋季|寒假|春季|教室|待定/.test(text);
+  }
+
+  function splitStudentNameCandidates(...values) {
+    const names = new Set();
+    values.flat().forEach((value) => {
+      const raw = String(value || "").trim();
+      if (!raw) return;
+      const normalized = normalizePersonName(raw);
+      if (normalized && !isGenericStudentLabel(normalized)) names.add(normalized);
+      raw.split(/[、,，;；/／+＋\s]+/)
+        .map(normalizePersonName)
+        .filter((item) => item && !isGenericStudentLabel(item))
+        .forEach((item) => names.add(item));
+    });
+    return [...names];
+  }
+
+  function normalizePhoneToken(value) {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (digits.length < 7) return "";
+    return digits.length > 11 ? digits.slice(-11) : digits;
+  }
+
+  function identityKeysFromRecord(row, nameFields, phoneFields) {
+    const keys = new Set();
+    splitStudentNameCandidates(...nameFields.map((field) => row?.[field])).forEach((name) => keys.add(`name:${name}`));
+    phoneFields.map((field) => normalizePhoneToken(row?.[field])).filter(Boolean).forEach((phone) => keys.add(`phone:${phone}`));
+    return [...keys];
+  }
+
+  function leadStudentIdentityKeys(lead) {
+    return identityKeysFromRecord(
+      lead || {},
+      ["studentName", "student", "name", "childName"],
+      ["studentPhone", "parentPhone", "phone", "mobile", "contactPhone", "guardianPhone"]
+    );
+  }
+
+  function scheduleStudentIdentityKeys(row) {
+    return identityKeysFromRecord(
+      row || {},
+      ["studentName", "student", "name", "className"],
+      ["studentPhone", "parentPhone", "phone", "mobile", "contactPhone", "guardianPhone"]
+    );
+  }
+
+  function serviceStudentIdentityKeys(row) {
+    return identityKeysFromRecord(
+      row || {},
+      ["student", "studentName", "name", "childName"],
+      ["studentPhone", "parentPhone", "phone", "mobile", "contactPhone", "guardianPhone"]
+    );
+  }
+
+  function studentServiceIdentitySet(rows) {
+    const identities = new Set();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      serviceStudentIdentityKeys(row).forEach((key) => identities.add(key));
+    });
+    return identities;
   }
 
   function studentServiceNameSet(rows) {
     const names = new Set();
     (Array.isArray(rows) ? rows : []).forEach((row) => {
-      const student = normalizePersonName(row?.student || row?.studentName || row?.name);
-      if (student) names.add(student);
+      splitStudentNameCandidates(row?.student, row?.studentName, row?.name).forEach((name) => names.add(name));
     });
     return names;
   }
@@ -2238,10 +2414,9 @@
     const leads = Array.isArray(admissionsState?.leads) ? admissionsState.leads : [];
     const enrolledLeads = leads.filter((lead) => lead.status === "定金 / 已报名" || Number(lead.enrolledAmount || 0) > 0);
     const trialLeads = leads.filter((lead) => String(lead.status || "").includes("试听") || lead.trialTeacher || lead.trialTime);
-    const serviceNames = studentServiceNameSet(studentServiceRows);
+    const serviceIdentities = studentServiceIdentitySet(studentServiceRows);
     const enrolledWithoutService = enrolledLeads.filter((lead) => {
-      const name = normalizePersonName(lead.studentName);
-      return name && !serviceNames.has(name);
+      return !leadMatchesIdentitySet(lead, serviceIdentities);
     });
     const enrolledWithoutServiceCount = enrolledWithoutService.length;
     const aiDrafts = Array.isArray(aiDraftRows) ? aiDraftRows : [];
@@ -2336,6 +2511,43 @@
         actionText: "打开教学质量"
       });
     }
+
+    persistBusinessLinkSnapshot(buildBusinessLinkSnapshot({
+      source: "link-health",
+      counts: {
+        scheduleRows: scheduleRows.length,
+        scheduleWithoutAttendance,
+        attendanceSessions: sessions.length,
+        attendanceRows: attendanceStudentKeys.size,
+        attendanceEffective: effectiveCount,
+        attendanceUnresolved: unresolvedCount,
+        attendanceWithoutService,
+        financePeriods,
+        leads: leads.length,
+        enrolled: enrolledLeads.length,
+        enrolledWithoutService: enrolledWithoutServiceCount,
+        aiFeedbackDrafts: aiClassFeedbackDrafts.length,
+        aiArchivedRows: aiArchivedRows.length,
+        feedbackRows: feedbackList.length,
+        openFeedback: openFeedback.length,
+        qualityTeachers: qualityTeachers.size,
+        qualityMissingTeachers
+      },
+      checks: {
+        passedChecks,
+        warningChecks,
+        totalChecks
+      },
+      issues: priorityActions.map((item) => ({
+        level: "提醒",
+        flow: item.system,
+        owner: item.owner,
+        system: item.system,
+        text: item.text,
+        href: item.href,
+        actionText: item.actionText
+      }))
+    }));
 
     const cards = [
       linkHealthActionCard(priorityActions),
