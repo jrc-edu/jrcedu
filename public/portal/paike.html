@@ -2205,8 +2205,87 @@
         renderImportReviewPanel(null);
       }
 
+      function compactPaikeScheduleEntry(entry) {
+        const allowedKeys = [
+          "id",
+          "rowId",
+          "sourceId",
+          "teacher",
+          "teacherName",
+          "student",
+          "studentName",
+          "className",
+          "date",
+          "courseDate",
+          "period",
+          "time",
+          "startTime",
+          "endTime",
+          "classroomName",
+          "roomName",
+          "lessonTypeRaw",
+          "rawText",
+          "scheduleStatus",
+          "confirmationStatus",
+          "status",
+          "notes",
+          "importedAt",
+          "importedByExcel",
+          "manualEntry",
+          "sourceFileName",
+          "sourceSheet",
+          "sourceCell",
+          "updatedAt",
+          "updatedBy"
+        ];
+        return allowedKeys.reduce((result, key) => {
+          const value = entry?.[key];
+          if (value !== undefined && value !== null && value !== "") result[key] = value;
+          return result;
+        }, {});
+      }
+
       async function saveFormalScheduleEntries(entries, fileName, options = {}) {
         const reportProgress = typeof options.onProgress === "function" ? options.onProgress : () => {};
+        const canUseServerImport = Boolean(options.replaceUploadedTeacherExcelImports && window.JRC_CLOUD?.importPaikeFormalSchedule);
+        if (canUseServerImport) {
+          reportProgress(`正在上传本次Excel课程：${entries.length} 节。`);
+          const compactEntries = entries.map(compactPaikeScheduleEntry);
+          const replaceTeacherKeys = Array.from(new Set(compactEntries
+            .map((row) => String(row.teacherName || row.teacher || "").replace(/\s+/g, "").replace(/老师$/g, "").trim())
+            .filter(Boolean)));
+          const cloudResult = await window.JRC_CLOUD.importPaikeFormalSchedule({
+            fileName,
+            entries: compactEntries,
+            replaceTeacherKeys
+          }, { timeoutMs: 45000 });
+          if (!cloudResult?.ok) {
+            const detail = typeof cloudResult?.data === "string"
+              ? cloudResult.data
+              : (cloudResult?.data?.error || cloudResult?.error || "");
+            throw new Error(`云端并网失败${cloudResult?.status ? ` HTTP ${cloudResult.status}` : ""}${detail ? `：${detail}` : ""}`);
+          }
+          const fallbackState = {
+            scheduleEntries: compactEntries,
+            updatedAt: new Date().toISOString(),
+            lastImportFileName: fileName || "",
+            lastImportCount: compactEntries.length,
+            lastImportRemovedCount: Number(cloudResult.data?.removedExcelImportCount || 0),
+            lastImportMode: "server-side-replace-uploaded-teacher-excel-imports"
+          };
+          const localCached = safeLocalSet(stores.regular, fallbackState);
+          window.JRC_PAIKE_LAST_SAVE_META = {
+            cloudSynced: true,
+            localCached,
+            serverImport: true,
+            importedCount: Number(cloudResult.data?.importedCount || compactEntries.length),
+            totalCount: Number(cloudResult.data?.totalCount || 0),
+            removedExcelImportCount: Number(cloudResult.data?.removedExcelImportCount || 0),
+            savedAt: new Date().toISOString()
+          };
+          reportProgress(`云端已完成并网：本次 ${window.JRC_PAIKE_LAST_SAVE_META.importedCount} 节，覆盖旧Excel ${window.JRC_PAIKE_LAST_SAVE_META.removedExcelImportCount} 节。`);
+          return { ...fallbackState, importResult: cloudResult.data };
+        }
         reportProgress("正在读取云端旧课表。");
         const localState = normalizeRegularState(readLocal(stores.regular, {}));
         let remoteState = {};
@@ -2355,6 +2434,10 @@
           const localCacheLine = window.JRC_PAIKE_LAST_SAVE_META?.localCached === false
             ? " 浏览器本机缓存空间不足，系统已跳过本机完整缓存；云端正式课表已保存，不影响其他人查看。"
             : "";
+          const importMeta = window.JRC_PAIKE_LAST_SAVE_META || {};
+          const removedLine = Number(importMeta.removedExcelImportCount || 0)
+            ? ` 本次覆盖旧Excel导入课表 ${Number(importMeta.removedExcelImportCount || 0)} 节。`
+            : "";
           closeImportReviewPanel();
           await initPaikeDashboard();
           if (targetPeriod) setTeacherSheetPeriod(targetPeriod);
@@ -2365,8 +2448,8 @@
           if (byId("teacherSheetMode")) byId("teacherSheetMode").value = "month";
           if (byId("teacherSheetKeyword")) byId("teacherSheetKeyword").value = "";
           renderTeacherSheet();
-          setFormalImportMessage(`已并网 ${data.fileCount} 个文件，共识别 ${data.entries.length} 节正式课，并同步云端。已覆盖本次涉及老师的旧 Excel 导入课表，手工新增和手工调课记录已保留。系统自动检查：疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项，未写结束时间 ${data.summary.missingEndTime} 项。${warningLine}${localCacheLine}`);
-          setTeacherSheetMessage(`新Excel已并网：${data.entries.length} 节。现在已自动切到 ${targetPeriod || "本次月份"} ${targetTeacher || "本次老师"} 的课表。已覆盖本次涉及老师的旧 Excel 导入课表，手工记录保留。${data.sourceSummary}。疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项。${warningLine}${localCacheLine}`);
+          setFormalImportMessage(`已并网 ${data.fileCount} 个文件，共识别 ${data.entries.length} 节正式课，并同步云端。已覆盖本次涉及老师的旧 Excel 导入课表，手工新增和手工调课记录已保留。${removedLine}系统自动检查：疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项，未写结束时间 ${data.summary.missingEndTime} 项。${warningLine}${localCacheLine}`);
+          setTeacherSheetMessage(`新Excel已并网：${data.entries.length} 节。现在已自动切到 ${targetPeriod || "本次月份"} ${targetTeacher || "本次老师"} 的课表。已覆盖本次涉及老师的旧 Excel 导入课表，手工记录保留。${removedLine}${data.sourceSummary}。疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项。${warningLine}${localCacheLine}`);
           byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
         } catch (error) {
           setFormalImportMessage(`确认并网失败：${error.message || error}`);

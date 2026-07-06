@@ -275,6 +275,19 @@
     });
   }
 
+  async function importPaikeFormalSchedule(payload = {}, context = {}) {
+    const operator = context.operator || window.JRC_CURRENT_EMPLOYEE || {};
+    return request("/paike/formal-import", {
+      method: "POST",
+      timeoutMs: context.timeoutMs || 45000,
+      body: {
+        ...payload,
+        operatorName: operator.name || "-",
+        operatorUsername: operator.username || "-"
+      }
+    });
+  }
+
   function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -380,6 +393,7 @@
     changePassword,
     readModuleData,
     writeModuleData,
+    importPaikeFormalSchedule,
     uploadCurriculumFile,
     downloadCurriculumFile,
     aiAssistant,

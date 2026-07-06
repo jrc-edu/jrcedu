@@ -12,6 +12,7 @@ const uploadDir = process.env.JRC_UPLOAD_DIR || "/opt/jrcedu-uploads";
 const curriculumBackupDir = process.env.JRC_CURRICULUM_BACKUP_DIR || "/opt/jrcedu-backups/curriculum";
 const uploadMaxBytes = Number(process.env.JRC_UPLOAD_MAX_BYTES || 30 * 1024 * 1024);
 const jsonMaxBytes = Number(process.env.JRC_JSON_MAX_BYTES || 72 * 1024 * 1024);
+const paikeStoreKey = "paike-june-system-v1";
 const deepseekApiKey = process.env.JRC_DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY || "";
 const deepseekApiUrl = process.env.JRC_DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
 const deepseekModel = process.env.JRC_DEEPSEEK_MODEL || "deepseek-chat";
@@ -607,6 +608,72 @@ function buildModuleMergeId(prefix, row) {
   return `${prefix}-${hash}`;
 }
 
+function paikeTeacherKey(value) {
+  return String(value || "").replace(/\s+/g, "").replace(/老师$/g, "").trim();
+}
+
+function paikeRowTime(row) {
+  const value = String(row?.updatedAt || row?.importedAt || row?.createdAt || row?.date || row?.courseDate || "").trim();
+  const parsed = Date.parse(value.replace(/\./g, "/").replace(" ", "T"));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function paikeRowKey(row, prefix = "formal") {
+  if (!row || typeof row !== "object") return "";
+  const explicit = [
+    row.id,
+    row.rowId,
+    row.sourceId,
+    row.cell && row.sourceWorkbook && row.sourceSheet ? `${row.sourceWorkbook}|${row.sourceSheet}|${row.cell}` : "",
+    row.period && row.teacherName && row.studentName && row.date && row.lessonNo ? `${row.period}|${row.teacherName}|${row.studentName}|${row.date}|${row.lessonNo}` : ""
+  ].map((value) => String(value || "").trim()).find(Boolean);
+  if (explicit) return explicit;
+  return [
+    prefix,
+    row.period,
+    row.date || row.courseDate,
+    row.teacherName || row.teacher,
+    row.studentName || row.student || row.className,
+    row.startTime || row.time || row.hours,
+    row.sourceFile || row.sourceWorkbook
+  ].map((value) => String(value || "").trim().replace(/\s+/g, "")).filter(Boolean).join("|");
+}
+
+function mergePaikeRows(prefix, ...groups) {
+  const map = new Map();
+  groups.flat().forEach((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return;
+    const key = paikeRowKey(row, prefix);
+    if (!key) return;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...row });
+      return;
+    }
+    const incomingIsNewer = paikeRowTime(row) >= paikeRowTime(existing);
+    map.set(key, incomingIsNewer ? { ...existing, ...row } : { ...row, ...existing });
+  });
+  return [...map.values()].sort((left, right) => {
+    const periodDiff = String(right.period || "").localeCompare(String(left.period || ""));
+    if (periodDiff) return periodDiff;
+    return String(right.date || right.courseDate || "").localeCompare(String(left.date || left.courseDate || ""));
+  });
+}
+
+function isPaikeExcelImportedRow(row) {
+  if (row?.manualEntry) return false;
+  const importText = `${row?.notes || ""} ${row?.source || ""} ${row?.sourceFileName || ""}`;
+  return Boolean(row?.importedByExcel || row?.sourceFileName || /导入|Excel|课表/i.test(importText));
+}
+
+function normalizePaikeState(value) {
+  const objectValue = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    ...objectValue,
+    scheduleEntries: Array.isArray(objectValue.scheduleEntries) ? objectValue.scheduleEntries : []
+  };
+}
+
 function mergeStructuredPayload(previous, incoming, path = "payload") {
   if (previous === undefined) return incoming;
 
@@ -1143,6 +1210,104 @@ async function handlePutModuleData(req, res, headers) {
     version: result.rows[0].version,
     merged: Boolean(previousRow) && !replaceMode && JSON.stringify(mergedPayload) !== JSON.stringify(payload),
     updatedAt: result.rows[0].updated_at?.toISOString?.() || result.rows[0].updated_at
+  }, headers);
+}
+
+async function handlePaikeFormalImport(req, res, headers) {
+  const body = await readJson(req, jsonMaxBytes);
+  const entries = Array.isArray(body.entries) ? body.entries.filter((entry) => entry && typeof entry === "object" && !Array.isArray(entry)) : [];
+  if (!entries.length) {
+    send(res, 400, { ok: false, error: "没有收到可并网的排课课程。" }, headers);
+    return;
+  }
+  const fileName = String(body.fileName || body.fileLabel || "").trim();
+  const operatorName = body.operatorName || body.operator?.name || "-";
+  const operatorUsername = body.operatorUsername || body.operator?.username || "-";
+  const replaceFileNames = new Set(entries.map((row) => String(row.sourceFileName || "").trim()).filter(Boolean));
+  const replaceTeacherKeys = new Set([
+    ...(Array.isArray(body.replaceTeacherKeys) ? body.replaceTeacherKeys : []),
+    ...entries.map((row) => paikeTeacherKey(row.teacherName || row.teacher))
+  ].map(paikeTeacherKey).filter(Boolean));
+  const replaceScopes = new Set(entries.map((row) => {
+    const period = String(row.period || String(row.date || row.courseDate || "").slice(0, 7) || "").trim();
+    const teacher = paikeTeacherKey(row.teacherName || row.teacher);
+    return period && teacher ? `${period}|${teacher}` : "";
+  }).filter(Boolean));
+
+  const existing = await pool.query(`
+    select payload, version
+    from module_data_store
+    where store_key = $1
+    limit 1
+  `, [paikeStoreKey]);
+  const previousRow = existing.rows[0] || null;
+  const previousPayload = normalizePaikeState(previousRow?.payload || {});
+  const currentEntries = mergePaikeRows("formal", previousPayload.scheduleEntries || []);
+  const preservedEntries = currentEntries.filter((row) => {
+    if (!isPaikeExcelImportedRow(row)) return true;
+    const rowTeacher = paikeTeacherKey(row.teacherName || row.teacher);
+    if (rowTeacher && replaceTeacherKeys.has(rowTeacher)) return false;
+    const rowFile = String(row.sourceFileName || "").trim();
+    if (rowFile && replaceFileNames.has(rowFile)) return false;
+    const rowPeriod = String(row.period || String(row.date || row.courseDate || "").slice(0, 7) || "").trim();
+    return !replaceScopes.has(`${rowPeriod}|${rowTeacher}`);
+  });
+  const importedEntries = entries.map((entry) => ({
+    ...entry,
+    importedByExcel: entry.importedByExcel !== false,
+    importedAt: entry.importedAt || new Date().toISOString()
+  }));
+  const mergedEntries = mergePaikeRows("formal", preservedEntries, importedEntries);
+  const removedExcelImportCount = Math.max(0, currentEntries.length - preservedEntries.length);
+  const nextState = {
+    ...previousPayload,
+    scheduleEntries: mergedEntries,
+    updatedAt: new Date().toISOString(),
+    lastImportFileName: fileName,
+    lastImportCount: importedEntries.length,
+    lastImportRemovedCount: removedExcelImportCount,
+    lastImportMode: "server-side-replace-uploaded-teacher-excel-imports"
+  };
+  const result = await upsertModulePayload(paikeStoreKey, "paike", nextState, operatorName, operatorUsername);
+  const teachers = Array.from(new Set(importedEntries.map((row) => row.teacherName || row.teacher).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-CN"));
+  const periods = Array.from(new Set(importedEntries.map((row) => row.period || String(row.date || row.courseDate || "").slice(0, 7)).filter(Boolean))).sort();
+  await pool.query(`
+    insert into audit_logs (
+      module_key,
+      action_key,
+      target_type,
+      target_id,
+      summary,
+      before_data,
+      after_data,
+      operator_name,
+      operator_username,
+      operator_role
+    )
+    values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
+  `, [
+    "paike",
+    "paike-formal-import",
+    "module_store",
+    paikeStoreKey,
+    `排课Excel并网：新增/更新 ${importedEntries.length} 条，覆盖旧Excel ${removedExcelImportCount} 条`,
+    JSON.stringify(compactModuleAuditData(previousPayload, paikeStoreKey)),
+    JSON.stringify(compactModuleAuditData(nextState, paikeStoreKey)),
+    operatorName,
+    operatorUsername,
+    "paike"
+  ]);
+  send(res, 200, {
+    ok: true,
+    storeKey: paikeStoreKey,
+    moduleKey: "paike",
+    version: result.version,
+    importedCount: importedEntries.length,
+    removedExcelImportCount,
+    totalCount: mergedEntries.length,
+    teachers,
+    periods,
+    updatedAt: result.updated_at?.toISOString?.() || result.updated_at
   }, headers);
 }
 
@@ -2226,6 +2391,7 @@ async function route(req, res) {
     if (req.method === "POST" && url.pathname === "/ai-assistant") return await handleAiAssistant(req, res, headers, authorization);
     if (req.method === "GET" && url.pathname === "/module-data") return await handleGetModuleData(url, res, headers);
     if (req.method === "PUT" && url.pathname === "/module-data") return await handlePutModuleData(req, res, headers);
+    if (req.method === "POST" && url.pathname === "/paike/formal-import") return await handlePaikeFormalImport(req, res, headers);
     if (req.method === "POST" && url.pathname === "/import/june-regular-csv") {
       return await handleImportJuneRegularCsv(req, res, headers, authorization);
     }
