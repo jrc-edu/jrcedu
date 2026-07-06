@@ -520,7 +520,7 @@
         }
 
         function today() {
-          return new Date().toISOString().slice(0, 10);
+          return window.JRC_TIME?.todayBeijing?.() || new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
         }
 
         function currentEmployee() {
@@ -957,7 +957,7 @@
                     <div class="feedback-meta">
                       ${escapeHtml(row.userName || "未登录")}｜${escapeHtml(row.system || "未知页面")}
                       ｜${escapeHtml(row.feedbackCategory || "使用问题")}｜${escapeHtml(row.severity || "普通")}
-                      <br>${escapeHtml((row.createdAt || "").replace("T", " ").slice(0, 19))}
+                      <br>${escapeHtml(window.JRC_TIME?.formatBeijingDateTime?.(row.createdAt) || (row.createdAt || "").replace("T", " ").slice(0, 19))}
                     </div>
                   </div>
                   <span class="status-pill ${statusClass(row.status || "待处理")}">${escapeHtml(row.status || "待处理")}</span>

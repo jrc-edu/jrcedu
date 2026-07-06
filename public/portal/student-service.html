@@ -2272,7 +2272,7 @@
                   ${canManageAll() && (session.reviewStatus || "待复核") !== "已确认" ? `<br><button class="button secondary" type="button" data-confirm-attendance="${escapeHtml(session.id)}">确认复核</button>` : ""}
                 </td>
                 <td>${escapeHtml(special)}</td>
-                <td>${escapeHtml(new Date(session.createdAt).toLocaleString("zh-CN"))}<br><button class="button secondary" type="button" data-reload-attendance="${escapeHtml(session.id)}">补登到当前表</button></td>
+                <td>${escapeHtml(window.JRC_TIME?.formatBeijingDateTime?.(session.createdAt) || new Date(session.createdAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }))}<br><button class="button secondary" type="button" data-reload-attendance="${escapeHtml(session.id)}">补登到当前表</button></td>
               </tr>
             `;
           }).join("");
@@ -2625,7 +2625,7 @@
           const sessions = readVisibleRows();
           const followups = deriveFollowupRows();
           const latestSessions = sessions.slice(0, 3);
-          const monthText = new Date().toISOString().slice(0, 7);
+          const monthText = (window.JRC_TIME?.todayBeijing?.() || today()).slice(0, 7);
           const monthSessions = sessions.filter((session) => String(session.date || "").startsWith(monthText));
           const presentCount = monthSessions.reduce((sum, session) => sum + (session.rows || []).filter(isEffectivePresent).length, 0);
           const feedbackCount = Number(localStorage.getItem("jrc-my-feedback-visible-count") || 0);
@@ -3182,9 +3182,11 @@
         const formatDate = (value) => {
           const text = normalize(value);
           if (!text) return "-";
+          const beijing = window.JRC_TIME?.formatBeijingDateTime?.(text);
+          if (beijing) return beijing;
           const date = new Date(text);
           if (Number.isNaN(date.getTime())) return text;
-          return date.toLocaleString("zh-CN", { hour12: false });
+          return date.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
         };
         const previewText = (value) => {
           const text = normalize(value);

@@ -1299,7 +1299,7 @@
       function shortDate(value) {
         const raw = normalizeText(value);
         if (!raw) return "-";
-        return raw.replace("T", " ").slice(0, 16);
+        return window.JRC_TIME?.formatBeijingDateTime?.(raw, { seconds: false }) || raw.replace("T", " ").slice(0, 16);
       }
 
       function sourceLabel(value) {

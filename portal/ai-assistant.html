@@ -480,8 +480,43 @@
         });
       }
 
+      function beijingDateParts(date = new Date()) {
+        return new Intl.DateTimeFormat("zh-CN", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false
+        }).formatToParts(date).reduce((parts, item) => {
+          if (item.type !== "literal") parts[item.type] = item.value;
+          return parts;
+        }, {});
+      }
+
       function today() {
-        return new Date().toISOString().slice(0, 10);
+        const parts = beijingDateParts();
+        return `${parts.year}-${parts.month}-${parts.day}`;
+      }
+
+      function beijingNowStamp() {
+        const parts = beijingDateParts();
+        return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+      }
+
+      function formatBeijingDateTime(value, options = {}) {
+        const text = String(value || "").trim();
+        if (!text) return options.fallback || "";
+        if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(text)) {
+          return options.seconds === false ? text.slice(0, 16) : text.slice(0, 19);
+        }
+        const date = new Date(text);
+        if (Number.isNaN(date.getTime())) return text;
+        const parts = beijingDateParts(date);
+        const withSeconds = options.seconds !== false;
+        return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}${withSeconds ? `:${parts.second}` : ""}`;
       }
 
       function readDrafts() {
@@ -881,7 +916,7 @@
         if (index < 0) return null;
         const current = rows[index];
         const patch = typeof patchBuilder === "function" ? patchBuilder(current) : patchBuilder;
-        const updated = { ...current, ...patch, updatedAt: new Date().toISOString() };
+        const updated = { ...current, ...patch, updatedAt: new Date().toISOString(), updatedAtBeijing: beijingNowStamp() };
         rows[index] = updated;
         updated.saveResult = await writeDrafts(rows);
         renderDrafts(rows);
@@ -907,12 +942,12 @@
       }
 
       function shortDateTime(value) {
-        return String(value || "").replace("T", " ").slice(0, 16);
+        return formatBeijingDateTime(value, { seconds: false });
       }
 
       function draftArchiveBadge(row) {
         if (!row?.archivedAt && !row?.archivedStudentServiceId) return "";
-        const time = shortDateTime(row.archivedAt);
+        const time = shortDateTime(row.archivedAtBeijing || row.archivedAt);
         return `<span class="draft-status archived">已归档学生服务${time ? `｜${escapeHtml(time)}` : ""}</span>`;
       }
 
@@ -934,7 +969,7 @@
         byId("aiDraftList").innerHTML = rows.length ? rows.map((row) => `
           <div class="draft-item history-item">
             <strong>${escapeHtml(draftHistoryTitle(row))}</strong>
-            <span>${escapeHtml(row.modeLabel || "-")}｜${escapeHtml(row.target || "-")}｜${escapeHtml(row.createdAt || "")}</span>
+            <span>${escapeHtml(row.modeLabel || "-")}｜${escapeHtml(row.target || "-")}｜${escapeHtml(shortDateTime(row.createdAtBeijing || row.createdAt || row.updatedAtBeijing || row.updatedAt) || "")}</span>
             ${draftArchiveBadge(row)}
             <details>
               <summary>查看草稿内容</summary>
@@ -1026,7 +1061,7 @@
         list.innerHTML = filtered.length ? filtered.map((row) => `
           <div class="draft-item history-item">
             <strong>${escapeHtml(feedbackHistoryTitle(row, archivedFeedbackText(row)))}</strong>
-            <span>${escapeHtml(row.teacher || row.createdBy || "-")}｜${escapeHtml(row.createdAt || row.updatedAt || "")}</span>
+            <span>${escapeHtml(row.teacher || row.createdBy || "-")}｜${escapeHtml(shortDateTime(row.createdAtBeijing || row.createdAt || row.updatedAtBeijing || row.updatedAt) || "")}</span>
             <details>
               <summary>查看已归档反馈</summary>
               <pre class="result-text">${escapeHtml(archivedFeedbackText(row) || "暂无内容")}</pre>
@@ -1550,7 +1585,8 @@
           result: latestResult,
           createdBy: currentName,
           createdByUsername: currentEmployee.username || "",
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          createdAtBeijing: beijingNowStamp()
         };
         const saveResult = await writeDrafts([row, ...readDrafts()]);
         setEditingDraft(row.id);
@@ -1573,6 +1609,7 @@
           return;
         }
         const now = new Date().toISOString();
+        const nowBeijing = beijingNowStamp();
         const sourceText = byId("aiInputText").value.trim();
         const leakWarnings = [];
         if (!latestBatchResults.length) {
@@ -1631,7 +1668,8 @@
             result,
             createdBy: currentName,
             createdByUsername: currentEmployee.username || "",
-            createdAt: now
+            createdAt: now,
+            createdAtBeijing: nowBeijing
           };
         });
         const saveResult = await writeDrafts([...rows, ...readDrafts()]);
@@ -1755,6 +1793,7 @@
         await updateDraftRow(editingDraftId, (current) => ({
           result: latestResult,
           archivedAt: serviceRow.updatedAt || serviceRow.createdAt || new Date().toISOString(),
+          archivedAtBeijing: serviceRow.updatedAtBeijing || serviceRow.createdAtBeijing || beijingNowStamp(),
           archivedStudentServiceId: serviceRow.id,
           archiveKey: serviceRow.archiveKey || feedbackArchiveKey(serviceRow)
         }));
@@ -1795,6 +1834,7 @@
             ? feedbackCourseLabel({ lessonSeason: resolvedLessonSeason, lessonNumber: resolvedLessonNumber }, feedbackText).replace(/课堂反馈$/, "")
             : latestResult.className || latestResult.courseName || "-";
           const now = new Date().toISOString();
+          const nowBeijing = beijingNowStamp();
           let serviceRow = {
             id: `ai-feedback-${Date.now()}`,
             student,
@@ -1813,6 +1853,8 @@
             lessonNumber: resolvedLessonNumber,
             createdAt: now,
             updatedAt: now,
+            createdAtBeijing: nowBeijing,
+            updatedAtBeijing: nowBeijing,
             createdBy: currentName,
             createdByUsername: currentUsername
           };
@@ -1836,7 +1878,8 @@
               ...serviceRow,
               id: existing.id || existing.rowId || serviceRow.id,
               createdAt: existing.createdAt || serviceRow.createdAt,
-              updatedAt: now
+              updatedAt: now,
+              updatedAtBeijing: nowBeijing
             };
             rows[existingIndex] = serviceRow;
           }
@@ -2117,7 +2160,7 @@
         bundle.reconciliationIssues = Array.isArray(bundle.reconciliationIssues) ? bundle.reconciliationIssues : [];
         bundle.reconciliationIssues.unshift({
           id: `ai-finance-${Date.now()}`,
-          period: structuredValue("period") || new Date().toISOString().slice(0, 7),
+          period: structuredValue("period") || today().slice(0, 7),
           teacherName: structuredValue("teacher") || currentName,
           title: latestResult?.title || "AI 财务核对草稿",
           detail: latestResult?.internalNote || latestResult?.polishedText || latestResult?.summary || "",

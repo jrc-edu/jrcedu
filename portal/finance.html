@@ -2091,7 +2091,7 @@
 
       let financePreimportBundle = mergePreimportBundle(window.JRC_PREIMPORT_SUMMARY, window.JRC_PREIMPORT_BUNDLE) || {
         schemaVersion: "jrc-preimport-paike-finance-bundle-v2",
-        generatedAt: new Date().toISOString().slice(0, 10),
+        generatedAt: todayText(),
         status: "待审核",
         summary: {},
         expenseRows: [],
@@ -2305,7 +2305,7 @@
           ? financePreimportBundle
           : {
               schemaVersion: "jrc-preimport-paike-finance-bundle-v2",
-              generatedAt: new Date().toISOString().slice(0, 10),
+              generatedAt: todayText(),
               status: "待审核",
               summary: {},
               expenseRows: [],
@@ -2562,7 +2562,7 @@
         const issueCount = teacherMonthPrecheck.reduce((sum, row) => sum + toNumber(row.scheduleOnly) + toNumber(row.salaryOnly), 0);
         return {
           ...bundle,
-          generatedAt: new Date().toISOString().slice(0, 10),
+          generatedAt: todayText(),
           summary: {
             ...(bundle.summary || {}),
             expenseRowCount: expenseRows.length,
@@ -3537,7 +3537,7 @@
               <td>${escapeHtml(row.missingFields || "-")}</td>
               <td>${escapeHtml(riskPoints || detail.slice(0, 70) || "-")}</td>
               <td><span class="status-pill ${String(row.status || "").includes("待") ? "pending" : ""}">${escapeHtml(row.status || "待复核")}</span></td>
-              <td>${escapeHtml(String(row.createdAt || "").slice(0, 16).replace("T", " "))}</td>
+              <td>${escapeHtml(window.JRC_TIME?.formatBeijingDateTime?.(row.createdAt, { seconds: false }) || String(row.createdAt || "").slice(0, 16).replace("T", " "))}</td>
               <td>
                 <button class="button secondary" type="button" data-reconciliation-action="task" data-reconciliation-id="${escapeHtml(rowId)}" ${row.taskId ? "disabled" : ""}>转任务</button>
                 <button class="button secondary" type="button" data-reconciliation-action="${isDone ? "reopen" : "done"}" data-reconciliation-id="${escapeHtml(rowId)}">${isDone ? "重新打开" : "标记已处理"}</button>
@@ -3589,7 +3589,7 @@
 
       async function createFinanceReconciliationTask(row, taskId) {
         const now = new Date();
-        const createdDate = now.toISOString().slice(0, 10);
+        const createdDate = todayText();
         const task = {
           id: taskId,
           entryType: "task",

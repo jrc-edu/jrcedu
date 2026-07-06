@@ -3,6 +3,40 @@ const JRC_EMPLOYEE_DIRECTORY_STORAGE_KEY = "jrc-employee-directory-extra";
 const JRC_DATA_FOUNDATION_RESET_KEY = "jrc-data-foundation-reset-20260622a";
 const JRC_TEMP_AUTO_LOGIN_USERNAME = "";
 const JRC_INITIAL_PASSWORD = "10281028";
+function jrcBeijingDateParts(date = new Date()) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(date).reduce((parts, item) => {
+    if (item.type !== "literal") parts[item.type] = item.value;
+    return parts;
+  }, {});
+}
+function jrcTodayBeijing() {
+  const parts = jrcBeijingDateParts();
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+function jrcNowBeijingStamp() {
+  const parts = jrcBeijingDateParts();
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+function jrcFormatBeijingDateTime(value, options = {}) {
+  const text = String(value || "").trim();
+  if (!text) return options.fallback || "";
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(text)) {
+    return options.seconds === false ? text.slice(0, 16) : text.slice(0, 19);
+  }
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  const parts = jrcBeijingDateParts(date);
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}${options.seconds === false ? "" : `:${parts.second}`}`;
+}
 const JRC_LEGACY_BUSINESS_DATA_KEYS = [
   "advice-system-stage-prototype",
   "jrc-finance-ledger-v1",
@@ -80,6 +114,12 @@ const JRC_CURRICULUM_GRADE_EXPERTS = {
 };
 if (typeof window !== "undefined") {
   window.JRC_CURRICULUM_GRADE_EXPERTS = JRC_CURRICULUM_GRADE_EXPERTS;
+  window.JRC_TIME = {
+    beijingDateParts: jrcBeijingDateParts,
+    todayBeijing: jrcTodayBeijing,
+    nowBeijingStamp: jrcNowBeijingStamp,
+    formatBeijingDateTime: jrcFormatBeijingDateTime
+  };
 }
 const JRC_DATA_LINK_RULES = [
   {
