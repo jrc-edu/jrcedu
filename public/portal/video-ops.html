@@ -113,6 +113,12 @@
       .workbench-nav strong { font-size: 13px; }
       .workbench-nav .toolbar { gap: 6px; }
       .workbench-nav .button { min-height: 34px; padding: 0 11px; font-size: 12px; }
+      .main-entry-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; margin-top: 10px; }
+      .main-entry { min-height: 74px; padding: 13px 14px; border-radius: 16px; border: 1px solid rgba(13,148,136,0.14); background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+      .main-entry strong { display: block; font-size: 15px; line-height: 1.35; }
+      .main-entry span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+      .secondary-entry-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+      .secondary-entry-row .button { min-height: 32px; padding: 0 10px; font-size: 12px; }
       .task-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 14px; }
       .task-card { padding: 13px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
       .task-card span { display: inline-flex; width: fit-content; margin-bottom: 8px; padding: 4px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-size: 11px; font-weight: 900; }
@@ -296,6 +302,8 @@
         .topbar { align-items: flex-start; flex-direction: column; }
         .workbench-nav { position: static; align-items: flex-start; flex-direction: column; }
         .workbench-nav .toolbar { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .main-entry-grid { grid-template-columns: 1fr; }
+        .secondary-entry-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
         .form-grid, .metrics, .video-stats, .diagnosis-grid { grid-template-columns: 1fr; }
         .strategy-grid, .readiness-grid, .focus-grid, .signal-ranking-grid, .topic-performance-grid, .script-grid { grid-template-columns: 1fr; }
         .plan-grid { grid-template-columns: repeat(7, minmax(220px, 1fr)); }
@@ -310,7 +318,7 @@
     <link rel="stylesheet" href="/jrcedu/portal/mobile-unified.css?v=20260628g">
   </head>
   <body data-page-permission="videoOps.access">
-    <div class="page-version-floating"><span>短视频版本</span>20260706a</div>
+    <div class="page-version-floating"><span>短视频版本</span>20260706b</div>
     <main class="shell">
       <section class="topbar">
         <div>
@@ -350,17 +358,34 @@
       </section>
 
       <section class="workbench-nav">
-        <strong>今日工作入口</strong>
-        <div class="toolbar">
-          <button class="button secondary" type="button" data-jump-target="todayCommandGrid">总控台</button>
-          <button class="button secondary" type="button" data-jump-target="collectionAcceptanceGrid">数据验收</button>
-          <button class="button secondary" type="button" data-jump-target="channelsReviewGrid">视频号复盘</button>
-          <button class="button secondary" type="button" data-jump-target="roleBriefGrid">角色输出</button>
-          <button class="button secondary" type="button" data-jump-target="dailyScriptGrid">今日脚本</button>
-          <button class="button secondary" type="button" data-jump-target="weeklyPlanGrid">7日排期</button>
-          <button class="button secondary" type="button" data-jump-target="remakeBookmarkGrid">复拍收藏</button>
-          <button class="button secondary" type="button" data-jump-target="signalRankingGrid">视频明细</button>
+        <div>
+          <strong>今日工作入口</strong>
+          <div class="main-entry-grid">
+            <button class="main-entry" type="button" data-jump-target="todayCommandGrid"><strong>今日拍摄指挥</strong><span>今天拍什么、怎么拍、谁来执行</span></button>
+            <button class="main-entry" type="button" data-jump-target="collectionAcceptanceGrid"><strong>数据验收</strong><span>采得准不准、缺什么字段</span></button>
+            <button class="main-entry" type="button" data-jump-target="channelsReviewGrid"><strong>视频号专项复盘</strong><span>转发、评论、信任和私域承接</span></button>
+            <button class="main-entry" type="button" data-jump-target="remakeBookmarkGrid"><strong>复拍库 / 排行榜</strong><span>值得复拍、重剪、暂停的内容</span></button>
+          </div>
+          <div class="secondary-entry-row">
+            <button class="button secondary" type="button" data-jump-target="systemAlertGrid">异常提醒</button>
+            <button class="button secondary" type="button" data-jump-target="aiExecutionGrid">AI执行任务</button>
+            <button class="button secondary" type="button" data-jump-target="postPublishActionGrid">发布后复盘</button>
+            <button class="button secondary" type="button" data-jump-target="signalRankingGrid">视频明细</button>
+          </div>
         </div>
+      </section>
+
+      <section class="card command-panel" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">Alert Center</p>
+            <h2>系统异常提醒</h2>
+          </div>
+          <span class="badge" id="systemAlertBadge">正在检查</span>
+        </div>
+        <p id="systemAlertSummary" style="margin-top:8px;">自动检查采集、同步、登录、AI 报告和关键字段，异常优先显示在这里。</p>
+        <div class="focus-grid" id="systemAlertGrid"></div>
+        <div class="decision-list" id="systemAlertList"></div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -374,6 +399,7 @@
         <p id="collectionAcceptanceSummary" style="margin-top:8px;">先验收采集质量，再看 AI 结论：有效作品、字段完整度、跳过原因和下一步补采都会在这里说明。</p>
         <div class="focus-grid" id="collectionAcceptanceGrid"></div>
         <div class="decision-list" id="collectionAcceptanceList"></div>
+        <div class="task-card-grid" id="channelsFieldBacklogGrid"></div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -388,6 +414,21 @@
         <div class="focus-grid" id="channelsReviewGrid"></div>
         <div class="decision-list" id="channelsReviewList"></div>
         <div class="topic-performance-grid" id="channelsTopicGrid"></div>
+      </section>
+
+      <section class="card command-panel" style="margin-top:18px;">
+        <div class="toolbar" style="justify-content:space-between;">
+          <div>
+            <p class="eyebrow">AI Execution</p>
+            <h2>AI 执行任务中心</h2>
+          </div>
+          <div class="toolbar">
+            <button class="button secondary" id="copyAiExecutionButton" type="button">复制执行任务</button>
+            <span class="badge" id="aiExecutionBadge">等待报告</span>
+          </div>
+        </div>
+        <p id="aiExecutionSummary" style="margin-top:8px;">把 AI 专家报告和本地数据判断拆成今天能执行的拍摄、整改、复盘和补采任务。</p>
+        <div class="task-card-grid" id="aiExecutionGrid"></div>
       </section>
 
       <section class="card command-panel" style="margin-top:18px;">
@@ -479,6 +520,7 @@
           </div>
         </div>
         <p id="remakeBookmarkSummary" style="margin-top:8px;">老师看到值得复拍的视频可以先收藏，系统后面会优先把它们放进排期、脚本和专家报告。</p>
+        <div class="task-card-grid" id="remakeStructureGrid"></div>
         <div class="task-card-grid" id="remakeBookmarkGrid"></div>
       </section>
 
@@ -493,6 +535,7 @@
         <p id="executionLoopSummary" style="margin-top:8px;">把“系统建议”变成今天能执行、明天能复盘的流程：选题、拍摄、发布、复盘。</p>
         <div class="focus-grid" id="executionLoopGrid"></div>
         <div class="decision-list" id="executionLoopList"></div>
+        <div class="task-card-grid" id="postPublishActionGrid"></div>
         <div class="task-card-grid" id="postPublishReviewGrid"></div>
         <div class="decision-list" id="publishOutcomeList"></div>
       </section>
@@ -991,7 +1034,7 @@
     <script>
       (function () {
         const storeKey = "jrc-video-ops-monitor-v1";
-        const pageVersion = "20260706a";
+        const pageVersion = "20260706b";
         const sessionKey = "jrc-portal-auth-session";
         function escapeText(value) {
           return String(value ?? "")
@@ -1126,7 +1169,7 @@
       const STORE_KEY = "jrc-video-ops-monitor-v1";
       const DAILY_SKIP_LOCAL_KEY = `${STORE_KEY}:daily-skip`;
       const MODULE_KEY = "videoOps";
-        const PAGE_VERSION = "20260706a";
+        const PAGE_VERSION = "20260706b";
       const AUTO_AI_REPORT_KEY = `${STORE_KEY}:auto-ai-report-signature`;
       const OVERNIGHT_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:own-deep";
       const DAILY_COMMAND = "cd /Users/chengzhihao/Documents/Codex/2026-06-20-jrcedu-master && npm run video:daily";
@@ -4172,16 +4215,76 @@
         ].join("\n");
       }
 
+      function buildRemakeStructureLibrary() {
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const douyinRows = rows.filter((row) => isDouyinPlatform(row.platform));
+        const channelsRows = rows.filter((row) => isWechatVideoPlatform(row.platform));
+        const top = (items, sorter) => items.slice().sort(sorter).slice(0, 3);
+        const categories = [
+          {
+            tone: "good",
+            label: "抖音爆款结构",
+            title: "强开头 + 搜索词 + 关注理由",
+            rows: top(douyinRows, (a, b) => (b.views || 0) - (a.views || 0)),
+            note: "用于抖音推推荐流、搜索流和涨粉。复拍时保留前3秒冲突和标题关键词。"
+          },
+          {
+            tone: "warn",
+            label: "视频号信任结构",
+            title: "转发价值 + 家长信任 + 私域承接",
+            rows: top(channelsRows, (a, b) => ((b.shares || 0) + (b.favorites || 0)) - ((a.shares || 0) + (a.favorites || 0)) || (b.comments || 0) - (a.comments || 0)),
+            note: "用于视频号熟人圈传播。复拍时强调家长为什么要转给孩子看。"
+          },
+          {
+            tone: "good",
+            label: "本地升学节点",
+            title: "宁波 / 年级 / 中考小升初",
+            rows: top(rows.filter(hasLocalTrafficSignal), (a, b) => priorityScore(b) - priorityScore(a)),
+            note: "用于建立本地认知和家长代入感，适合暑假、小升初、中考、重点高中节点。"
+          },
+          {
+            tone: "warn",
+            label: "高播放低转化",
+            title: "保留曝光，补承接",
+            rows: top(rows.filter((row) => isBrandReachVideo(row) && !hasLeadSignal(row)), (a, b) => (b.views || 0) - (a.views || 0)),
+            note: "这类不要简单判差。它负责本地影响力，下一版要补主页置顶、评论关键词和私信入口。"
+          },
+          {
+            tone: "danger",
+            label: "失败/重剪样本",
+            title: "低分内容先停一停",
+            rows: top(rows.filter((row) => isReviewVideo(row, diagnoseVideo(row))), (a, b) => diagnoseVideo(a).score - diagnoseVideo(b).score),
+            note: "低播放、低互动或低留存的内容不要硬复拍，先换标题、换开头或换家长场景。"
+          }
+        ];
+        return {
+          badge: rows.length ? "已分层" : "等待数据",
+          categories
+        };
+      }
+
       function renderRemakeBookmarkLibrary() {
         const badge = byId("remakeBookmarkBadge");
         const summary = byId("remakeBookmarkSummary");
         const grid = byId("remakeBookmarkGrid");
+        const structureGrid = byId("remakeStructureGrid");
         if (!badge || !summary || !grid) return;
         const data = buildRemakeBookmarkLibrary();
         const rows = data.saved.length ? data.saved : data.candidates;
         badge.textContent = data.badge;
         badge.className = `badge ${escapeHtml(data.tone || "")}`;
         summary.textContent = data.summary;
+        if (structureGrid) {
+          const structure = buildRemakeStructureLibrary();
+          structureGrid.innerHTML = structure.categories.map((category) => `
+            <div class="task-card ${escapeHtml(category.tone || "")}">
+              <span>${escapeHtml(category.label)}</span>
+              <strong>${escapeHtml(category.title)}</strong>
+              <p>${escapeHtml(category.rows.length ? category.rows.map((row, index) => `${index + 1}. ${videoShortTitle(row)}｜${compactVideoMetrics(row)}`).join("；") : "暂无稳定样本。")}</p>
+              <p>${escapeHtml(category.note)}</p>
+            </div>
+          `).join("");
+        }
         grid.innerHTML = rows.length ? rows.map((row) => {
           const diagnosis = diagnoseVideo(row);
           const plan = remakePlan(row, diagnosis);
@@ -4638,6 +4741,7 @@
         const summary = byId("collectionAcceptanceSummary");
         const grid = byId("collectionAcceptanceGrid");
         const list = byId("collectionAcceptanceList");
+        const backlog = byId("channelsFieldBacklogGrid");
         if (!badge || !summary || !grid || !list) return;
         const data = buildCollectionAcceptance();
         badge.textContent = data.badge;
@@ -4653,6 +4757,137 @@
         list.innerHTML = data.list.map((card) => `
           <div class="decision-card ${escapeHtml(card.tone || "")}">
             <strong>${escapeHtml(card.title)}</strong>
+            <p>${escapeHtml(card.body)}</p>
+          </div>
+        `).join("");
+        if (backlog) {
+          const fieldData = buildChannelsFieldBacklog();
+          backlog.innerHTML = fieldData.tasks.map((card) => `
+            <div class="task-card ${escapeHtml(card.tone || "")}">
+              <span>${escapeHtml(card.label)}</span>
+              <strong>${escapeHtml(card.title)}</strong>
+              <p>${escapeHtml(card.body)}</p>
+            </div>
+          `).join("");
+        }
+      }
+
+      function buildChannelsFieldBacklog() {
+        const rows = rowsForPlatform("视频号");
+        const total = rows.length;
+        const count = (predicate) => fieldCoverage(rows, predicate);
+        const coverage = {
+          core: count((row) => row.views || row.likes || row.comments || row.shares || row.favorites),
+          originalUrl: count(hasOriginalVideoUrl),
+          retention: count((row) => row.threeSecondRetention || row.fiveSecondRetention || row.completeRate || row.avgWatchSeconds),
+          conversion: count((row) => row.profileVisits || row.messages || row.leads || row.followersGained),
+          traffic: count((row) => row.trafficSourceLines?.length || row.searchKeywords?.length),
+          comments: count((row) => row.comments),
+          shares: count((row) => row.shares || row.favorites)
+        };
+        const ratio = (value) => total ? Math.round((value / total) * 100) : 0;
+        const tasks = [
+          {
+            tone: coverage.core === total && total ? "good" : coverage.core ? "warn" : "danger",
+            label: "第一优先",
+            title: "核心播放互动字段",
+            body: `已覆盖 ${coverage.core}/${total} 条。播放、点赞、评论、转发是视频号复盘底座，缺这个就不能判断内容价值。`
+          },
+          {
+            tone: coverage.retention >= Math.max(10, total * 0.2) ? "good" : "warn",
+            label: "第二优先",
+            title: "留存/完播/平均观看",
+            body: `已覆盖 ${coverage.retention}/${total} 条（${ratio(coverage.retention)}%）。它决定开头、节奏和讲解长度是否要重剪。下一轮优先找视频号作品数据详情页。`
+          },
+          {
+            tone: coverage.conversion >= Math.max(5, total * 0.1) ? "good" : "warn",
+            label: "第三优先",
+            title: "主页访问/私信/线索/涨粉",
+            body: `已覆盖 ${coverage.conversion}/${total} 条（${ratio(coverage.conversion)}%）。它决定视频号是否真正带来微信私域沟通，不能只看播放。`
+          },
+          {
+            tone: coverage.traffic >= Math.max(5, total * 0.1) ? "good" : "warn",
+            label: "第四优先",
+            title: "流量来源/搜索词",
+            body: `已覆盖 ${coverage.traffic}/${total} 条（${ratio(coverage.traffic)}%）。它决定内容是靠推荐、搜索、本地场景、熟人转发还是粉丝流量起来。`
+          },
+          {
+            tone: coverage.originalUrl >= Math.max(20, total * 0.3) ? "good" : "warn",
+            label: "复盘保障",
+            title: "原视频可回看链接",
+            body: `已覆盖 ${coverage.originalUrl}/${total} 条（${ratio(coverage.originalUrl)}%）。有链接才能看画面、板书、语速、开头和结尾承接。`
+          }
+        ];
+        return {
+          badge: total ? "已生成补采清单" : "等待视频号",
+          command: CHANNELS_FULL_COMMAND,
+          coverage,
+          tasks
+        };
+      }
+
+      function buildSystemAlerts() {
+        const status = effectiveCollectorStatus(state.collectorStatus || {});
+        const rows = ownVideoRows().filter(isUsefulSnapshot);
+        const channels = rowsForPlatform("视频号");
+        const report = normalizeAiReport(state.aiReport || {});
+        const acceptance = buildCollectionAcceptance();
+        const fieldBacklog = buildChannelsFieldBacklog();
+        const last = [state.snapshots[0]?.capturedAt, state.accountAudits[0]?.capturedAt, status.updatedAt, state.updatedAt]
+          .filter(Boolean)
+          .sort((left, right) => String(right).localeCompare(String(left)))[0] || "";
+        const lastHours = last && Number.isFinite(Date.parse(last)) ? (Date.now() - Date.parse(last)) / 36e5 : Infinity;
+        const alerts = [];
+        const push = (tone, title, body, label = "提醒") => alerts.push({ tone, title, body, label });
+        if (!rows.length) push("danger", "还没有可用视频数据", "短视频系统现在不能做运营判断。先确认 Mac mini 采集器、登录状态和云端同步。", "数据");
+        if (status.status === "running") push("warn", "采集器正在运行", `${status.stepLabel || "正在采集"}。不要重复启动第二个采集任务，等本轮结束后再看报告。`, "采集");
+        if (status.status === "failed") push("danger", "采集任务失败", status.message || "采集器返回失败状态。请先看采集前准备台和终端错误。", "采集");
+        if (status.status === "warning") push("warn", "采集完成但有异常", status.message || "采集器有异常候选或字段缺失，先看采集验收与缺口核查。", "采集");
+        if (lastHours > 36 && rows.length) push("warn", "超过 36 小时未更新", `最近数据时间：${last ? shortDate(last) : "待确认"}。建议跑一次日常轻量巡检。`, "同步");
+        if (!channels.length) push("danger", "视频号没有有效样本", "不能用抖音数据替代视频号判断。先跑视频号小样本验证或全量采集。", "视频号");
+        if (channels.length && channels.length < 220) push("warn", "视频号样本还没到稳定线", `当前视频号 ${channels.length} 条。可以初步复盘，但建议继续补到 220 条以上。`, "视频号");
+        if (fieldBacklog.coverage.retention === 0 && channels.length) push("warn", "视频号缺留存/完播字段", "能判断播放和转发，但还不能稳定判断开头和节奏。下一轮补作品详情页数据。", "字段");
+        if (fieldBacklog.coverage.conversion === 0 && channels.length) push("warn", "视频号缺私域承接字段", "主页访问、私信、线索、涨粉缺失时，不能准确判断招生转化。", "字段");
+        if (!report.polishedText && !report.summary && rows.length) push("warn", "AI 专家报告还没生成", "已有数据但还没有报告。可以点击 DeepSeek 专家报告里的重新生成。", "AI");
+        if (state.analysisStatus?.status === "failed") push("danger", "AI 报告生成失败", state.analysisStatus.message || "请检查 DeepSeek Key、额度或服务器网络。", "AI");
+        if (!alerts.length) push("good", "系统状态正常", "采集、数据、AI 和页面状态没有发现明显异常。今天可以直接看拍摄指挥台。", "正常");
+        const danger = alerts.filter((item) => item.tone === "danger").length;
+        const warn = alerts.filter((item) => item.tone === "warn").length;
+        const grid = [
+          { tone: danger ? "danger" : "good", label: "严重异常", value: `${danger}`, note: danger ? "优先处理" : "暂无" },
+          { tone: warn ? "warn" : "good", label: "需要注意", value: `${warn}`, note: warn ? "不影响查看，但会影响结论深度" : "暂无" },
+          { tone: rows.length ? "good" : "danger", label: "自有视频", value: `${rows.length}条`, note: rows.length ? "可分析" : "等待采集" },
+          { tone: channels.length >= 220 ? "good" : channels.length ? "warn" : "danger", label: "视频号", value: `${channels.length}条`, note: acceptance.badge }
+        ];
+        return {
+          badge: danger ? "有严重异常" : warn ? "有提醒" : "正常",
+          tone: danger ? "danger" : warn ? "warn" : "good",
+          summary: danger ? "先处理红色异常，再看 AI 建议。" : warn ? "系统可用，但有字段或同步提醒需要注意。" : "系统状态正常，可以直接进入今日拍摄。",
+          grid,
+          alerts: alerts.slice(0, 6)
+        };
+      }
+
+      function renderSystemAlerts() {
+        const badge = byId("systemAlertBadge");
+        const summary = byId("systemAlertSummary");
+        const grid = byId("systemAlertGrid");
+        const list = byId("systemAlertList");
+        if (!badge || !summary || !grid || !list) return;
+        const data = buildSystemAlerts();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.grid.map((card) => `
+          <div class="focus-card ${escapeHtml(card.tone || "")}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p>${escapeHtml(card.note)}</p>
+          </div>
+        `).join("");
+        list.innerHTML = data.alerts.map((card) => `
+          <div class="decision-card ${escapeHtml(card.tone || "")}">
+            <strong>${escapeHtml(card.label)}｜${escapeHtml(card.title)}</strong>
             <p>${escapeHtml(card.body)}</p>
           </div>
         `).join("");
@@ -6015,6 +6250,114 @@
         }
       }
 
+      function taskTextFromCard(card = {}) {
+        return [
+          card.label ? `【${card.label}】` : "",
+          card.title || "",
+          card.body || "",
+          card.action ? `动作：${card.action}` : ""
+        ].filter(Boolean).join(" ");
+      }
+
+      function normalizeExecutionTask(item, fallback = {}) {
+        if (typeof item === "string") {
+          const task = splitReportTaskText(item);
+          return {
+            tone: fallback.tone || "good",
+            label: fallback.label || "AI任务",
+            title: task.title || fallback.title || "执行任务",
+            body: task.body || item
+          };
+        }
+        if (item && typeof item === "object") {
+          return {
+            tone: item.tone || fallback.tone || "good",
+            label: item.label || item.type || fallback.label || "任务",
+            title: item.title || item.name || item.topic || fallback.title || "执行任务",
+            body: item.body || item.detail || item.reason || item.suggestion || item.action || textFromReportItem(item)
+          };
+        }
+        return null;
+      }
+
+      function buildAiExecutionTasks() {
+        const report = normalizeAiReport(state.aiReport || {});
+        const data = report.structuredData || {};
+        const tasks = [];
+        const pushGroup = (items = [], fallback = {}) => {
+          (items || []).slice(0, fallback.limit || 3).forEach((item) => {
+            const task = normalizeExecutionTask(item, fallback);
+            if (task?.title || task?.body) tasks.push(task);
+          });
+        };
+        pushGroup(data.problemSolutions, { label: "整改", tone: "warn", limit: 3 });
+        pushGroup(data.executableScripts, { label: "拍摄", tone: "good", limit: 3 });
+        pushGroup(data.dualPlatformScripts, { label: "双平台", tone: "good", limit: 2 });
+        pushGroup(data.postPublishReviewLoop, { label: "复盘", tone: "warn", limit: 2 });
+        pushGroup(data.missingData, { label: "补采", tone: "warn", limit: 2 });
+        if (!tasks.length) {
+          const scripts = buildDailyScriptWorkbench();
+          (scripts.cards || []).slice(0, 3).forEach((card) => {
+            tasks.push({
+              tone: "good",
+              label: "本地脚本",
+              title: card.label || card.sourceTitle || "今日拍摄任务",
+              body: `${card.lead || ""} ${card.body?.slice(0, 2).join("；") || ""} 结尾：${card.closing || "补评论区、主页和私信承接。"}`
+            });
+          });
+          buildChannelsFieldBacklog().tasks.slice(1, 3).forEach((card) => tasks.push({
+            tone: card.tone || "warn",
+            label: "补采",
+            title: card.title,
+            body: card.body
+          }));
+          buildPostPublishReviewLoop().slice(0, 2).forEach((card) => tasks.push({
+            tone: card.tone || "warn",
+            label: card.label,
+            title: card.title,
+            body: card.body
+          }));
+        }
+        const limited = tasks.slice(0, 8);
+        return {
+          badge: report.polishedText || report.summary ? "AI已拆解" : "本地任务",
+          tone: limited.length ? "good" : "warn",
+          summary: report.polishedText || report.summary
+            ? "已把 DeepSeek 专家报告拆成拍摄、整改、复盘和补采任务。"
+            : "还没有 AI 报告，先用本地数据生成可执行任务；报告生成后会自动替换得更细。",
+          tasks: limited
+        };
+      }
+
+      function aiExecutionTasksText() {
+        const data = buildAiExecutionTasks();
+        return [
+          "短视频 AI 执行任务",
+          "",
+          data.summary,
+          "",
+          ...data.tasks.map((item, index) => `${index + 1}. ${item.label}｜${item.title}\n${item.body}`)
+        ].join("\n");
+      }
+
+      function renderAiExecutionTasks() {
+        const badge = byId("aiExecutionBadge");
+        const summary = byId("aiExecutionSummary");
+        const grid = byId("aiExecutionGrid");
+        if (!badge || !summary || !grid) return;
+        const data = buildAiExecutionTasks();
+        badge.textContent = data.badge;
+        badge.className = `badge ${escapeHtml(data.tone || "")}`;
+        summary.textContent = data.summary;
+        grid.innerHTML = data.tasks.length ? data.tasks.map((task) => `
+          <div class="task-card ${escapeHtml(task.tone || "")}">
+            <span>${escapeHtml(task.label || "任务")}</span>
+            <strong>${escapeHtml(task.title || "执行任务")}</strong>
+            <p>${escapeHtml(task.body || "等待更多数据。")}</p>
+          </div>
+        `).join("") : `<div class="empty">暂无可执行任务。先同步数据或生成 AI 专家报告。</div>`;
+      }
+
       function buildPostPublishReviewLoop() {
         const baseline = executionBaseline();
         const scriptData = buildDailyScriptWorkbench();
@@ -6114,9 +6457,83 @@
         ];
       }
 
+      function hoursSinceVideoPublished(row = {}) {
+        const time = videoDateValue(row);
+        return time ? Math.max(0, (Date.now() - time) / 36e5) : Infinity;
+      }
+
+      function reviewStageForVideo(row = {}) {
+        const hours = hoursSinceVideoPublished(row);
+        if (hours <= 2.5) return { key: "twoHour", label: "2小时启动", tone: "warn" };
+        if (hours <= 28) return { key: "oneDay", label: "24小时复盘", tone: "good" };
+        if (hours <= 84) return { key: "threeDay", label: "72小时归档", tone: "good" };
+        return { key: "archive", label: "历史归档", tone: "" };
+      }
+
+      function buildPostPublishActionBoard() {
+        const rows = ownVideoRows()
+          .filter(isUsefulSnapshot)
+          .slice()
+          .sort((a, b) => videoDateValue(b) - videoDateValue(a));
+        const groups = { twoHour: [], oneDay: [], threeDay: [], archive: [] };
+        rows.slice(0, 120).forEach((row) => {
+          const stage = reviewStageForVideo(row);
+          groups[stage.key].push({ row, stage, diagnosis: diagnoseVideo(row), outcome: publishOutcomeForVideo(row) });
+        });
+        const pick = (key) => groups[key].slice(0, 3);
+        const cards = [
+          {
+            tone: groups.twoHour.length ? "warn" : "",
+            label: "2小时",
+            title: groups.twoHour.length ? "看启动和开头" : "暂无2小时内新视频",
+            body: groups.twoHour.length
+              ? pick("twoHour").map((item, index) => `${index + 1}. ${videoShortTitle(item.row)}｜播放 ${formatNumber(item.row.views)}，先看标题封面、前3秒和完播。`).join("；")
+              : "新视频发布后 2 小时内，重点看启动速度和开头留存，别急着按咨询判断。"
+          },
+          {
+            tone: groups.oneDay.length ? "good" : "",
+            label: "24小时",
+            title: groups.oneDay.length ? "看互动、涨粉和咨询" : "暂无24小时复盘样本",
+            body: groups.oneDay.length
+              ? pick("oneDay").map((item, index) => `${index + 1}. ${videoShortTitle(item.row)}｜转发收藏 ${formatNumber((item.row.shares || 0) + (item.row.favorites || 0))}，评论 ${formatNumber(item.row.comments)}，${item.outcome.label}。`).join("；")
+              : "发布 24 小时后，分开看播放、收藏转发、评论、涨粉、主页访问和咨询线索。"
+          },
+          {
+            tone: groups.threeDay.length ? "good" : "",
+            label: "72小时",
+            title: groups.threeDay.length ? "归档到复拍/重剪/失败/观察" : "暂无72小时归档样本",
+            body: groups.threeDay.length
+              ? pick("threeDay").map((item, index) => `${index + 1}. ${videoShortTitle(item.row)}｜${item.outcome.label}：${item.outcome.reason}`).join("；")
+              : "发布 72 小时后必须定去向，不让视频一直悬着。"
+          },
+          {
+            tone: "warn",
+            label: "每日动作",
+            title: "今天要补的运营闭环",
+            body: "新视频发布前检查标题、前3秒、评论关键词、主页置顶和私信入口；发布后按2/24/72小时写回复拍、重剪、失败或观察。"
+          }
+        ];
+        return {
+          badge: groups.twoHour.length || groups.oneDay.length || groups.threeDay.length ? "有待复盘" : "规则已就绪",
+          tone: groups.twoHour.length || groups.oneDay.length || groups.threeDay.length ? "good" : "warn",
+          cards
+        };
+      }
+
       function renderPostPublishReviewLoop() {
         const box = byId("postPublishReviewGrid");
         const outcomeList = byId("publishOutcomeList");
+        const actionGrid = byId("postPublishActionGrid");
+        if (actionGrid) {
+          const data = buildPostPublishActionBoard();
+          actionGrid.innerHTML = data.cards.map((card) => `
+            <div class="task-card ${escapeHtml(card.tone || "")}">
+              <span>${escapeHtml(card.label)}</span>
+              <strong>${escapeHtml(card.title)}</strong>
+              <p>${escapeHtml(card.body)}</p>
+            </div>
+          `).join("");
+        }
         if (box) {
           box.innerHTML = buildPostPublishReviewLoop().map((card) => `
             <div class="task-card ${escapeHtml(card.tone || "")}">
@@ -6367,7 +6784,7 @@
 
       function officialVideoMethodology() {
         return {
-          version: "20260706a",
+          version: "20260706b",
           updatedAt: "2026-07-06",
           sources: [
             {
@@ -6521,11 +6938,14 @@
         const rankingPack = videoRankingPackForAi();
         return JSON.stringify({
           generatedAt: new Date().toISOString(),
-          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 collectionAcceptance、channelsDeepReview、todayCommandCenter、weeklyShootingPlan、remakeBookmarkLibrary、platformDiagnosis、crossPlatformComparison、dualPlatformScripts、postPublishReviewLoop、platformMaterialLibrary、dataTrustTiers 和 videoRankings，不要只看混合样本；collectionAcceptance 用于判断数据能信到什么程度，channelsDeepReview 是视频号专项口径，不能按抖音高播放逻辑硬评；remakeBookmarkLibrary 是老师人工确认的复拍素材，优先级高于普通候选。高播放视频代表本地影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；视频号的转发、评论和本地场景代表微信生态信任，不等于抖音爆量；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接，并且同一个选题必须给抖音版和视频号版两套表达。",
+          instruction: "请按中国大陆一到九年级数学教培短视频运营专家视角，基于官方推荐逻辑、成熟短视频运营方法和以下真实采集数据输出报告。必须坚持“数据分开、算法分开、建议汇总”：抖音按曝光、留存、搜索、涨粉、咨询线索判断；视频号按转发、评论质量、信任建立、本地升学场景和微信私域承接判断；最后再给全平台统一拍摄动作。请优先读取 systemAlerts、collectionAcceptance、channelsFieldBacklog、channelsDeepReview、aiExecutionTasks、todayCommandCenter、weeklyShootingPlan、remakeBookmarkLibrary、remakeStructureLibrary、platformDiagnosis、crossPlatformComparison、dualPlatformScripts、postPublishReviewLoop、postPublishActionBoard、platformMaterialLibrary、dataTrustTiers 和 videoRankings，不要只看混合样本；collectionAcceptance 用于判断数据能信到什么程度，channelsDeepReview 是视频号专项口径，不能按抖音高播放逻辑硬评；remakeBookmarkLibrary 和 remakeStructureLibrary 是复拍素材优先级，人工收藏高于普通候选。高播放视频代表本地影响力和认知扩散价值，不能因为直接咨询低就简单判定为差；咨询线索高的视频代表转化价值，涨粉高的视频代表账号增长价值；收藏转发高的视频代表家长保存和干货价值；视频号的转发、评论和本地场景代表微信生态信任，不等于抖音爆量；流量来源和搜索词用于判断推荐流、搜索流、同城/本地曝光和粉丝流量。originalVideoUrlAvailable=true 的视频可以直接回看原视频，优先作为复拍和拆结构样本；缺原视频链接的视频只能基于后台字段轻判断，必须提示需要补采。数据不足处必须明说，不要编造。输出必须可执行：每个主要问题都要给出原因、解决动作、可复拍/重剪的视频、标题范例、前3秒开头、正文三步、结尾转化承接，并且同一个选题必须给抖音版和视频号版两套表达。",
           officialVideoMethodology: officialVideoMethodology(),
           dataReadiness: readiness,
+          systemAlerts: buildSystemAlerts(),
           collectionAcceptance: buildCollectionAcceptance(),
+          channelsFieldBacklog: buildChannelsFieldBacklog(),
           channelsDeepReview: buildChannelsDeepReview(),
+          aiExecutionTasks: buildAiExecutionTasks(),
           platformDiagnosis: buildPlatformDiagnosis(),
           roleBriefs: buildRoleBriefs(),
           bossBrief: bossBriefText(),
@@ -6535,9 +6955,11 @@
           crossPlatformComparison: crossPlatformComparisonForAi(),
           dualPlatformScripts: buildDualPlatformScripts(),
           postPublishReviewLoop: buildPostPublishReviewLoop(),
+          postPublishActionBoard: buildPostPublishActionBoard(),
           publishOutcomeBoard: buildPublishOutcomeBoard(),
           todayCommandBrief: todayCommandBriefText(),
           remakeBookmarkLibrary: buildRemakeBookmarkLibrary(),
+          remakeStructureLibrary: buildRemakeStructureLibrary(),
           platformMaterialLibrary: platformMaterialLibraryForAi(),
           dataTrustTiers: dataTrustTiersForAi(),
           accounts: state.accounts,
@@ -6556,16 +6978,21 @@
             bossBrief: bossBriefText(),
             teacherExecutionSheet: teacherExecutionSheetText(),
             todayCommandCenter: buildTodayCommandCenter(),
+            systemAlerts: buildSystemAlerts(),
             collectionAcceptance: buildCollectionAcceptance(),
+            channelsFieldBacklog: buildChannelsFieldBacklog(),
             channelsDeepReview: buildChannelsDeepReview(),
+            aiExecutionTasks: buildAiExecutionTasks(),
             shootingCommandCenter: buildShootingCommandCenter(),
             dailyScriptWorkbench: buildDailyScriptWorkbench(),
             weeklyShootingPlan: buildWeeklyShootingPlan(),
             remakeBookmarkLibrary: buildRemakeBookmarkLibrary(),
+            remakeStructureLibrary: buildRemakeStructureLibrary(),
             executionLoop: buildExecutionLoop(),
             crossPlatformComparison: crossPlatformComparisonForAi(),
             dualPlatformScripts: buildDualPlatformScripts(),
             postPublishReviewLoop: buildPostPublishReviewLoop(),
+            postPublishActionBoard: buildPostPublishActionBoard(),
             publishOutcomeBoard: buildPublishOutcomeBoard(),
             todayCommandBrief: todayCommandBriefText(),
             platformMaterialLibrary: platformMaterialLibraryForAi(),
@@ -8119,8 +8546,10 @@
         renderCollectorStatus();
         renderCollectionPlan();
         renderDataReadiness();
+        renderSystemAlerts();
         renderCollectionAcceptance();
         renderChannelsDeepReview();
+        renderAiExecutionTasks();
         renderOvernightMiningPlan();
         renderRoleBriefs();
         renderTodayCommandCenter();
@@ -8265,8 +8694,10 @@
         renderRemakeBookmarkLibrary();
         renderExecutionLoop();
         renderCollectionPrep();
+        renderSystemAlerts();
         renderCollectionAcceptance();
         renderChannelsDeepReview();
+        renderAiExecutionTasks();
         renderSignalRankings();
         renderTopicPerformance();
         renderPriorityVideos();
@@ -8656,6 +9087,10 @@
         byId("copyTodayCommandBriefButton")?.addEventListener("click", async () => {
           await navigator.clipboard?.writeText(todayCommandBriefText());
           byId("videoOpsMessage").textContent = "已复制今日拍摄简报。";
+        });
+        byId("copyAiExecutionButton")?.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(aiExecutionTasksText());
+          byId("videoOpsMessage").textContent = "已复制 AI 执行任务。";
         });
         byId("copyBossBriefButton")?.addEventListener("click", async () => {
           await navigator.clipboard?.writeText(bossBriefText());
