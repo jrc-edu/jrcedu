@@ -835,6 +835,14 @@
         height: 86px;
         background: rgba(255,255,255,0.92);
       }
+      .teacher-sheet-table td[data-schedule-cell] {
+        cursor: pointer;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
+      }
+      .teacher-sheet-table td[data-schedule-cell]:hover {
+        background: rgba(13,148,136,0.07);
+        box-shadow: inset 0 0 0 2px rgba(13,148,136,0.18);
+      }
       .lesson-block {
         display: grid;
         gap: 4px;
@@ -843,6 +851,13 @@
         background: rgba(13,148,136,0.08);
         border: 1px solid rgba(13,148,136,0.14);
         line-height: 1.45;
+      }
+      .lesson-block[data-schedule-row-key] {
+        cursor: pointer;
+      }
+      .lesson-block[data-schedule-row-key]:hover {
+        border-color: rgba(13,148,136,0.46);
+        background: rgba(13,148,136,0.13);
       }
       .lesson-block + .lesson-block {
         margin-top: 6px;
@@ -1055,13 +1070,13 @@
             <span>以原 Excel 课表为基准录入数据；系统自动同步云端、检查冲突和未写教室。日常临时新增、调课、停课，也在这里直接处理。</span>
           </div>
           <div class="launch-actions">
-            <button class="button" type="button" data-requires-permission="paike.edit" id="paikeLaunchImportButton">上传Excel并网</button>
+            <button class="button" type="button" data-requires-permission="paike.edit" id="paikeLaunchImportButton">批量上传Excel并网</button>
             <button class="button secondary" type="button" data-requires-permission="paike.edit" id="openScheduleFormButton">新增 / 调课 / 停课</button>
           </div>
         </div>
         <div class="launch-status-grid" id="paikeLaunchStatusGrid"></div>
         <div class="launch-import-drop" id="paikeLaunchImportDrop">
-          <strong>并网操作方式：</strong>先按原 Excel 课表格式整理好。复杂表第一轮可以直接交给我转换；稳定后排课负责人在这里上传，系统自动写入正式课表。复杂核对只放后台，不要求老师操作。
+          <strong>并网操作方式：</strong>可以一次选择多个老师 Excel，也可以一个 Excel 里放多个 sheet。系统会逐个老师表读取横向课表、写入正式课表、检查冲突。复杂核对只放后台，不要求老师操作。
         </div>
         <div class="launch-form" id="scheduleEntryFormPanel" aria-label="正式排课维护表单">
           <div class="section-heading-row">
@@ -1299,7 +1314,7 @@
           <p class="eyebrow">维护</p>
           <h2>排课数据维护入口</h2>
           <div class="maintenance-actions">
-            <input id="paikeFormalImportInput" type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+            <input id="paikeFormalImportInput" type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden>
             <button class="button" data-requires-permission="paike.edit" type="button" id="paikeFormalImportButton">导入正式排课明细</button>
             <button class="button secondary" data-requires-permission="paike.edit" type="button" id="paikeFormalTemplateButton">下载导入模板</button>
             <a class="button" data-requires-permission="paike.edit" href="/jrcedu/paike-legacy/index.html">上传总表</a>
@@ -1354,6 +1369,8 @@
       let paikeAdmissionState = {};
       let activePaikeView = "week";
       let activePendingScheduleId = "";
+      let activeEditingScheduleId = "";
+      let activeEditingSourceRowKey = "";
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1496,15 +1513,140 @@
         };
       }
 
+      function knownTeacherNames() {
+        const names = [
+          ...(Array.isArray(window.JRC_EMPLOYEES) ? window.JRC_EMPLOYEES.map((employee) => employee.name) : []),
+          ...paikeRows.map((row) => row.teacher)
+        ].map((name) => String(name || "").trim()).filter(Boolean);
+        return Array.from(new Set(names)).sort((a, b) => b.length - a.length);
+      }
+
+      function inferTeacherNameFromSheet(fileName, sheetName, matrix = []) {
+        const source = `${fileName || ""} ${sheetName || ""} ${matrix.slice(0, 6).flat().join(" ")}`;
+        const matched = knownTeacherNames().find((name) => name && source.includes(name));
+        if (matched) return matched;
+        const explicit = source.match(/(?:老师|教师|任课老师|姓名)[:：\s]*([\u4e00-\u9fa5]{2,4})/);
+        return explicit ? explicit[1] : String(sheetName || fileName || "").replace(/\.(xlsx|xls|csv)$/i, "").trim();
+      }
+
+      function cellText(value) {
+        return String(value ?? "").replace(/\u00a0/g, " ").trim();
+      }
+
+      function isScheduleCellContent(value) {
+        const text = cellText(value);
+        if (!text) return false;
+        if (/^(可排|空|无|无课|休息|请假|停课|日期|时间|星期|周[一二三四五六日天])$/.test(text)) return false;
+        if (/^\d{1,2}[:：]\d{2}/.test(text)) return false;
+        return /[\u4e00-\u9fa5A-Za-z0-9]/.test(text);
+      }
+
+      function findHorizontalDateHeader(matrix) {
+        let best = null;
+        matrix.slice(0, 14).forEach((row, rowIndex) => {
+          const dates = [];
+          row.forEach((value, columnIndex) => {
+            const parsed = dateKey(value);
+            if (parsed) dates.push({ columnIndex, date: parsed, raw: cellText(value) });
+          });
+          if (dates.length >= 2 && (!best || dates.length > best.dates.length)) {
+            best = { rowIndex, dates };
+          }
+        });
+        return best;
+      }
+
+      function timeRangeFromGridRow(row, dateStartColumn) {
+        const leftText = row.slice(0, Math.max(dateStartColumn, 1)).map(cellText).filter(Boolean).join(" ");
+        const match = leftText.match(/(\d{1,2}[:：]\d{1,2})\s*[-~至到]\s*(\d{1,2}[:：]\d{1,2})/);
+        if (match) return { startTime: normalizeTimeText(match[1]), endTime: normalizeTimeText(match[2]) };
+        const first = leftText.match(/(\d{1,2}[:：]\d{1,2})/);
+        return { startTime: first ? normalizeTimeText(first[1]) : "", endTime: "" };
+      }
+
+      function extractHorizontalScheduleEntries(matrix, fileName, sheetName) {
+        const header = findHorizontalDateHeader(matrix);
+        if (!header) return [];
+        const teacherName = inferTeacherNameFromSheet(fileName, sheetName, matrix);
+        const dateStartColumn = Math.min(...header.dates.map((item) => item.columnIndex));
+        const entries = [];
+        matrix.slice(header.rowIndex + 1).forEach((row, offset) => {
+          const rowIndex = header.rowIndex + 1 + offset;
+          const { startTime, endTime } = timeRangeFromGridRow(row, dateStartColumn);
+          if (!startTime) return;
+          header.dates.forEach(({ columnIndex, date }) => {
+            const rawText = cellText(row[columnIndex]);
+            if (!isScheduleCellContent(rawText)) return;
+            const roomName = inferRoomFromText(rawText);
+            const className = rawText
+              .replace(/([一二三四五六七八九十\d]+楼\s*[一二三四五六七八九十\d]+号|[一二三四五六七八九十\d]+楼[一二三四五六七八九十\d]+号)/g, "")
+              .trim() || rawText;
+            entries.push({
+              id: `grid-${fileName}-${sheetName}-${date}-${startTime}-${rowIndex}-${columnIndex}`.replace(/[^\w\u4e00-\u9fa5-]/g, ""),
+              teacherName,
+              className,
+              studentName: className,
+              date,
+              courseDate: date,
+              period: date.slice(0, 7),
+              startTime,
+              endTime,
+              classroomName: roomName,
+              roomName,
+              lessonTypeRaw: rawText,
+              rawText,
+              scheduleStatus: "scheduled",
+              confirmationStatus: "confirmed",
+              notes: `横向课表导入：${fileName}${sheetName ? ` / ${sheetName}` : ""}`,
+              importedAt: new Date().toISOString(),
+              importedByExcel: true,
+              sourceFileName: fileName,
+              sourceSheet: sheetName,
+              sourceCell: `R${rowIndex + 1}C${columnIndex + 1}`
+            });
+          });
+        });
+        return entries;
+      }
+
+      function uniqueScheduleEntries(entries) {
+        return mergeRows("formal-import", entries).map((entry) => ({ ...entry }));
+      }
+
       async function readFormalScheduleFile(file) {
         const lowerName = String(file.name || "").toLowerCase();
         if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
           if (!window.XLSX) throw new Error("Excel 解析组件还没加载完成，请稍后重试。");
           const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          return parseCsvText(window.XLSX.utils.sheet_to_csv(firstSheet));
+          const entries = workbook.SheetNames.flatMap((sheetName) => {
+            const sheet = workbook.Sheets[sheetName];
+            const records = parseCsvText(window.XLSX.utils.sheet_to_csv(sheet));
+            const standardRows = records
+              .map((row, index) => normalizeFormalScheduleRow(row, index, `${file.name} / ${sheetName}`))
+              .filter(Boolean);
+            const matrix = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+            const gridRows = extractHorizontalScheduleEntries(matrix, file.name, sheetName);
+            return [...standardRows, ...gridRows];
+          });
+          return uniqueScheduleEntries(entries);
         }
-        return parseCsvText(await file.text());
+        return parseCsvText(await file.text())
+          .map((row, index) => normalizeFormalScheduleRow(row, index, file.name))
+          .filter(Boolean);
+      }
+
+      async function readFormalScheduleFiles(files) {
+        const list = Array.from(files || []).filter(Boolean);
+        const groups = [];
+        for (const file of list) {
+          try {
+            const entries = await readFormalScheduleFile(file);
+            groups.push({ fileName: file.name, count: entries.length, entries });
+          } catch (error) {
+            groups.push({ fileName: file.name, count: 0, entries: [], error: error?.message || String(error || "读取失败") });
+          }
+        }
+        return groups;
       }
 
       function normalizeRegularState(data) {
@@ -1614,8 +1756,21 @@
         }
         const currentEntries = mergeRows("formal", remoteState.scheduleEntries || [], localState.scheduleEntries || []);
         writeLaunchBackup({ ...remoteState, ...localState, scheduleEntries: currentEntries }, options.backupReason || `导入前备份：${fileName || "手工排课"}`);
+        const replaceFileNames = new Set(entries.map((row) => String(row.sourceFileName || "").trim()).filter(Boolean));
+        const replaceScopes = new Set(entries.map((row) => {
+          const period = String(row.period || row.date?.slice?.(0, 7) || row.courseDate?.slice?.(0, 7) || "").trim();
+          const teacher = String(row.teacherName || row.teacher || "").trim();
+          return period && teacher ? `${period}|${teacher}` : "";
+        }).filter(Boolean));
         const preservedEntries = options.replaceExcelImports
-          ? currentEntries.filter((row) => !(row.importedByExcel || row.sourceFileName))
+          ? currentEntries.filter((row) => {
+            if (!(row.importedByExcel || row.sourceFileName)) return true;
+            const rowFile = String(row.sourceFileName || "").trim();
+            if (rowFile && replaceFileNames.has(rowFile)) return false;
+            const rowPeriod = String(row.period || row.date?.slice?.(0, 7) || row.courseDate?.slice?.(0, 7) || "").trim();
+            const rowTeacher = String(row.teacherName || row.teacher || "").trim();
+            return !replaceScopes.has(`${rowPeriod}|${rowTeacher}`);
+          })
           : currentEntries;
         const mergedEntries = mergeRows("formal", preservedEntries, entries);
         const nextState = {
@@ -1635,22 +1790,43 @@
       }
 
       async function importFormalScheduleFile(file) {
-        if (!file) {
+        return importFormalScheduleFiles(file ? [file] : []);
+      }
+
+      async function importFormalScheduleFiles(files) {
+        const fileList = Array.from(files || []).filter(Boolean);
+        if (!fileList.length) {
           setFormalImportMessage("请先选择正式排课明细文件。");
           return;
         }
         try {
-          setFormalImportMessage(`正在读取 ${file.name}。`);
-          const rows = await readFormalScheduleFile(file);
-          const entries = rows.map((row, index) => normalizeFormalScheduleRow(row, index, file.name)).filter(Boolean);
+          const fileLabel = fileList.length === 1
+            ? fileList[0].name
+            : `${fileList.length} 个文件：${fileList.map((file) => file.name).join("、")}`;
+          setFormalImportMessage(`正在读取 ${fileLabel}。`);
+          setTeacherSheetMessage(`正在并网 ${fileList.length} 个排课文件，请稍等。`);
+          const groups = await readFormalScheduleFiles(fileList);
+          const entries = uniqueScheduleEntries(groups.flatMap((group) => group.entries || []));
           if (!entries.length) {
-            setFormalImportMessage("没有识别到可导入的排课明细。请使用模板字段：日期、开始时间、结束时间、老师、学生/班级、教室、状态、备注。");
+            setFormalImportMessage("没有识别到可导入的排课明细。请检查：文件里是否有日期、时间、老师姓名、学生/班级内容；横向课表上方日期和左侧时间是否清晰。");
+            setTeacherSheetMessage("本次没有识别到正式排课，系统未改动现有课表。");
             return;
           }
           const summary = summarizeImportedEntries(entries);
-          await saveFormalScheduleEntries(entries, file.name, { replaceExcelImports: true, backupReason: `新Excel并网前备份：${file.name}` });
-          setFormalImportMessage(`已并网 ${entries.length} 行正式排课，并同步云端。系统自动检查：疑似冲突 ${summary.conflictCount} 项，未写教室 ${summary.missingRoom} 项，未写结束时间 ${summary.missingEndTime} 项。`);
-          setTeacherSheetMessage(`新Excel已并网：${entries.length} 行。疑似冲突 ${summary.conflictCount} 项，未写教室 ${summary.missingRoom} 项。`);
+          const emptyFiles = groups.filter((group) => !group.count).map((group) => group.fileName);
+          const errorFiles = groups.filter((group) => group.error).map((group) => `${group.fileName}（${group.error}）`);
+          const sourceSummary = groups.map((group) => `${group.fileName}：${group.count}节`).join("；");
+          await saveFormalScheduleEntries(entries, fileLabel, {
+            replaceExcelImports: true,
+            backupReason: `新Excel批量并网前备份：${fileLabel}`
+          });
+          const warningText = [
+            emptyFiles.length ? `未识别文件：${emptyFiles.join("、")}` : "",
+            errorFiles.length ? `读取失败：${errorFiles.join("、")}` : ""
+          ].filter(Boolean).join("；");
+          const warningLine = warningText ? ` ${warningText}。` : "";
+          setFormalImportMessage(`已并网 ${fileList.length} 个文件，共识别 ${entries.length} 节正式课，并同步云端。系统自动检查：疑似冲突 ${summary.conflictCount} 项，未写教室 ${summary.missingRoom} 项，未写结束时间 ${summary.missingEndTime} 项。${warningLine}`);
+          setTeacherSheetMessage(`新Excel已并网：${entries.length} 节。${sourceSummary}。疑似冲突 ${summary.conflictCount} 项，未写教室 ${summary.missingRoom} 项。${warningLine}`);
           await initPaikeDashboard();
         } catch (error) {
           setFormalImportMessage(`正式排课明细导入失败：${error.message || error}`);
@@ -1822,8 +1998,16 @@
       function dateKey(value) {
         const text = String(value || "").trim().replace(/\./g, "-").replace(/\//g, "-");
         const match = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-        if (!match) return "";
-        return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
+        if (match) return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
+        const compact = text.match(/(\d{4})(\d{2})(\d{2})/);
+        if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
+        const fallbackPeriod = typeof selectedPeriod === "function" ? selectedPeriod() : localMonthText();
+        const year = String(fallbackPeriod || localMonthText()).slice(0, 4);
+        const monthDay = text.match(/(?:^|[^\d])(\d{1,2})[-月](\d{1,2})(?:日|号)?(?:$|[^\d])/);
+        if (monthDay) return `${year}-${String(monthDay[1]).padStart(2, "0")}-${String(monthDay[2]).padStart(2, "0")}`;
+        const dayOnly = text.match(/(?:^|[^\d])(\d{1,2})(?:日|号)(?:$|[^\d])/);
+        if (dayOnly && /^\d{4}-\d{2}$/.test(fallbackPeriod)) return `${fallbackPeriod}-${String(dayOnly[1]).padStart(2, "0")}`;
+        return "";
       }
 
       function localDateText(date = new Date()) {
@@ -2752,6 +2936,7 @@
           return;
         }
         const dates = currentVisibleDates();
+        const teacherName = selectedTeacher();
         const periodRows = paikeRows.filter((row) => row.period === selectedPeriod());
         const slots = visibleTimeSlots(rows, periodRows);
         const byCell = new Map();
@@ -2773,8 +2958,8 @@
                 <td>${escapeHtml(slot)}</td>
                 ${dates.map((date) => {
                   const cellRows = byCell.get(`${slot}|${date}`) || [];
-                  return `<td>${cellRows.map((row) => `
-                    <div class="lesson-block">
+                  return `<td data-schedule-cell="teacher-month" data-schedule-date="${escapeHtml(date)}" data-schedule-slot="${escapeHtml(slot)}" data-schedule-teacher="${escapeHtml(teacherName)}">${cellRows.map((row) => `
+                    <div class="lesson-block" data-schedule-row-key="${escapeHtml(scheduleConflictRowKey(row))}">
                       <strong>${escapeHtml(row.student || row.lessonType || "未填学生")}</strong>
                       <small>${escapeHtml(row.lessonType || row.rawText || "课程")}</small>
                       <small>${escapeHtml(lessonCategory(row))}｜约 ${escapeHtml(lessonPeopleCount(row))} 人</small>
@@ -2795,6 +2980,39 @@
         `;
         renderTeacherDayAvailability();
         renderRoomUsage();
+      }
+
+      function scheduleFormPrefillFromCell(cell) {
+        const slot = cell?.dataset?.scheduleSlot || "";
+        const parsed = parseTimeRangeText(slot);
+        return {
+          title: "在空格新增正式课程",
+          date: cell?.dataset?.scheduleDate || localDateText(),
+          startTime: parsed.startTime,
+          endTime: parsed.endTime,
+          teacherName: cell?.dataset?.scheduleTeacher || selectedTeacher(),
+          courseType: "数学小班课",
+          notes: "从老师月课表空格新增"
+        };
+      }
+
+      function scheduleFormPrefillFromRow(row) {
+        const parsed = parseTimeRangeText(timeSlotLabel(row));
+        const roomName = row.room && row.room !== "-" ? row.room : "";
+        return {
+          title: "修改 / 停课这节课程",
+          scheduleStatus: normalizeScheduleStatus(row.status),
+          date: row.date || localDateText(),
+          startTime: row.startTime || parsed.startTime,
+          endTime: row.endTime || parsed.endTime,
+          teacherName: row.teacher || "",
+          className: row.student || row.lessonType || "",
+          roomName,
+          courseType: row.lessonType || "数学小班课",
+          notes: [row.rawText, row.source ? `来源：${row.source}` : ""].filter(Boolean).join(" / "),
+          editingScheduleId: row.id || "",
+          sourceRowKey: scheduleConflictRowKey(row)
+        };
       }
 
       function renderTeacherDayAvailability() {
@@ -3394,7 +3612,14 @@
         const conflictCount = buildScheduleConflicts(selectedPeriod(), "").length;
         const missingRoomCount = paikeRows.filter((row) => !String(row.room || "").trim() || row.room === "-").length;
         const pendingCount = readPendingSchedulePool().filter((row) => row.status !== "已排课").length;
+        const launchWarnings = [
+          !officialCount ? "未导入正式课表" : "",
+          conflictCount ? `${conflictCount}项冲突` : "",
+          missingRoomCount ? `${missingRoomCount}节未写教室` : "",
+          pendingCount ? `${pendingCount}条待排课` : ""
+        ].filter(Boolean);
         const cards = [
+          ["投用检查", launchWarnings.length ? `${launchWarnings.length}项` : "通过", launchWarnings.length ? launchWarnings.join("、") : "可进入日常排课使用", launchWarnings.length ? "warn" : ""],
           ["正式课表", officialCount, officialCount ? "已接入" : "待并网", officialCount ? "" : "warn"],
           ["Excel并网", excelCount, excelCount ? "上一批已保存" : "暂无正式导入", excelCount ? "" : "warn"],
           ["手工维护", manualCount, "新增/调课/停课记录", ""],
@@ -3425,6 +3650,9 @@
           setTeacherSheetMessage("当前账号没有排课修改权限，只能查看课表。");
           return;
         }
+        activePendingScheduleId = prefill.pendingScheduleId || "";
+        activeEditingScheduleId = prefill.editingScheduleId || "";
+        activeEditingSourceRowKey = prefill.sourceRowKey || "";
         const panel = byId("scheduleEntryFormPanel");
         if (!panel) return;
         panel.classList.add("active");
@@ -3446,10 +3674,14 @@
       function closeScheduleEntryForm() {
         byId("scheduleEntryFormPanel")?.classList.remove("active");
         activePendingScheduleId = "";
+        activeEditingScheduleId = "";
+        activeEditingSourceRowKey = "";
       }
 
       function resetScheduleEntryForm() {
         activePendingScheduleId = "";
+        activeEditingScheduleId = "";
+        activeEditingSourceRowKey = "";
         openScheduleEntryForm({ title: "新增一节正式课程" });
       }
 
@@ -3471,8 +3703,11 @@
         if (!courseDate || !startTime || !teacherName || !className) {
           throw new Error("请至少填写日期、开始时间、老师、学生/班级。");
         }
+        const entryId = activeEditingScheduleId
+          ? activeEditingScheduleId
+          : `manual-${courseDate}-${teacherName}-${startTime}-${className}-${Date.now()}`.replace(/\s+/g, "");
         return {
-          id: `manual-${courseDate}-${teacherName}-${startTime}-${className}-${Date.now()}`.replace(/\s+/g, ""),
+          id: entryId,
           teacherName,
           teacher: teacherName,
           className,
@@ -3491,8 +3726,11 @@
           confirmationStatus: "confirmed",
           notes,
           manualEntry: true,
+          importedByExcel: false,
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           createdBy: window.JRC_CURRENT_EMPLOYEE?.name || "未登录",
+          sourceRowKey: activeEditingSourceRowKey,
           sourceFileName: ""
         };
       }
@@ -3622,24 +3860,41 @@
       });
       byId("teacherSheetTable")?.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-room-fix-row]");
-        if (!button) return;
-        if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
-          setTeacherSheetMessage("当前账号没有排课修改权限，不能补写教室。");
+        if (button) {
+          if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
+            setTeacherSheetMessage("当前账号没有排课修改权限，不能补写教室。");
+            return;
+          }
+          const key = button.getAttribute("data-room-fix-row") || "";
+          const row = paikeRows.find((item) => scheduleConflictRowKey(item) === key);
+          const input = document.querySelector(`[data-room-fix-input="${CSS.escape(key)}"]`);
+          const roomName = input?.value.trim() || "";
+          if (!row || !roomName) {
+            setTeacherSheetMessage("请先填写教室名称。");
+            return;
+          }
+          try {
+            await saveRoomForScheduleRow(row, roomName);
+          } catch (error) {
+            console.error(error);
+            setTeacherSheetMessage("补写教室失败，请稍后重试。");
+          }
           return;
         }
-        const key = button.getAttribute("data-room-fix-row") || "";
-        const row = paikeRows.find((item) => scheduleConflictRowKey(item) === key);
-        const input = document.querySelector(`[data-room-fix-input="${CSS.escape(key)}"]`);
-        const roomName = input?.value.trim() || "";
-        if (!row || !roomName) {
-          setTeacherSheetMessage("请先填写教室名称。");
+        if (event.target.closest("a, button, input, textarea, select")) return;
+        const block = event.target.closest("[data-schedule-row-key]");
+        if (block) {
+          const key = block.getAttribute("data-schedule-row-key") || "";
+          const row = paikeRows.find((item) => scheduleConflictRowKey(item) === key);
+          if (!row) return;
+          openScheduleEntryForm(scheduleFormPrefillFromRow(row));
+          setTeacherSheetMessage(`已带入课程：${row.teacher || "-"} ${dateLabel(row.date)} ${timeSlotLabel(row)}，可修改、停课或补教室后保存。`);
           return;
         }
-        try {
-          await saveRoomForScheduleRow(row, roomName);
-        } catch (error) {
-          console.error(error);
-          setTeacherSheetMessage("补写教室失败，请稍后重试。");
+        const cell = event.target.closest("td[data-schedule-cell]");
+        if (cell) {
+          openScheduleEntryForm(scheduleFormPrefillFromCell(cell));
+          setTeacherSheetMessage(`已带入空格：${dateLabel(cell.dataset.scheduleDate)} ${cell.dataset.scheduleSlot || ""}，填写学生/班级和教室后保存。`);
         }
       });
       byId("addPendingScheduleButton")?.addEventListener("click", () => {
@@ -3689,10 +3944,10 @@
           return;
         }
         if (planButton) {
-          activePendingScheduleId = id;
           const parsedTime = parseTimeRangeText(target.availableTime || "");
           openScheduleEntryForm({
             title: `安排待排课：${target.studentName || ""}`,
+            pendingScheduleId: id,
             teacherName: target.targetTeacher || "",
             className: target.studentName || "",
             courseType: target.courseType || "数学小班课",
@@ -3734,8 +3989,8 @@
           setTeacherSheetMessage("当前账号没有排课修改权限，不能并网新Excel。");
           return;
         }
-        const file = event.dataTransfer?.files?.[0];
-        if (file) importFormalScheduleFile(file);
+        const files = event.dataTransfer?.files || [];
+        if (files.length) importFormalScheduleFiles(files);
       });
       byId("paikeFormalImportButton")?.addEventListener("click", () => {
         if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
@@ -3745,7 +4000,7 @@
         byId("paikeFormalImportInput")?.click();
       });
       byId("paikeFormalImportInput")?.addEventListener("change", (event) => {
-        importFormalScheduleFile(event.target.files?.[0]);
+        importFormalScheduleFiles(event.target.files);
       });
       byId("paikeFormalTemplateButton")?.addEventListener("click", downloadFormalScheduleTemplate);
       document.querySelectorAll("[data-teacher-sheet-quick]").forEach((button) => {
