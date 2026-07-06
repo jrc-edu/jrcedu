@@ -334,19 +334,98 @@
         font-size: 12px;
         line-height: 1.45;
       }
+      .command-panel,
       .acceptance-panel {
         margin-top: 20px;
       }
+      .command-head,
       .acceptance-head {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 14px;
         align-items: flex-start;
       }
+      .command-head p,
       .acceptance-head p {
         margin-top: 8px;
         color: var(--muted);
         line-height: 1.7;
+      }
+      .command-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .command-card,
+      .command-owner-card,
+      .command-rule-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.78);
+        padding: 14px;
+        color: inherit;
+        text-decoration: none;
+      }
+      .command-card {
+        display: grid;
+        gap: 7px;
+        min-height: 136px;
+      }
+      .command-card:hover,
+      .command-owner-card:hover {
+        border-color: rgba(13, 148, 136, 0.34);
+        background: rgba(13, 148, 136, 0.08);
+      }
+      .command-card span,
+      .command-owner-card span,
+      .command-rule-card span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .command-card strong {
+        color: var(--ink);
+        font-size: 22px;
+        line-height: 1.2;
+      }
+      .command-card p,
+      .command-owner-card p,
+      .command-rule-card p {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .command-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .command-owner-list,
+      .command-rule-list {
+        display: grid;
+        gap: 10px;
+      }
+      .command-owner-card {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+      }
+      .command-owner-card strong,
+      .command-rule-card strong {
+        display: block;
+        color: var(--ink);
+        font-size: 15px;
+      }
+      .command-owner-card a {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: none;
+        white-space: nowrap;
       }
       .acceptance-summary {
         display: grid;
@@ -667,6 +746,8 @@
         .data-state-list,
         .cloud-readiness-list,
         .data-sync-tools,
+        .command-grid,
+        .command-body,
         .acceptance-summary,
         .acceptance-lane-grid,
         .acceptance-flow,
@@ -714,7 +795,11 @@
         .workbench-kpi {
           grid-template-columns: 1fr;
         }
+        .command-head,
         .acceptance-head {
+          grid-template-columns: 1fr;
+        }
+        .command-owner-card {
           grid-template-columns: 1fr;
         }
         .quick-entry-grid {
@@ -821,6 +906,22 @@
           </div>
         </article>
 
+      </section>
+
+      <section class="card command-panel" id="portalOperatingCommand" data-requires-permission-card="admin.access">
+        <div class="command-head">
+          <div>
+            <p class="eyebrow">经营驾驶舱</p>
+            <h2>今日经营指挥台</h2>
+            <p>基于底层业务链路画像，把招生、排课、课消、财务、风险和报表里的关键断点转成今天最该处理的动作、负责人和入口。它不重新判断数据，只读取底层链路状态。</p>
+          </div>
+          <span class="badge" id="portalOperatingCommandBadge">读取中</span>
+        </div>
+        <div class="command-grid" id="portalOperatingCommandCards"></div>
+        <div class="command-body">
+          <div class="command-owner-list" id="portalOperatingCommandOwners"></div>
+          <div class="command-rule-list" id="portalOperatingCommandRules"></div>
+        </div>
       </section>
 
       <section class="card acceptance-panel" id="portalOperatingAcceptance" data-requires-permission-card="admin.access">
@@ -1193,7 +1294,7 @@
     <script src="/jrcedu/portal/preimport-data.js?v=20260622a"></script>
     <script src="/jrcedu/portal/auth.js?v=20260703b"></script>
     <script src="/jrcedu/portal/feedback-review-plan.js?v=20260629b"></script>
-    <script src="/jrcedu/portal/dashboard.js?v=20260707link"></script>
+    <script src="/jrcedu/portal/dashboard.js?v=20260707command"></script>
     <script src="/jrcedu/portal/business-ai.js?v=20260705a"></script>
     <script src="/jrcedu/portal/mobile-unified.js?v=20260704ai"></script>
   </body>

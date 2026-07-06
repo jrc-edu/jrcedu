@@ -1578,6 +1578,141 @@
     }
   }
 
+  function readBusinessLinkSnapshot() {
+    return safeParse(localStorage.getItem(businessLinkSnapshotKey), null);
+  }
+
+  function commandCardHtml(card) {
+    const href = card.href || "./suggestions.html";
+    return `
+      <a class="command-card" href="${escapeHtml(href)}">
+        <span>${escapeHtml(card.eyebrow)}</span>
+        <strong>${escapeHtml(card.value)}</strong>
+        <p>${escapeHtml(card.note)}</p>
+      </a>
+    `;
+  }
+
+  function commandOwnerHtml(item) {
+    return `
+      <div class="command-owner-card">
+        <span class="badge ${item.level === "优先" || item.level === "紧急" ? "status-danger" : item.level === "正常" ? "status-ok" : "status-warn"}">${escapeHtml(item.level || "提醒")}</span>
+        <div>
+          <strong>${escapeHtml(item.owner || "系统判断")}｜${escapeHtml(item.flow || item.system || "业务链路")}</strong>
+          <p>${escapeHtml(item.text || "按底层链路状态处理。")}</p>
+        </div>
+        <a href="${escapeHtml(item.href || "./suggestions.html")}">${escapeHtml(item.actionText || "去处理")}</a>
+      </div>
+    `;
+  }
+
+  function commandRuleHtml(rule) {
+    return `
+      <div class="command-rule-card">
+        <span>${escapeHtml(rule.from || "成熟系统口径")} → ${escapeHtml(rule.to || "本校工作台")}</span>
+        <strong>${escapeHtml(rule.ruleTitle || "一条数据链到底")}</strong>
+        <p>${escapeHtml(rule.rule || "各系统只维护自己的业务动作，底层数据链路统一判断断点和下一步。")}</p>
+      </div>
+    `;
+  }
+
+  function renderOperatingCommand() {
+    const panel = $("portalOperatingCommand");
+    if (!panel) return;
+    panel.hidden = !isAdminLike();
+    if (!isAdminLike()) return;
+    const cardsHolder = $("portalOperatingCommandCards");
+    const ownersHolder = $("portalOperatingCommandOwners");
+    const rulesHolder = $("portalOperatingCommandRules");
+    const badge = $("portalOperatingCommandBadge");
+    const snapshot = readBusinessLinkSnapshot();
+    if (!snapshot) {
+      if (badge) badge.textContent = "等待读取";
+      if (cardsHolder) {
+        cardsHolder.innerHTML = commandCardHtml({
+          eyebrow: "底层画像",
+          value: "读取中",
+          note: "正在等待经营协同验收台生成底层业务链路画像。",
+          href: "./index.html"
+        });
+      }
+      if (ownersHolder) {
+        ownersHolder.innerHTML = commandOwnerHtml({
+          level: "提醒",
+          owner: "系统",
+          flow: "底层链路",
+          text: "数据画像生成后，这里会显示今天最该处理的负责人、系统和入口。",
+          href: "./index.html",
+          actionText: "刷新查看"
+        });
+      }
+      if (rulesHolder) {
+        rulesHolder.innerHTML = businessLinkContracts().slice(0, 2).map(commandRuleHtml).join("");
+      }
+      return;
+    }
+    const counts = snapshot.counts || {};
+    const checks = snapshot.checks || {};
+    const issues = Array.isArray(snapshot.issues) ? snapshot.issues : [];
+    const primary = issues[0];
+    const riskTotal = Number(counts.parentRisks || 0) + Number(counts.studentRisks || 0) + Number(counts.historicalRisks || 0);
+    const unresolved = Number(counts.attendanceUnresolved || counts.attendanceUnresolvedCount || 0);
+    const issueCount = issues.length;
+    if (badge) {
+      badge.className = `badge ${issueCount ? "status-warn" : "status-ok"}`;
+      badge.textContent = issueCount ? `${issueCount} 项今日动作` : "今日正常";
+    }
+    if (cardsHolder) {
+      cardsHolder.innerHTML = [
+        commandCardHtml({
+          eyebrow: "今日优先",
+          value: primary ? (primary.owner || primary.level || "先处理") : "无紧急断点",
+          note: primary ? (primary.text || primary.flow || "按底层链路处理。") : "当前链路画像没有发现必须立刻处理的断点。",
+          href: primary?.href || "./suggestions.html"
+        }),
+        commandCardHtml({
+          eyebrow: "招生入学",
+          value: `${Number(counts.enrolled || 0)} 人`,
+          note: `未建档 ${Number(checks.unfiledEnrolled || counts.enrolledWithoutService || 0)}｜未排课 ${Number(checks.unscheduledEnrolled || 0)}。`,
+          href: "./student-service.html"
+        }),
+        commandCardHtml({
+          eyebrow: "排课课消",
+          value: `${Number(counts.scheduleRows || 0)} 节`,
+          note: `点名 ${Number(counts.attendanceSessions || 0)} 节｜待追踪 ${unresolved} 人次。`,
+          href: "./student-service.html"
+        }),
+        commandCardHtml({
+          eyebrow: "财务月结",
+          value: `${Number(counts.financePeriods || 0)} 个月`,
+          note: `有效到课 ${Number(counts.attendanceEffective || 0)} 人次｜历史工资 ${Number(counts.financeHistoryRows || 0)} 行。`,
+          href: "./finance.html"
+        }),
+        commandCardHtml({
+          eyebrow: "风险任务",
+          value: `${riskTotal + Number(counts.openTasks || 0) + Number(counts.openFeedback || 0)} 项`,
+          note: `风险 ${riskTotal}｜任务 ${Number(counts.openTasks || 0)}｜反馈 ${Number(counts.openFeedback || 0)}。`,
+          href: "./suggestions.html"
+        })
+      ].join("");
+    }
+    if (ownersHolder) {
+      const ownerRows = issues.length ? issues.slice(0, 5) : [{
+        level: "正常",
+        owner: "管理员",
+        flow: "业务链路",
+        text: "今天没有明显断点；继续让各系统按真实业务录入，底层画像会持续更新。",
+        href: "./suggestions.html",
+        actionText: "看任务"
+      }];
+      ownersHolder.innerHTML = ownerRows.map(commandOwnerHtml).join("");
+    }
+    if (rulesHolder) {
+      const rules = Array.isArray(snapshot.contracts) && snapshot.contracts.length ? snapshot.contracts : businessLinkContracts();
+      rulesHolder.innerHTML = rules.slice(0, 3).map(commandRuleHtml).join("");
+    }
+  }
+
   function laneCardHtml(lane) {
     return `
       <div class="acceptance-lane">
@@ -1599,6 +1734,18 @@
         <a href="${escapeHtml(item.href)}">${escapeHtml(item.action)}</a>
       </div>
     `;
+  }
+
+  function ownerForAcceptanceAction(item) {
+    const text = `${item?.title || ""} ${item?.detail || ""} ${item?.action || ""} ${item?.href || ""}`;
+    if (/排课|paike/i.test(text)) return "周珊";
+    if (/学生|点名|缺勤|课消|student-service/i.test(text)) return "高芳燕";
+    if (/招生|报名|线索|advice-system/i.test(text)) return "颜雨涵";
+    if (/财务|月结|工资|finance/i.test(text)) return "刘大君";
+    if (/反馈|任务|suggestions|trial-feedback/i.test(text)) return "叶源泽";
+    if (/教学质量|巡课|teaching-quality/i.test(text)) return "郑嘉艺";
+    if (/AI|课堂反馈|ai-assistant/i.test(text)) return "李舒";
+    return "程志豪";
   }
 
   async function renderOperatingAcceptance() {
@@ -1794,7 +1941,7 @@
       issues: actions.map((item) => ({
         level: item.level,
         flow: item.title,
-        owner: "系统自动判断",
+        owner: ownerForAcceptanceAction(item),
         system: item.action,
         text: item.detail,
         href: item.href,
@@ -1875,7 +2022,10 @@
     if (holder) holder.innerHTML = todos.join("");
     renderMyTasks();
     renderMyFeedback();
-    renderOperatingAcceptance().catch((error) => {
+    renderOperatingCommand();
+    renderOperatingAcceptance().then(() => {
+      renderOperatingCommand();
+    }).catch((error) => {
       console.warn("Failed to render operating acceptance", error);
       const holder = $("portalOperatingAcceptanceSummary");
       if (holder) {
