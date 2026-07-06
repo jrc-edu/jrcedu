@@ -2108,7 +2108,7 @@
               <p>${escapeHtml(decision.text)} 本次还没有改动正式课表。</p>
             </div>
             <div class="section-actions">
-              <button class="button" type="button" id="confirmFormalImportButton">确认并网</button>
+              <button class="button" type="button" data-requires-permission="paike.edit" id="confirmFormalImportButton">确认并网</button>
               <button class="button secondary" type="button" id="cancelFormalImportButton">取消</button>
             </div>
           </div>
@@ -2156,6 +2156,30 @@
             `).join("")}
           </div>
         `;
+        const confirmButton = byId("confirmFormalImportButton");
+        if (confirmButton) {
+          confirmButton.addEventListener("click", async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (confirmButton.disabled) return;
+            if (window.jrcHasPermission && !window.jrcHasPermission("paike.edit")) {
+              setFormalImportMessage("当前账号没有排课修改权限，不能确认并网。");
+              setTeacherSheetMessage("当前账号没有排课修改权限，不能确认并网。");
+              return;
+            }
+            confirmButton.disabled = true;
+            confirmButton.textContent = "正在并网...";
+            try {
+              await confirmPendingFormalImport();
+            } finally {
+              const nextButton = byId("confirmFormalImportButton");
+              if (nextButton) {
+                nextButton.disabled = false;
+                nextButton.textContent = "确认并网";
+              }
+            }
+          });
+        }
       }
 
       function closeImportReviewPanel() {
