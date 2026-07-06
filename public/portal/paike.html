@@ -136,7 +136,7 @@
       }
       .teacher-quick-actions {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         gap: 10px;
         margin-top: 16px;
       }
@@ -392,6 +392,22 @@
         gap: 12px;
         margin-top: 12px;
       }
+      .launch-detail-toggle {
+        margin-top: 12px;
+        border: 1px solid rgba(13,148,136,0.16);
+        border-radius: 18px;
+        background: rgba(255,255,255,0.72);
+      }
+      .launch-detail-toggle summary {
+        cursor: pointer;
+        padding: 14px 16px;
+        color: var(--ink);
+        font-weight: 900;
+      }
+      .launch-detail-toggle .launch-detail-grid {
+        margin: 0;
+        padding: 0 14px 14px;
+      }
       .launch-detail-card {
         padding: 14px;
         border: 1px solid var(--line);
@@ -521,6 +537,22 @@
       }
       .launch-import-drop strong {
         color: var(--ink);
+      }
+      .import-file-diagnostics {
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255,255,255,0.78);
+      }
+      .import-file-diagnostics summary {
+        cursor: pointer;
+        padding: 12px 14px;
+        color: var(--ink);
+        font-weight: 900;
+      }
+      .import-file-diagnostics .launch-mini-list {
+        margin: 0;
+        padding: 0 12px 12px;
       }
       .schedule-conflict-panel {
         margin-top: 14px;
@@ -1030,6 +1062,54 @@
       .room-course small {
         color: var(--muted);
       }
+      .utility-details {
+        padding: 0;
+        overflow: hidden;
+      }
+      .utility-details > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 20px 24px;
+        cursor: pointer;
+        list-style: none;
+      }
+      .utility-details > summary::-webkit-details-marker {
+        display: none;
+      }
+      .utility-details > summary::after {
+        content: "展开";
+        flex: 0 0 auto;
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255,255,255,0.88);
+        color: var(--brand-dark);
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .utility-details[open] > summary::after {
+        content: "收起";
+      }
+      .utility-details-body {
+        padding: 0 24px 24px;
+      }
+      .summary-title {
+        display: grid;
+        gap: 5px;
+      }
+      .summary-title span {
+        color: var(--brand);
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+      }
+      .summary-title strong {
+        color: var(--ink);
+        font-size: 22px;
+      }
       .admin-details {
         margin-top: 18px;
       }
@@ -1068,6 +1148,26 @@
         font: inherit;
       }
       .pending-pool-grid textarea { min-height: 72px; resize: vertical; }
+      .inline-editor-details {
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255,255,255,0.72);
+      }
+      .inline-editor-details summary {
+        cursor: pointer;
+        padding: 12px 14px;
+        color: var(--ink);
+        font-weight: 900;
+      }
+      .inline-editor-details .pending-pool-grid,
+      .inline-editor-details .section-actions {
+        margin-left: 14px;
+        margin-right: 14px;
+      }
+      .inline-editor-details .section-actions {
+        margin-bottom: 14px;
+      }
       .room-inline-action {
         display: flex;
         gap: 6px;
@@ -1232,23 +1332,26 @@
             <button class="button secondary" type="button" id="resetScheduleEntryButton">清空重填</button>
           </div>
         </div>
-        <div class="launch-detail-grid">
-          <div class="launch-detail-card">
-            <h3>疑似冲突明细</h3>
-            <p>只显示当前月份的主要冲突，点“处理”会带入对应课程。</p>
-            <div class="launch-mini-list" id="paikeConflictDetailList"></div>
+        <details class="launch-detail-toggle" id="paikeExceptionDetails">
+          <summary>排课异常处理和恢复备份</summary>
+          <div class="launch-detail-grid">
+            <div class="launch-detail-card">
+              <h3>疑似冲突明细</h3>
+              <p>只显示当前月份的主要冲突，点“处理”会带入对应课程。</p>
+              <div class="launch-mini-list" id="paikeConflictDetailList"></div>
+            </div>
+            <div class="launch-detail-card">
+              <h3>未写教室集中处理</h3>
+              <p>把缺教室的课程集中列出来，逐条补教室。</p>
+              <div class="launch-mini-list" id="paikeMissingRoomList"></div>
+            </div>
+            <div class="launch-detail-card">
+              <h3>最近导入与恢复</h3>
+              <p>上传错表时，可恢复到最近一次导入前的备份。</p>
+              <div class="launch-mini-list" id="paikeImportHistoryList"></div>
+            </div>
           </div>
-          <div class="launch-detail-card">
-            <h3>未写教室集中处理</h3>
-            <p>把缺教室的课程集中列出来，逐条补教室。</p>
-            <div class="launch-mini-list" id="paikeMissingRoomList"></div>
-          </div>
-          <div class="launch-detail-card">
-            <h3>最近导入与恢复</h3>
-            <p>上传错表时，可恢复到最近一次导入前的备份。</p>
-            <div class="launch-mini-list" id="paikeImportHistoryList"></div>
-          </div>
-        </div>
+        </details>
       </section>
 
       <section class="card">
@@ -1288,6 +1391,7 @@
           <button class="button secondary" type="button" data-teacher-sheet-quick="week">本周课表</button>
           <button class="button secondary" type="button" data-teacher-sheet-quick="conflicts">冲突检测</button>
           <button class="button secondary" type="button" data-teacher-sheet-quick="missing-room">未写教室</button>
+          <button class="button secondary" type="button" data-teacher-sheet-quick="availability">看老师空档</button>
           <button class="button secondary" type="button" data-teacher-sheet-quick="rooms">看教室表</button>
         </div>
         <div class="teacher-workbench-panel" id="teacherWorkbenchPanel" aria-label="老师排课工作台"></div>
@@ -1321,22 +1425,25 @@
           <div class="admission-link-head">
             <div>
               <strong>未排课名单 / 待排课池</strong>
-              <p>临时新报名、试听后待找班、老师口头交代的排课需求，先放在这里，不混进原始 Excel 表。</p>
+              <p>这里主要看待排事项。需要临时新增时再展开填写，不让页面一进来就变成长表单。</p>
             </div>
             <span class="tag warn" id="pendingSchedulePoolCount">0 条待排</span>
           </div>
-          <div class="pending-pool-grid">
-            <label>学生 / 班级<input id="pendingScheduleStudentInput" placeholder="例如：张同学 / 五年级数学小班"></label>
-            <label>课程类型<select id="pendingScheduleCourseInput"><option>数学小班课</option><option>科学小班课</option><option>程老师班课</option><option>数学一对一</option><option>科学一对一</option><option>其他</option></select></label>
-            <label>目标老师<input id="pendingScheduleTeacherInput" placeholder="可先填意向老师"></label>
-            <label>可排时间<input id="pendingScheduleTimeInput" placeholder="例如：周六 16:40-18:10"></label>
-            <label>学习内容<input id="pendingScheduleContentInput" placeholder="例如：有理数 / 小升初衔接"></label>
-            <label>备注<textarea id="pendingScheduleNoteInput" placeholder="说明来源、家长时间、是否急排。"></textarea></label>
-          </div>
-          <div class="section-actions" style="margin-top:12px;">
-            <button class="button" id="addPendingScheduleButton" type="button">加入待排课池</button>
-            <button class="button secondary" id="exportPendingScheduleButton" type="button">导出待排课 CSV</button>
-          </div>
+          <details class="inline-editor-details">
+            <summary>新增一条待排课</summary>
+            <div class="pending-pool-grid">
+              <label>学生 / 班级<input id="pendingScheduleStudentInput" placeholder="例如：张同学 / 五年级数学小班"></label>
+              <label>课程类型<select id="pendingScheduleCourseInput"><option>数学小班课</option><option>科学小班课</option><option>程老师班课</option><option>数学一对一</option><option>科学一对一</option><option>其他</option></select></label>
+              <label>目标老师<input id="pendingScheduleTeacherInput" placeholder="可先填意向老师"></label>
+              <label>可排时间<input id="pendingScheduleTimeInput" placeholder="例如：周六 16:40-18:10"></label>
+              <label>学习内容<input id="pendingScheduleContentInput" placeholder="例如：有理数 / 小升初衔接"></label>
+              <label>备注<textarea id="pendingScheduleNoteInput" placeholder="说明来源、家长时间、是否急排。"></textarea></label>
+            </div>
+            <div class="section-actions" style="margin-top:12px;">
+              <button class="button" id="addPendingScheduleButton" type="button">加入待排课池</button>
+              <button class="button secondary" id="exportPendingScheduleButton" type="button">导出待排课 CSV</button>
+            </div>
+          </details>
           <div class="admission-link-list" id="pendingSchedulePoolList"></div>
         </div>
         <div id="teacherSheetSummary" class="excel-summary"></div>
@@ -1347,40 +1454,52 @@
         </div>
       </section>
 
-      <section class="card">
-        <p class="eyebrow">当天空档</p>
-        <div class="section-heading-row">
-          <h2>当天老师空档表</h2>
-          <div class="section-actions">
-            <button class="button secondary" type="button" id="exportTeacherDayButton">导出空档表</button>
+      <details class="card utility-details" id="teacherDaySection">
+        <summary>
+          <span class="summary-title">
+            <span>当天空档</span>
+            <strong>当天老师空档表</strong>
+          </span>
+        </summary>
+        <div class="utility-details-body">
+          <div class="section-heading-row">
+            <p class="hero-text">排新课时先看这里：同一天里，每位老师每个时间段有没有课。空格显示“可排”，有课程就显示学生/班级。</p>
+            <div class="section-actions">
+              <button class="button secondary" type="button" id="exportTeacherDayButton">导出空档表</button>
+            </div>
+          </div>
+          <div id="teacherDaySummary" class="excel-summary"></div>
+          <div class="table-wrap">
+            <table class="teacher-day-table" id="teacherDayTable"></table>
           </div>
         </div>
-        <p class="hero-text">排新课时先看这里：同一天里，每位老师每个时间段有没有课。空格显示“可排”，有课程就显示学生/班级。</p>
-        <div id="teacherDaySummary" class="excel-summary"></div>
-        <div class="table-wrap">
-          <table class="teacher-day-table" id="teacherDayTable"></table>
-        </div>
-      </section>
+      </details>
 
-      <section class="card" id="roomUsageSection">
-        <p class="eyebrow">教室</p>
-        <div class="section-heading-row">
-          <h2>教室使用表</h2>
-          <div class="section-actions">
-            <button class="button secondary" type="button" id="exportRoomUsageButton">导出教室表</button>
+      <details class="card utility-details" id="roomUsageSection">
+        <summary>
+          <span class="summary-title">
+            <span>教室</span>
+            <strong>教室使用表</strong>
+          </span>
+        </summary>
+        <div class="utility-details-body">
+          <div class="section-heading-row">
+            <p class="hero-text">先选日期，再看每个教室的占用。空格显示“可排”；有课程的格子会显示老师和学生，排课时就按这个表找空教室。</p>
+            <div class="section-actions">
+              <button class="button secondary" type="button" id="exportRoomUsageButton">导出教室表</button>
+            </div>
+          </div>
+          <div class="excel-toolbar">
+            <label>查看日期
+              <select id="roomUsageDate"></select>
+            </label>
+          </div>
+          <div id="roomUsageSummary" class="excel-summary"></div>
+          <div class="table-wrap">
+            <table class="room-usage-table" id="roomUsageTable"></table>
           </div>
         </div>
-        <p class="hero-text">先选日期，再看每个教室的占用。空格显示“可排”；有课程的格子会显示老师和学生，排课时就按这个表找空教室。</p>
-        <div class="excel-toolbar">
-          <label>查看日期
-            <select id="roomUsageDate"></select>
-          </label>
-        </div>
-        <div id="roomUsageSummary" class="excel-summary"></div>
-        <div class="table-wrap">
-          <table class="room-usage-table" id="roomUsageTable"></table>
-        </div>
-      </section>
+      </details>
 
       <details class="card admin-details">
         <summary>高级后台：导入来源与异常（老师不用打开）</summary>
@@ -1772,9 +1891,10 @@
         for (const file of list) {
           try {
             const entries = await readFormalScheduleFile(file);
-            groups.push({ fileName: file.name, count: entries.length, entries });
+            groups.push(summarizeImportGroup(file.name, entries));
           } catch (error) {
-            groups.push({ fileName: file.name, count: 0, entries: [], error: error?.message || String(error || "读取失败") });
+            const message = error?.message || String(error || "读取失败");
+            groups.push(summarizeImportGroup(file.name, [], message));
           }
         }
         return groups;
@@ -1876,6 +1996,43 @@
         return { missingRoom, missingEndTime, conflictCount };
       }
 
+      function summarizeImportGroup(fileName, entries = [], error = "") {
+        const teachers = Array.from(new Set(entries.map((row) => row.teacherName || row.teacher).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+        const periods = Array.from(new Set(entries.map((row) => row.period || String(row.date || "").slice(0, 7)).filter(Boolean))).sort();
+        const missingRoom = entries.filter((entry) => !String(entry.classroomName || entry.roomName || "").trim()).length;
+        const missingEndTime = entries.filter((entry) => !String(entry.endTime || "").trim()).length;
+        let level = "";
+        let advice = "识别正常，可以进入并网预览。";
+        if (error) {
+          level = "warn";
+          advice = `文件读取失败：${error}`;
+        } else if (!entries.length) {
+          level = "warn";
+          advice = "没有识别到课程。优先检查：表格上方是否有日期、左侧是否有上课时间、文件名或表头是否能看出老师姓名。";
+        } else if (entries.length < 3) {
+          level = "warn";
+          advice = "识别课程偏少。建议核对这个老师原表是不是本来课少；如果不是，重点检查日期行和左侧时间列。";
+        } else if (!teachers.length) {
+          level = "warn";
+          advice = "课程已识别，但老师姓名不清楚。建议把老师姓名放在文件名、sheet 名或表头里。";
+        } else if (missingRoom || missingEndTime) {
+          level = "warn";
+          advice = "可以并网，但并网后建议先补教室或结束时间。";
+        }
+        return {
+          fileName,
+          count: entries.length,
+          entries,
+          error,
+          teachers,
+          periods,
+          missingRoom,
+          missingEndTime,
+          level,
+          advice
+        };
+      }
+
       function renderImportReviewPanel(data = pendingFormalImport) {
         const panel = byId("paikeImportReviewPanel");
         if (!panel) return;
@@ -1888,6 +2045,7 @@
         const periods = Array.from(new Set(data.entries.map((row) => row.period || String(row.date || "").slice(0, 7)).filter(Boolean))).sort();
         const sampleRows = data.entries.slice(0, 6);
         const hasWarning = data.summary.conflictCount || data.summary.missingRoom || data.summary.missingEndTime || data.warningText;
+        const warningGroups = (data.groups || []).filter((group) => group.level === "warn");
         const decision = data.entries.length < Math.max(3, data.fileCount) || !teachers.length
           ? { label: "不建议并网", tone: "warn", text: "识别数量偏少或老师姓名异常，建议先检查 Excel 格式。" }
           : hasWarning
@@ -1923,6 +2081,21 @@
             </div>
           </div>
           ${data.warningText ? `<div class="launch-warning" style="margin-top:12px;">${escapeHtml(data.warningText)}</div>` : ""}
+          <details class="import-file-diagnostics" ${warningGroups.length ? "open" : ""}>
+            <summary>每个文件识别情况</summary>
+            <div class="launch-mini-list">
+              ${(data.groups || []).map((group) => `
+                <div class="launch-mini-row">
+                  <div>
+                    <strong>${escapeHtml(group.fileName || "-")}｜${escapeHtml(group.count || 0)} 节</strong>
+                    <span>${escapeHtml((group.teachers || []).join("、") || "未识别老师")}｜${escapeHtml((group.periods || []).join("、") || "未识别月份")}</span>
+                    <small>${escapeHtml(group.advice || "")}${group.missingRoom ? `｜未写教室 ${escapeHtml(group.missingRoom)}` : ""}${group.missingEndTime ? `｜未写结束时间 ${escapeHtml(group.missingEndTime)}` : ""}</small>
+                  </div>
+                  <span class="status-pill ${escapeHtml(group.level || "")}">${escapeHtml(group.level === "warn" ? "需核对" : "正常")}</span>
+                </div>
+              `).join("")}
+            </div>
+          </details>
           <div class="launch-mini-list">
             ${sampleRows.map((row) => `
               <div class="launch-mini-row">
@@ -2005,18 +2178,17 @@
           const groups = await readFormalScheduleFiles(fileList);
           const entries = uniqueScheduleEntries(groups.flatMap((group) => group.entries || []));
           if (!entries.length) {
-            setFormalImportMessage("没有识别到可导入的排课明细。请检查：文件里是否有日期、时间、老师姓名、学生/班级内容；横向课表上方日期和左侧时间是否清晰。");
-            setTeacherSheetMessage("本次没有识别到正式排课，系统未改动现有课表。");
+            const advice = groups.map((group) => `${group.fileName}：${group.advice || "未识别到课程"}`).join("；");
+            setFormalImportMessage(`没有识别到可导入的排课明细。${advice || "请检查：文件里是否有日期、时间、老师姓名、学生/班级内容；横向课表上方日期和左侧时间是否清晰。"}`);
+            setTeacherSheetMessage(`本次没有识别到正式排课，系统未改动现有课表。${advice}`);
             return;
           }
           const summary = summarizeImportedEntries(entries);
-          const emptyFiles = groups.filter((group) => !group.count).map((group) => group.fileName);
-          const errorFiles = groups.filter((group) => group.error).map((group) => `${group.fileName}（${group.error}）`);
+          const warningGroups = groups.filter((group) => group.level === "warn");
           const sourceSummary = groups.map((group) => `${group.fileName}：${group.count}节`).join("；");
-          const warningText = [
-            emptyFiles.length ? `未识别文件：${emptyFiles.join("、")}` : "",
-            errorFiles.length ? `读取失败：${errorFiles.join("、")}` : ""
-          ].filter(Boolean).join("；");
+          const warningText = warningGroups.length
+            ? `需核对文件：${warningGroups.slice(0, 6).map((group) => `${group.fileName}（${group.advice}）`).join("；")}${warningGroups.length > 6 ? "；其余文件请展开查看" : ""}`
+            : "";
           pendingFormalImport = { fileLabel, fileCount: fileList.length, groups, entries, summary, sourceSummary, warningText };
           renderImportReviewPanel(pendingFormalImport);
           setFormalImportMessage(`已完成预读取：${fileList.length} 个文件，共识别 ${entries.length} 节课。请先看预览，确认无误后点“确认并网”。`);
@@ -3124,7 +3296,8 @@
               <button class="button secondary" type="button" data-teacher-workbench-action="week">看本周</button>
               <button class="button secondary" type="button" data-teacher-workbench-action="conflicts">查冲突</button>
               <button class="button secondary" type="button" data-teacher-workbench-action="missing-room">补教室</button>
-              <button class="button secondary" type="button" data-teacher-workbench-action="rooms">看教室空档</button>
+              <button class="button secondary" type="button" data-teacher-workbench-action="availability">看老师空档</button>
+              <button class="button secondary" type="button" data-teacher-workbench-action="rooms">看教室表</button>
             </div>
             ${conflictPanel}
           </div>
@@ -3506,6 +3679,7 @@
           }
           renderTeacherDayAvailability();
           renderRoomUsage();
+          byId("roomUsageSection")?.setAttribute("open", "");
           byId("roomUsageSection")?.scrollIntoView({ block: "start", behavior: "smooth" });
         } else {
           byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -3563,7 +3737,17 @@
           byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
           return;
         }
+        if (action === "availability") {
+          byId("teacherDaySection")?.setAttribute("open", "");
+          renderTeacherDayAvailability();
+          setTeacherSheetMessage("已展开当天老师空档表。");
+          byId("teacherDaySection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
         if (action === "rooms") {
+          byId("roomUsageSection")?.setAttribute("open", "");
+          renderTeacherDayAvailability();
+          renderRoomUsage();
           setTeacherSheetMessage("已跳到教室使用表。");
           byId("roomUsageSection")?.scrollIntoView({ block: "start", behavior: "smooth" });
           return;
@@ -3825,10 +4009,11 @@
         if (!grid) return;
         const officialCount = regularEntries.length;
         const excelCount = regularEntries.filter((row) => row.importedByExcel || row.sourceFileName).length;
-        const manualCount = regularEntries.filter((row) => row.manualEntry || (!row.importedByExcel && !row.sourceFileName)).length;
         const conflictCount = buildScheduleConflicts(selectedPeriod(), "").length;
         const missingRoomCount = paikeRows.filter((row) => !String(row.room || "").trim() || row.room === "-").length;
         const pendingCount = readPendingSchedulePool().filter((row) => row.status !== "已排课").length;
+        const todayCount = paikeRows.filter((row) => dateKey(row.date) === localDateText()).length;
+        const todoCount = conflictCount + missingRoomCount + pendingCount;
         const launchWarnings = [
           !officialCount ? "未导入正式课表" : "",
           conflictCount ? `${conflictCount}项冲突` : "",
@@ -3837,12 +4022,9 @@
         ].filter(Boolean);
         const cards = [
           ["投用检查", launchWarnings.length ? `${launchWarnings.length}项` : "通过", launchWarnings.length ? launchWarnings.join("、") : "可进入日常排课使用", launchWarnings.length ? "warn" : ""],
-          ["正式课表", officialCount, officialCount ? "已接入" : "待并网", officialCount ? "" : "warn"],
-          ["Excel并网", excelCount, excelCount ? "上一批已保存" : "暂无正式导入", excelCount ? "" : "warn"],
-          ["手工维护", manualCount, "新增/调课/停课记录", ""],
-          ["疑似冲突", conflictCount, conflictCount ? "需要排课负责人确认" : "当前未发现", conflictCount ? "warn" : ""],
-          ["未写教室", missingRoomCount, missingRoomCount ? "建议补齐" : "已较完整", missingRoomCount ? "warn" : ""],
-          ["待排课池", pendingCount, pendingCount ? "可转正式课" : "暂无待排", pendingCount ? "warn" : ""]
+          ["今天课程", todayCount, todayCount ? "今天有课" : "今天暂无课", ""],
+          ["待处理", todoCount, todoCount ? `冲突${conflictCount} / 教室${missingRoomCount} / 待排${pendingCount}` : "暂无紧急待办", todoCount ? "warn" : ""],
+          ["正式课表", officialCount, excelCount ? `已并网 ${excelCount} 节 Excel 课程` : (officialCount ? "已接入正式课表" : "待并网"), officialCount ? "" : "warn"]
         ];
         grid.innerHTML = cards.map(([label, value, note, tone]) => `
           <div class="launch-status-card">
@@ -3928,9 +4110,18 @@
       }
 
       function renderLaunchAssistPanels() {
+        const exceptionDetails = byId("paikeExceptionDetails");
+        const currentConflicts = buildScheduleConflicts(selectedPeriod(), "");
+        const currentMissingRooms = paikeRows
+          .filter((row) => row.period === selectedPeriod())
+          .filter((row) => !String(row.room || "").trim() || row.room === "-");
+        if (exceptionDetails) {
+          if (currentConflicts.length || currentMissingRooms.length) exceptionDetails.setAttribute("open", "");
+          else exceptionDetails.removeAttribute("open");
+        }
         const conflictList = byId("paikeConflictDetailList");
         if (conflictList) {
-          const conflicts = buildScheduleConflicts(selectedPeriod(), "").slice(0, 8);
+          const conflicts = currentConflicts.slice(0, 8);
           conflictList.innerHTML = conflicts.length ? conflicts.map((item, index) => `
             <div class="launch-mini-row">
               <div>
@@ -3946,10 +4137,7 @@
         }
         const missingList = byId("paikeMissingRoomList");
         if (missingList) {
-          const missingRows = paikeRows
-            .filter((row) => row.period === selectedPeriod())
-            .filter((row) => !String(row.room || "").trim() || row.room === "-")
-            .slice(0, 10);
+          const missingRows = currentMissingRooms.slice(0, 10);
           missingList.innerHTML = missingRows.length ? missingRows.map((row) => {
             const key = scheduleConflictRowKey(row);
             return `
