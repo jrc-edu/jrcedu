@@ -237,6 +237,61 @@
       .teacher-next-item button {
         margin-top: 8px;
       }
+      .teacher-finance-assist {
+        margin-top: 14px;
+        padding: 16px;
+        border: 1px solid rgba(13,148,136,0.18);
+        border-radius: 18px;
+        background: rgba(255,255,255,0.9);
+      }
+      .teacher-finance-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+      }
+      .teacher-finance-head strong {
+        display: block;
+        color: var(--ink);
+        font-size: 18px;
+      }
+      .teacher-finance-head span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .teacher-finance-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .teacher-finance-card {
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(13,148,136,0.05);
+      }
+      .teacher-finance-card span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .teacher-finance-card strong {
+        display: block;
+        margin-top: 5px;
+        color: var(--ink);
+        font-size: 20px;
+      }
+      .teacher-finance-note {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+      }
       .launch-panel {
         display: grid;
         gap: 16px;
@@ -918,6 +973,7 @@
         .teacher-quick-actions,
         .teacher-workbench-panel,
         .teacher-workbench-stats,
+        .teacher-finance-grid,
         .schedule-workflow,
         .read-guide,
         .pending-pool-grid,
@@ -969,15 +1025,15 @@
       <section class="hero">
         <article class="card">
           <p class="eyebrow">排课</p>
-          <h1>老师课表</h1>
-          <p class="hero-text">按原来的 Excel 习惯使用：先选月份和老师，直接看这位老师的整月课表；排课老师再看教室使用表，确认哪个时间还能排课。</p>
+          <h1>Excel横向老师课表</h1>
+          <p class="hero-text">严格按原来 Excel 的看表习惯使用：先选月份和老师，横向看日期，纵向看时间段；排课时系统在背后帮你查老师空档、教室占用、疑似冲突和财务候选。</p>
           <div class="tag-row">
             <span class="tag">每个老师一张表</span>
             <span class="tag">按日期和时间段排课</span>
             <span class="tag">教室占用同步看</span>
             <span class="tag warn">点名课销联动</span>
           </div>
-          <div class="notice">普通老师进来优先看自己的课表；排课负责人可以切换老师和月份。下面的表格就是从你们原来的老师 Excel 时间表整理出来的。</div>
+          <div class="notice">老师日常只看横向月课表和排课辅助，不需要打开复杂数据核对。管理员后台只是兜底，不作为日常操作入口。</div>
         </article>
 
         <aside class="card">
@@ -995,17 +1051,17 @@
         <div class="launch-head">
           <div>
             <p class="eyebrow">正式投运</p>
-            <strong>排课并网工作台</strong>
-            <span>新 Excel 表格直接上传并网；系统自动识别、同步云端、检查冲突和未写教室。日常临时新增、调课、停课，也在这里直接处理。</span>
+            <strong>Excel并网与正式排课</strong>
+            <span>以原 Excel 课表为基准录入数据；系统自动同步云端、检查冲突和未写教室。日常临时新增、调课、停课，也在这里直接处理。</span>
           </div>
           <div class="launch-actions">
-            <button class="button" type="button" data-requires-permission="paike.edit" id="paikeLaunchImportButton">上传新Excel并网</button>
+            <button class="button" type="button" data-requires-permission="paike.edit" id="paikeLaunchImportButton">上传Excel并网</button>
             <button class="button secondary" type="button" data-requires-permission="paike.edit" id="openScheduleFormButton">新增 / 调课 / 停课</button>
           </div>
         </div>
         <div class="launch-status-grid" id="paikeLaunchStatusGrid"></div>
         <div class="launch-import-drop" id="paikeLaunchImportDrop">
-          <strong>并网操作方式：</strong>把新的排课 Excel 交给我处理，或者排课负责人在这里上传。系统会自动写入正式排课数据；原来的复杂“数据核对区”只作为管理员后台，不要求老师操作。
+          <strong>并网操作方式：</strong>先按原 Excel 课表格式整理好。复杂表第一轮可以直接交给我转换；稳定后排课负责人在这里上传，系统自动写入正式课表。复杂核对只放后台，不要求老师操作。
         </div>
         <div class="launch-form" id="scheduleEntryFormPanel" aria-label="正式排课维护表单">
           <div class="section-heading-row">
@@ -1056,7 +1112,7 @@
       <section class="card">
         <p class="eyebrow">老师课表</p>
         <div class="section-heading-row">
-          <h2>每位老师一张月课表</h2>
+          <h2>每位老师一张横向月课表</h2>
           <div class="section-actions">
             <button class="button secondary" type="button" id="exportTeacherSheetButton">导出当前课表</button>
           </div>
@@ -1139,6 +1195,7 @@
           <div class="admission-link-list" id="pendingSchedulePoolList"></div>
         </div>
         <div id="teacherSheetSummary" class="excel-summary"></div>
+        <div id="teacherFinanceAssist" class="teacher-finance-assist"></div>
         <div class="notice" id="teacherSheetMessage" hidden></div>
         <div class="table-wrap">
           <table class="teacher-sheet-table" id="teacherSheetTable"></table>
@@ -1181,7 +1238,7 @@
       </section>
 
       <details class="card admin-details">
-        <summary>管理员核对区：导入、异常、原始明细</summary>
+        <summary>高级后台：导入来源与异常（老师不用打开）</summary>
         <section id="paikeCommandSection">
           <p class="eyebrow">核对</p>
           <h2>排课数据状态</h2>
@@ -2406,6 +2463,150 @@
         `;
       }
 
+      function money(value) {
+        const number = Number(value || 0);
+        if (!Number.isFinite(number) || !number) return "-";
+        return `¥${Math.round(number).toLocaleString("zh-CN")}`;
+      }
+
+      function lessonStudentNames(row) {
+        return String(row.student || "")
+          .split(/[、,，/+]/)
+          .map((name) => name.trim())
+          .filter((name) => name && !/小班|班课|课程|数学|科学|刷题|衔接|培优|暑假|秋季|寒假|春季/.test(name));
+      }
+
+      function lessonPeopleCount(row) {
+        const names = lessonStudentNames(row);
+        if (names.length > 1) return names.length;
+        const text = [row.student, row.lessonType, row.rawText].join(" ");
+        const match = text.match(/一对\s*(\d+)/);
+        if (match) return Number(match[1]) || 1;
+        if (/一对一|1对1/.test(text)) return 1;
+        if (/小班|班课|刷题班|集训|群课/.test(text)) return Math.max(2, names.length || 2);
+        return names.length || 1;
+      }
+
+      function lessonCategory(row) {
+        const text = [row.student, row.lessonType, row.rawText].join(" ");
+        const people = lessonPeopleCount(row);
+        if (/一对一|1对1/.test(text) || people === 1) return "一对一";
+        if (/程老师班课|科学班课|班课|小班|刷题班|集训|群课/.test(text)) return "班课/小班";
+        return `一对${people}`;
+      }
+
+      function lessonDurationHours(row) {
+        const start = timeMinutes(row.startTime || String(row.time || "").split("-")[0]);
+        const end = timeMinutes(row.endTime || String(row.time || "").split("-")[1]);
+        if (start !== 9999 && end !== 9999 && end > start) return Math.round(((end - start) / 60) * 100) / 100;
+        return 1.5;
+      }
+
+      function financePercent(value) {
+        const match = String(value || "").match(/(\d+(?:\.\d+)?)\s*%/);
+        return match ? Number(match[1]) / 100 : null;
+      }
+
+      function teacherMonthFinanceRow(teacher, period) {
+        try {
+          const rows = window.JRC_DATA_FOUNDATION?.deriveSystemLinks?.()?.teacherMonthRows || [];
+          return rows.find((row) => row.teacherName === teacher && row.period === period) || null;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function teacherAvailableSlotSuggestions(teacher, period) {
+        const periodRows = paikeRows.filter((row) => row.period === period);
+        const rooms = Array.from(new Set(periodRows.map((row) => row.room).filter((room) => room && room !== "-")));
+        const dates = datesInPeriod(period).filter((date) => date >= localDateText());
+        const scanDates = dates.length ? dates : datesInPeriod(period);
+        const suggestions = [];
+        scanDates.forEach((date) => {
+          COMMON_TIME_SLOTS.forEach((slot) => {
+            const candidate = {
+              date,
+              teacher,
+              room: "",
+              student: "待排课程",
+              startTime: slot.split("-")[0],
+              endTime: slot.split("-")[1],
+              time: slot
+            };
+            const teacherBusy = periodRows.some((row) => row.teacher === teacher && row.date === date && scheduleTimesOverlap(candidate, row));
+            if (teacherBusy) return;
+            const usedRooms = new Set(periodRows
+              .filter((row) => row.date === date && row.room && row.room !== "-" && scheduleTimesOverlap(candidate, row))
+              .map((row) => row.room));
+            const freeRooms = rooms.filter((room) => !usedRooms.has(room));
+            suggestions.push({
+              date,
+              slot,
+              room: freeRooms[0] || "教室待定",
+              freeRoomCount: rooms.length ? freeRooms.length : 0
+            });
+          });
+        });
+        return suggestions.slice(0, 5);
+      }
+
+      function renderTeacherFinanceAssist(rows) {
+        const holder = byId("teacherFinanceAssist");
+        if (!holder) return;
+        const teacher = selectedTeacher();
+        const period = selectedPeriod();
+        if (!teacher || !rows.length) {
+          holder.innerHTML = `
+            <div class="teacher-finance-head">
+              <div>
+                <strong>排课辅助和财务预估</strong>
+                <span>当前老师和月份暂无可统计课程。导入课表后，这里会显示本月课次、一对几结构和财务候选。</span>
+              </div>
+            </div>
+          `;
+          return;
+        }
+        const categories = rows.reduce((map, row) => {
+          const key = lessonCategory(row);
+          map[key] = (map[key] || 0) + 1;
+          return map;
+        }, {});
+        const studentSessions = rows.reduce((sum, row) => sum + lessonPeopleCount(row), 0);
+        const hours = Math.round(rows.reduce((sum, row) => sum + lessonDurationHours(row), 0) * 10) / 10;
+        const avgPeople = rows.length ? Math.round((studentSessions / rows.length) * 10) / 10 : 0;
+        const financeRow = teacherMonthFinanceRow(teacher, period);
+        const commissionRate = financeRow?.commissionRate || window.JRC_EMPLOYEES?.find?.((employee) => employee.name === teacher)?.commissionRate || "";
+        const percent = financePercent(commissionRate);
+        const enrolledAmount = Number(financeRow?.enrolledAmount || 0);
+        const qualityCoefficient = Number(financeRow?.qualityCoefficient || 1);
+        const estimatedPay = percent && enrolledAmount ? enrolledAmount * percent * qualityCoefficient : 0;
+        const financeStatus = financeRow
+          ? `${financeRow.financeScope || "已关联财务候选"}；${financeRow.financeBasis || ""}`
+          : "暂未读取到财务系统对应月份数据，先按排课课次做粗略统计。";
+        const suggestions = teacherAvailableSlotSuggestions(teacher, period);
+        holder.innerHTML = `
+          <div class="teacher-finance-head">
+            <div>
+              <strong>${escapeHtml(teacher)}｜${escapeHtml(period)} 排课辅助和财务预估</strong>
+              <span>帮助排课老师快速判断这位老师本月负荷、课程结构和财务候选；最终金额仍以财务系统正式结算为准。</span>
+            </div>
+            <a class="button secondary" data-requires-permission="finance.access" href="/jrcedu/portal/finance.html">去财务系统</a>
+          </div>
+          <div class="teacher-finance-grid">
+            <div class="teacher-finance-card"><span>本月课次</span><strong>${rows.length}</strong></div>
+            <div class="teacher-finance-card"><span>折算课时</span><strong>${hours}</strong></div>
+            <div class="teacher-finance-card"><span>学生人次</span><strong>${studentSessions}</strong></div>
+            <div class="teacher-finance-card"><span>平均一对几</span><strong>${avgPeople}</strong></div>
+            <div class="teacher-finance-card"><span>课程结构</span><strong>${escapeHtml(Object.entries(categories).map(([key, count]) => `${key}${count}`).join(" / ") || "-")}</strong></div>
+            <div class="teacher-finance-card"><span>预估课酬</span><strong>${money(estimatedPay)}</strong></div>
+          </div>
+          <div class="teacher-finance-note">
+            提成/结算口径：${escapeHtml(commissionRate || "未设置")}。${escapeHtml(financeStatus)}
+            ${suggestions.length ? `<br>优先可排空档：${suggestions.map((item) => `${dateLabel(item.date)} ${item.slot}（${item.room}${item.freeRoomCount ? `，空教室${item.freeRoomCount}间` : ""}）`).map(escapeHtml).join("；")}` : ""}
+          </div>
+        `;
+      }
+
       function renderTeacherWorkbench(rows) {
         const holder = byId("teacherWorkbenchPanel");
         if (!holder) return;
@@ -2542,6 +2743,7 @@
         setupRoomUsageDateFilter(rows);
         renderTeacherSheetTeacherCards();
         renderTeacherSheetSummary(rows);
+        renderTeacherFinanceAssist(rows);
         renderTeacherWorkbench(rows);
         if (!rows.length) {
           table.innerHTML = `<tbody><tr><td><div class="empty">当前月份和老师没有匹配到课表。请按顺序检查：1. 月份是否选对；2. 老师姓名是否和原 Excel 一致；3. 是否用了今天/本周/未写教室等筛选；4. 排课明细是否已导入。</div></td></tr></tbody>`;
@@ -2575,6 +2777,7 @@
                     <div class="lesson-block">
                       <strong>${escapeHtml(row.student || row.lessonType || "未填学生")}</strong>
                       <small>${escapeHtml(row.lessonType || row.rawText || "课程")}</small>
+                      <small>${escapeHtml(lessonCategory(row))}｜约 ${escapeHtml(lessonPeopleCount(row))} 人</small>
                       <small>${escapeHtml(row.room && row.room !== "-" ? row.room : "未写教室")}｜${escapeHtml(scheduleStatus(row).label)}</small>
                       ${(!row.room || row.room === "-") ? `
                         <div class="room-inline-action">
