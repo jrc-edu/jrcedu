@@ -1956,19 +1956,37 @@
 
       function writeLaunchBackup(state, reason) {
         const backups = readLocal(stores.launchBackup, []);
-        const nextBackups = [
-          {
-            id: `backup-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            reason: reason || "排课并网前备份",
-            createdAt: new Date().toISOString(),
-            createdBy: window.JRC_CURRENT_EMPLOYEE?.name || "未登录",
-            entryCount: Array.isArray(state?.scheduleEntries) ? state.scheduleEntries.length : 0,
-            state
-          },
-          ...(Array.isArray(backups) ? backups : [])
-        ].slice(0, 12);
-        localStorage.setItem(stores.launchBackup, JSON.stringify(nextBackups));
-        window.JRC_CLOUD?.writeModuleData?.(stores.launchBackup, "paike", nextBackups, { replaceMode: "replace" }).catch(() => {});
+        const baseBackup = {
+          id: `backup-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          reason: reason || "排课并网前备份",
+          createdAt: new Date().toISOString(),
+          createdBy: window.JRC_CURRENT_EMPLOYEE?.name || "未登录",
+          entryCount: Array.isArray(state?.scheduleEntries) ? state.scheduleEntries.length : 0
+        };
+        const fullBackup = { ...baseBackup, state, stateStored: true };
+        const canStoreFullBackup = JSON.stringify(fullBackup).length <= 2500000;
+        const cloudBackup = canStoreFullBackup
+          ? fullBackup
+          : { ...baseBackup, state: null, stateStored: false, stateOmittedReason: "课表数据较大，未保存完整恢复点，避免影响正式并网。" };
+        const localBackup = {
+          ...baseBackup,
+          state: null,
+          stateStored: false,
+          cloudBackupStored: canStoreFullBackup,
+          note: "本机只保存备份摘要，避免浏览器容量超限。"
+        };
+        const localHistory = (Array.isArray(backups) ? backups : []).map((backup) => ({
+          id: backup.id,
+          reason: backup.reason,
+          createdAt: backup.createdAt,
+          createdBy: backup.createdBy,
+          entryCount: backup.entryCount,
+          stateStored: false,
+          cloudBackupStored: Boolean(backup.cloudBackupStored),
+          note: backup.note || "本机只保存备份摘要。"
+        }));
+        safeLocalSet(stores.launchBackup, [localBackup, ...localHistory].slice(0, 12));
+        window.JRC_CLOUD?.writeModuleData?.(stores.launchBackup, "paike", [cloudBackup], { replaceMode: "replace" }).catch(() => {});
       }
 
       function formalEntryToScheduleRow(entry) {
@@ -2190,13 +2208,19 @@
       async function saveFormalScheduleEntries(entries, fileName, options = {}) {
         const localState = normalizeRegularState(readLocal(stores.regular, {}));
         let remoteState = {};
+        let remoteFound = false;
         try {
           const remote = await window.JRC_CLOUD?.readModuleData?.(stores.regular);
-          if (remote?.ok && remote.data?.found) remoteState = normalizeRegularState(remote.data.payload);
+          if (remote?.ok && remote.data?.found) {
+            remoteState = normalizeRegularState(remote.data.payload);
+            remoteFound = true;
+          }
         } catch (error) {
           console.warn("读取正式排课云端数据失败", error);
         }
-        const currentEntries = mergeRows("formal", remoteState.scheduleEntries || [], localState.scheduleEntries || []);
+        const currentEntries = remoteFound
+          ? mergeRows("formal", remoteState.scheduleEntries || [])
+          : mergeRows("formal", remoteState.scheduleEntries || [], localState.scheduleEntries || []);
         writeLaunchBackup({ ...remoteState, ...localState, scheduleEntries: currentEntries }, options.backupReason || `导入前备份：${fileName || "手工排课"}`);
         const isExcelImportedScheduleRow = (row) => {
           if (row?.manualEntry) return false;
@@ -2235,10 +2259,14 @@
           lastImportRemovedCount: removedExcelImportCount,
           lastImportMode: replaceUploadedTeacherExcelImports ? "replace-uploaded-teacher-excel-imports" : (options.replaceExcelImports ? "replace-excel-imports" : "merge")
         };
-        localStorage.setItem(stores.regular, JSON.stringify(nextState));
+        let cloudSynced = false;
         if (window.JRC_CLOUD?.writeModuleData) {
           await window.JRC_CLOUD.writeModuleData(stores.regular, "paike", nextState, { replaceMode: "replace" });
+          cloudSynced = true;
         }
+        const localCached = safeLocalSet(stores.regular, nextState);
+        window.JRC_PAIKE_LAST_SAVE_META = { cloudSynced, localCached, savedAt: new Date().toISOString() };
+        if (!cloudSynced && !localCached) throw new Error("浏览器本地存储空间不足，且云端同步接口不可用，正式课表没有保存成功。");
         return nextState;
       }
 
@@ -2292,16 +2320,39 @@
         const data = pendingFormalImport;
         try {
           setFormalImportMessage("正在写入正式课表并同步云端。");
+          const pickMostFromImport = (getter) => {
+            const counts = new Map();
+            data.entries.forEach((row) => {
+              const value = String(getter(row) || "").trim();
+              if (!value) return;
+              counts.set(value, (counts.get(value) || 0) + 1);
+            });
+            return Array.from(counts.entries()).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "zh-Hans-CN"))[0]?.[0] || "";
+          };
+          const targetPeriod = pickMostFromImport((row) => row.period || String(row.date || row.courseDate || "").slice(0, 7));
+          const targetTeacher = pickMostFromImport((row) => row.teacherName || row.teacher);
           await saveFormalScheduleEntries(data.entries, data.fileLabel, {
             replaceExcelImports: true,
             replaceUploadedTeacherExcelImports: true,
             backupReason: `新Excel批量并网前备份：${data.fileLabel}`
           });
           const warningLine = data.warningText ? ` ${data.warningText}。` : "";
+          const localCacheLine = window.JRC_PAIKE_LAST_SAVE_META?.localCached === false
+            ? " 浏览器本机缓存空间不足，系统已跳过本机完整缓存；云端正式课表已保存，不影响其他人查看。"
+            : "";
           closeImportReviewPanel();
-          setFormalImportMessage(`已并网 ${data.fileCount} 个文件，共识别 ${data.entries.length} 节正式课，并同步云端。已覆盖本次涉及老师的旧 Excel 导入课表，手工新增和手工调课记录已保留。系统自动检查：疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项，未写结束时间 ${data.summary.missingEndTime} 项。${warningLine}`);
-          setTeacherSheetMessage(`新Excel已并网：${data.entries.length} 节。已覆盖本次涉及老师的旧 Excel 导入课表，手工记录保留。${data.sourceSummary}。疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项。${warningLine}`);
           await initPaikeDashboard();
+          if (targetPeriod) setTeacherSheetPeriod(targetPeriod);
+          const teacherSelect = byId("teacherSheetTeacher");
+          if (teacherSelect && targetTeacher && Array.from(teacherSelect.options || []).some((option) => option.value === targetTeacher)) {
+            teacherSelect.value = targetTeacher;
+          }
+          if (byId("teacherSheetMode")) byId("teacherSheetMode").value = "month";
+          if (byId("teacherSheetKeyword")) byId("teacherSheetKeyword").value = "";
+          renderTeacherSheet();
+          setFormalImportMessage(`已并网 ${data.fileCount} 个文件，共识别 ${data.entries.length} 节正式课，并同步云端。已覆盖本次涉及老师的旧 Excel 导入课表，手工新增和手工调课记录已保留。系统自动检查：疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项，未写结束时间 ${data.summary.missingEndTime} 项。${warningLine}${localCacheLine}`);
+          setTeacherSheetMessage(`新Excel已并网：${data.entries.length} 节。现在已自动切到 ${targetPeriod || "本次月份"} ${targetTeacher || "本次老师"} 的课表。已覆盖本次涉及老师的旧 Excel 导入课表，手工记录保留。${data.sourceSummary}。疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项。${warningLine}${localCacheLine}`);
+          byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
         } catch (error) {
           setFormalImportMessage(`确认并网失败：${error.message || error}`);
           setTeacherSheetMessage(`确认并网失败：${error.message || error}`);
@@ -2333,6 +2384,45 @@
 
       function readLocal(key, fallback) {
         return safeParse(localStorage.getItem(key), fallback);
+      }
+
+      function isQuotaExceededError(error) {
+        return error?.name === "QuotaExceededError" ||
+          error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+          /quota|exceeded|storage/i.test(error?.message || "");
+      }
+
+      function safeLocalSet(key, value) {
+        let text = "";
+        try {
+          text = JSON.stringify(value);
+        } catch (error) {
+          console.warn("排课本地缓存序列化失败", key, error);
+          return false;
+        }
+        try {
+          localStorage.setItem(key, text);
+          return true;
+        } catch (error) {
+          if (!isQuotaExceededError(error)) {
+            console.warn("排课本地缓存写入失败", key, error);
+            return false;
+          }
+          console.warn("排课本地缓存空间不足，尝试释放导入备份缓存", key, error);
+          try {
+            localStorage.removeItem(stores.launchBackup);
+            if (key === stores.regular) localStorage.removeItem(stores.regular);
+          } catch (cleanupError) {
+            console.warn("排课本地缓存清理失败", cleanupError);
+          }
+          try {
+            localStorage.setItem(key, text);
+            return true;
+          } catch (retryError) {
+            console.warn("排课本地缓存仍然写不下，已跳过本机缓存；云端数据不受影响", key, retryError);
+            return false;
+          }
+        }
       }
 
       function rowTime(row) {
@@ -2413,8 +2503,10 @@
         try {
           const result = await window.JRC_CLOUD.readModuleData(key);
           if (result?.ok && result.data?.found) {
-            const merged = mergeCloudValue(local, result.data.payload);
-            localStorage.setItem(key, JSON.stringify(merged));
+            const merged = key === stores.regular
+              ? normalizeRegularState(result.data.payload)
+              : mergeCloudValue(local, result.data.payload);
+            safeLocalSet(key, merged);
             return merged;
           }
         } catch (error) {
@@ -2436,7 +2528,7 @@
       }
 
       function writePendingSchedulePool(rows) {
-        localStorage.setItem(stores.pendingPool, JSON.stringify(rows));
+        safeLocalSet(stores.pendingPool, rows);
         window.JRC_CLOUD?.writeModuleData?.(stores.pendingPool, "paike", rows, { replaceMode: "replace" }).catch(() => {});
       }
 
@@ -2912,10 +3004,10 @@
           updatedAt: new Date().toISOString(),
           lastRoomFixAt: new Date().toISOString()
         };
-        localStorage.setItem(stores.regular, JSON.stringify(nextState));
         if (window.JRC_CLOUD?.writeModuleData) {
           await window.JRC_CLOUD.writeModuleData(stores.regular, "paike", nextState, { replaceMode: "replace" });
         }
+        safeLocalSet(stores.regular, nextState);
         await initPaikeDashboard();
         setTeacherSheetMessage(`已补写教室：${row.teacher || "-"} ${dateLabel(row.date)} ${timeSlotLabel(row)} -> ${roomName}`);
         renderTodayCommandPanel();
@@ -4288,9 +4380,10 @@
               <div>
                 <strong>${escapeHtml(backup.reason || "排课备份")}</strong>
                 <span>${escapeHtml((window.JRC_TIME?.formatBeijingDateTime?.(backup.createdAt, { seconds: false }) || String(backup.createdAt || "").replace("T", " ").slice(0, 16)))}｜${escapeHtml(backup.createdBy || "-")}｜${escapeHtml(backup.entryCount || 0)} 条</span>
+                <small>${escapeHtml(backup.note || (backup.state ? "可恢复完整备份" : "本机只保存摘要，正式数据以云端为准"))}</small>
               </div>
               <div class="launch-mini-actions">
-                <button class="button secondary" type="button" data-restore-launch-backup="${escapeHtml(backup.id || "")}">恢复</button>
+                ${backup.state ? `<button class="button secondary" type="button" data-restore-launch-backup="${escapeHtml(backup.id || "")}">恢复</button>` : `<span class="status-pill">摘要</span>`}
               </div>
             </div>
           `).join("") : `<div class="empty">暂无导入备份。每次并网或保存前会自动生成。</div>`;
@@ -4301,15 +4394,15 @@
         const backups = readLocal(stores.launchBackup, []);
         const backup = backups.find((row) => String(row.id || "") === String(id || ""));
         if (!backup?.state) {
-          setTeacherSheetMessage("没有找到这份备份，无法恢复。");
+          setTeacherSheetMessage("这条记录只是本机备份摘要，没有完整课表，不能直接恢复。当前正式课表以云端数据为准。");
           return;
         }
         if (!confirm(`确定恢复到「${backup.reason || "排课备份"}」吗？当前正式课表会被这份备份覆盖。`)) return;
         const nextState = normalizeRegularState({ ...backup.state, restoredAt: new Date().toISOString(), restoredBy: window.JRC_CURRENT_EMPLOYEE?.name || "未登录" });
-        localStorage.setItem(stores.regular, JSON.stringify(nextState));
         if (window.JRC_CLOUD?.writeModuleData) {
           await window.JRC_CLOUD.writeModuleData(stores.regular, "paike", nextState, { replaceMode: "replace" });
         }
+        safeLocalSet(stores.regular, nextState);
         setTeacherSheetMessage("已恢复到选中的排课备份。");
         await initPaikeDashboard();
       }
