@@ -7,7 +7,9 @@ import argparse
 import datetime as dt
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -54,6 +56,162 @@ def request_json(method: str, url: str, token: str, payload: dict, timeout: int 
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"HTTP {error.code}: {body}") from error
+
+
+def request_json_with_curl(method: str, url: str, token: str, payload: dict, timeout: int = 180, connect_to: str = "", insecure: bool = False) -> dict:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as payload_file:
+        json.dump(payload, payload_file, ensure_ascii=False, separators=(",", ":"))
+        payload_path = payload_file.name
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as response_file:
+        response_path = response_file.name
+    try:
+        command = [
+            "curl",
+            "-4",
+            "-sS",
+            "--retry",
+            "8",
+            "--retry-delay",
+            "2",
+            "--retry-all-errors",
+            "--connect-timeout",
+            "10",
+            "--max-time",
+            str(timeout),
+            "-X",
+            method,
+            url,
+            "-H",
+            f"Authorization: Bearer {token}",
+            "-H",
+            "Content-Type: application/json; charset=utf-8",
+            "--data-binary",
+            f"@{payload_path}",
+            "-o",
+            response_path,
+            "-w",
+            "%{http_code}",
+        ]
+        if insecure:
+            command.insert(2, "-k")
+        if connect_to:
+            command[2:2] = ["--connect-to", connect_to]
+        completed = subprocess.run(command, check=False, capture_output=True, text=True)
+        status_text = (completed.stdout or "").strip().splitlines()[-1] if completed.stdout else "000"
+        response_text = Path(response_path).read_text(encoding="utf-8", errors="replace")
+        if completed.returncode != 0:
+            raise RuntimeError(f"curl failed {completed.returncode}: {(completed.stderr or '').strip()}")
+        if not status_text.startswith("2"):
+            raise RuntimeError(f"HTTP {status_text}: {response_text[:1000]}")
+        return json.loads(response_text or "{}")
+    finally:
+        Path(payload_path).unlink(missing_ok=True)
+        Path(response_path).unlink(missing_ok=True)
+
+
+def request_cloud(method: str, url: str, token: str, payload: dict, *, timeout: int, use_curl: bool, connect_to: str, insecure: bool) -> dict:
+    if use_curl or connect_to or insecure:
+        return request_json_with_curl(method, url, token, payload, timeout=timeout, connect_to=connect_to, insecure=insecure)
+    return request_json(method, url, token, payload, timeout=timeout)
+
+
+def teacher_batches(formal_payload: dict) -> list[dict]:
+    entries = [row for row in formal_payload.get("entries", []) if isinstance(row, dict)]
+    grouped: dict[str, list[dict]] = {}
+    for row in entries:
+        teacher = str(row.get("teacherName") or row.get("teacher") or "未知老师").strip() or "未知老师"
+        grouped.setdefault(teacher, []).append(row)
+    batches = []
+    for teacher, rows in sorted(grouped.items(), key=lambda item: item[0]):
+        label = f"{formal_payload.get('fileName') or formal_payload.get('fileLabel') or '历史排课盘活'}-{teacher}"
+        batch = {
+            **formal_payload,
+            "fileName": label,
+            "fileLabel": label,
+            "replaceTeacherKeys": [teacher],
+            "entries": rows,
+        }
+        batches.append(batch)
+    return batches
+
+
+def compact_json_size(value: dict) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def list_parts(rows: list, max_bytes: int) -> list[list]:
+    parts: list[list] = []
+    current: list = []
+    for row in rows:
+        candidate = [*current, row]
+        if current and compact_json_size({"rows": candidate}) > max_bytes:
+            parts.append(current)
+            current = [row]
+        else:
+            current = candidate
+    if current:
+        parts.append(current)
+    return parts
+
+
+def build_activation_stores(package: dict, max_bytes: int = 750_000) -> list[dict]:
+    state = package["activationState"]
+    base_key = "paike-historical-activation-v1"
+    detail_sets = {
+        "supportTasks": state.get("supportTasks") or [],
+        "financeDetailRows": state.get("financeDetailRows") or [],
+        "reconciliationStudentMatches": (state.get("reconciliation") or {}).get("studentMatches") or [],
+        "reconciliationAutoDecisions": (state.get("reconciliation") or {}).get("autoDecisions") or [],
+    }
+    detail_index = []
+    stores = []
+    for name, rows in detail_sets.items():
+        if not rows:
+            continue
+        for index, part in enumerate(list_parts(rows, max_bytes), start=1):
+            store_key = f"{base_key}-{name}-part-{index:03d}"
+            stores.append({
+                "storeKey": store_key,
+                "moduleKey": "paike",
+                "payload": {
+                    "schemaVersion": "historical-paike-activation-detail-v1",
+                    "detailName": name,
+                    "partIndex": index,
+                    "partCount": None,
+                    "rows": part,
+                },
+                "replaceMode": "replace",
+                "operatorName": "程志豪",
+                "operatorUsername": "chengzhihao",
+            })
+            detail_index.append({"name": name, "storeKey": store_key, "rows": len(part)})
+    part_counts: dict[str, int] = {}
+    for item in detail_index:
+        part_counts[item["name"]] = part_counts.get(item["name"], 0) + 1
+    for store in stores:
+        payload = store["payload"]
+        payload["partCount"] = part_counts.get(payload["detailName"], 1)
+    compact_state = {
+        **state,
+        "supportTasks": [],
+        "financeDetailRows": [],
+        "reconciliation": {
+            **(state.get("reconciliation") or {}),
+            "studentMatches": [],
+            "autoDecisions": [],
+        },
+        "detailStores": detail_index,
+        "detailStoreMode": "split-to-avoid-nginx-body-limit",
+    }
+    stores.insert(0, {
+        "storeKey": base_key,
+        "moduleKey": "paike",
+        "payload": compact_state,
+        "replaceMode": "replace",
+        "operatorName": "程志豪",
+        "operatorUsername": "chengzhihao",
+    })
+    return stores
 
 
 def build_package(root: Path) -> dict:
@@ -153,6 +311,10 @@ def main() -> int:
     parser.add_argument("--push", action="store_true", help="Actually push to cloud API. Default only prepares payload files.")
     parser.add_argument("--base-url", default=os.environ.get("JRC_BASE_URL", ""))
     parser.add_argument("--token", default=os.environ.get("JRC_API_TOKEN", ""))
+    parser.add_argument("--curl", action="store_true", help="Use curl for cloud requests. Useful on the Mac when Python HTTPS/DNS is unstable.")
+    parser.add_argument("--connect-to", default=os.environ.get("JRC_CURL_CONNECT_TO", ""), help="Optional curl --connect-to value, for example jrcwork.cn:443:8.218.84.228:443")
+    parser.add_argument("--insecure", action="store_true", default=os.environ.get("JRC_CURL_INSECURE", "") == "1", help="Allow insecure TLS verification for the internal deployment endpoint.")
+    parser.add_argument("--single-formal-payload", action="store_true", help="Send formal lessons as one large payload. Default batches by teacher to avoid nginx 413.")
     args = parser.parse_args()
 
     root = Path(args.root)
@@ -192,20 +354,50 @@ def main() -> int:
         }, ensure_ascii=False, indent=2))
         return 2
 
-    formal_response = request_json("POST", f"{base}/paike/formal-import", token, package["formalPayload"])
-    activation_response = request_json("PUT", f"{base}/module-data", token, {
-        "storeKey": "paike-historical-activation-v1",
-        "moduleKey": "paike",
-        "payload": package["activationState"],
-        "replaceMode": "replace",
-        "operatorName": "程志豪",
-        "operatorUsername": "chengzhihao",
-    })
+    formal_responses = []
+    formal_payloads = [package["formalPayload"]] if args.single_formal_payload else teacher_batches(package["formalPayload"])
+    for batch in formal_payloads:
+        teacher_names = sorted({str(row.get("teacherName") or row.get("teacher") or "").strip() for row in batch.get("entries", []) if row})
+        response = request_cloud(
+            "POST",
+            f"{base}/paike/formal-import",
+            token,
+            batch,
+            timeout=180,
+            use_curl=args.curl,
+            connect_to=args.connect_to,
+            insecure=args.insecure,
+        )
+        formal_responses.append({
+            "teachers": teacher_names,
+            "entryCount": len(batch.get("entries", [])),
+            "response": response,
+        })
+
+    activation_responses = []
+    for store_payload in build_activation_stores(package):
+        response = request_cloud(
+            "PUT",
+            f"{base}/module-data",
+            token,
+            store_payload,
+            timeout=180,
+            use_curl=args.curl,
+            connect_to=args.connect_to,
+            insecure=args.insecure,
+        )
+        activation_responses.append({
+            "storeKey": store_payload["storeKey"],
+            "payloadBytes": compact_json_size(store_payload["payload"]),
+            "response": response,
+        })
     print(json.dumps({
         **result,
         "mode": "pushed",
-        "formalResponse": formal_response,
-        "activationResponse": activation_response,
+        "formalBatchCount": len(formal_responses),
+        "formalResponses": formal_responses,
+        "activationStoreCount": len(activation_responses),
+        "activationResponses": activation_responses,
     }, ensure_ascii=False, indent=2))
     return 0
 
