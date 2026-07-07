@@ -201,6 +201,38 @@
       .metric {
         padding: 16px;
       }
+      .funnel-action-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .funnel-action-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+      }
+      .funnel-action-card strong {
+        display: block;
+        color: var(--ink);
+        font-size: 15px;
+      }
+      .funnel-action-card p {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .funnel-action-card b {
+        display: block;
+        color: var(--brand);
+        font-size: 22px;
+        text-align: right;
+      }
       .quick-actions {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -536,68 +568,6 @@
         transform: translate(-50%, 0);
       }
       .toast-message.error { background: rgba(185, 28, 28, 0.96); }
-      .enrollment-routing-modal {
-        position: fixed;
-        inset: 0;
-        z-index: 85;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 22px;
-        background: rgba(23, 33, 50, 0.42);
-      }
-      .enrollment-routing-modal.show { display: flex; }
-      .enrollment-routing-dialog {
-        width: min(780px, calc(100vw - 32px));
-        max-height: calc(100vh - 44px);
-        overflow: auto;
-        border: 1px solid rgba(255,255,255,0.72);
-        border-radius: 22px;
-        background: #fff;
-        box-shadow: var(--shadow);
-        padding: 20px;
-      }
-      .enrollment-routing-note {
-        margin-top: 8px;
-        color: var(--muted);
-        line-height: 1.7;
-        font-size: 13px;
-      }
-      .class-option-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        margin-top: 14px;
-      }
-      .class-option-card {
-        min-height: 72px;
-        padding: 14px;
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: #fff;
-        text-align: left;
-        color: var(--ink);
-        cursor: pointer;
-      }
-      .class-option-card:hover {
-        border-color: rgba(124, 58, 237, 0.28);
-        box-shadow: 0 10px 24px rgba(23, 33, 50, 0.08);
-      }
-      .class-option-card strong { display: block; font-size: 15px; }
-      .class-option-card span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-      .routing-custom-class {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 10px;
-        margin-top: 14px;
-      }
-      .routing-custom-class input {
-        min-height: 40px;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 0 12px;
-        font: inherit;
-      }
       .lead-card-list {
         display: none;
         gap: 10px;
@@ -966,10 +936,6 @@
         .lead-card-actions {
           grid-template-columns: 1fr;
         }
-        .class-option-grid,
-        .routing-custom-class {
-          grid-template-columns: 1fr;
-        }
         .toast-message {
           border-radius: 16px;
         }
@@ -986,19 +952,6 @@
   <body data-page-permission="admissions.access">
     <main class="shell">
       <div class="toast-message" id="toastMessage" role="status" aria-live="polite"></div>
-      <div class="enrollment-routing-modal" id="enrollmentRoutingModal" aria-hidden="true">
-        <div class="enrollment-routing-dialog" role="dialog" aria-modal="true" aria-labelledby="enrollmentRoutingTitle">
-          <div class="section-head">
-            <div>
-              <h2 id="enrollmentRoutingTitle">报名后的下一步</h2>
-              <div class="enrollment-routing-note" id="enrollmentRoutingNote">报名已保存，请选择后续处理方式。</div>
-            </div>
-            <button class="button small secondary" id="closeEnrollmentRoutingButton" type="button">稍后处理</button>
-          </div>
-          <div id="enrollmentRoutingBody"></div>
-          <div class="inline-message" id="enrollmentRoutingMessage"></div>
-        </div>
-      </div>
       <nav class="system-nav" aria-label="系统导航">
         <a href="/jrcedu/portal/index.html">返回工作台</a>
       </nav>
@@ -1039,10 +992,6 @@
             <div class="nav-item" data-nav-target="enrollment">
               <h3>报名/返现</h3>
               <p>记录报名结果、找班信息和转介绍返现。</p>
-            </div>
-            <div class="nav-item" data-nav-target="parent-risk">
-              <h3>家长风险池</h3>
-              <p>记录谨慎续报和逐步劝退提醒。</p>
             </div>
             <div class="nav-item" data-nav-target="insights">
               <h3>统计看板</h3>
@@ -2346,105 +2295,6 @@
             </div>
           </section>
 
-          <section class="panel content-section" data-section-group="parent-risk">
-            <div class="section-head">
-              <div>
-                <h2>家长风险池</h2>
-                <div class="hint">用于记录多次无理指责、威胁举报、恶意退费、辱骂等高风险沟通情况。这里不是黑名单，只做续报和后续服务提醒。</div>
-              </div>
-              <div class="filters">
-                <span class="status-chip">建议谨慎续报</span>
-                <span class="status-chip">建议逐步劝退</span>
-              </div>
-            </div>
-            <div class="metrics">
-              <div class="metric">
-                <div class="metric-meta">风险记录</div>
-                <strong id="parentRiskTotalCount">0</strong>
-                <div class="metric-meta">当前风险池总数</div>
-              </div>
-              <div class="metric">
-                <div class="metric-meta">谨慎续报</div>
-                <strong id="parentRiskCautionCount">0</strong>
-                <div class="metric-meta">续报前提醒老师复核</div>
-              </div>
-              <div class="metric">
-                <div class="metric-meta">逐步劝退</div>
-                <strong id="parentRiskExitCount">0</strong>
-                <div class="metric-meta">需要温和减少续报</div>
-              </div>
-              <div class="metric">
-                <div class="metric-meta">观察中</div>
-                <strong id="parentRiskOpenCount">0</strong>
-                <div class="metric-meta">还未处理完成</div>
-              </div>
-            </div>
-            <div class="form-grid">
-              <div class="field">
-                <label>学生姓名</label>
-                <input id="parentRiskStudentInput" placeholder="例如：张同学">
-              </div>
-              <div class="field">
-                <label>家长 / 联系方式</label>
-                <input id="parentRiskContactInput" placeholder="家长姓名、手机号或微信">
-              </div>
-              <div class="field">
-                <label>风险建议</label>
-                <select id="parentRiskLevelSelect">
-                  <option>建议谨慎续报</option>
-                  <option>建议逐步劝退</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>记录人</label>
-                <input id="parentRiskRecorderInput" placeholder="默认当前登录人">
-              </div>
-              <div class="field">
-                <label>处理状态</label>
-                <select id="parentRiskStatusSelect">
-                  <option>观察中</option>
-                  <option>已处理</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>记录时间</label>
-                <input id="parentRiskTimeInput" type="datetime-local">
-              </div>
-              <div class="field span-3">
-                <label>风险原因</label>
-                <textarea id="parentRiskReasonInput" placeholder="例如：多次无端指责老师、威胁举报、提出明显不合理退费要求。"></textarea>
-              </div>
-              <div class="field span-3">
-                <label>具体事件记录</label>
-                <textarea id="parentRiskEventInput" placeholder="写清发生时间、沟通场景、家长原话或关键行为，方便后续续报前判断。"></textarea>
-              </div>
-              <div class="field span-3">
-                <label>处理建议</label>
-                <textarea id="parentRiskSuggestionInput" placeholder="例如：续报前由负责人复核；不主动推荐长期班；必要时温和劝退。"></textarea>
-              </div>
-            </div>
-            <div class="section-actions">
-              <button class="button small" id="saveParentRiskButton" type="button">保存风险记录</button>
-              <span class="inline-message" id="parentRiskMessage"></span>
-            </div>
-            <div class="table-wrap" style="margin-top: 18px;">
-              <table>
-                <thead>
-                  <tr>
-                    <th>学生 / 家长</th>
-                    <th>风险建议</th>
-                    <th>原因与事件</th>
-                    <th>处理建议</th>
-                    <th>状态</th>
-                    <th>记录</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="parentRiskTableBody"></tbody>
-              </table>
-            </div>
-          </section>
-
           <section class="panel content-section" data-section-group="insights">
             <div class="section-head">
               <div>
@@ -2477,6 +2327,7 @@
                 <div class="metric-meta" id="funnelEnrollRate">成交率 0%</div>
               </div>
             </div>
+            <div class="funnel-action-list" id="funnelActionList"></div>
           </section>
 
           <section class="panel content-section" data-section-group="trials">
@@ -2763,7 +2614,7 @@
             </div>
           </section>
 
-          <section class="panel content-section dashboard-secondary" data-section-group="insights">
+          <section class="panel content-section" data-section-group="insights">
             <div class="section-head">
               <div>
                 <h2>渠道 ROI</h2>
@@ -2864,7 +2715,7 @@
             </div>
           </section>
 
-          <section class="panel content-section dashboard-secondary" data-section-group="insights">
+          <section class="panel content-section" data-section-group="insights">
             <div class="section-head">
               <div>
                 <h2>批量运营工具</h2>

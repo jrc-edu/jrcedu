@@ -122,6 +122,10 @@
         background: rgba(180, 83, 9, 0.1);
         color: var(--warn);
       }
+      .tag.locked {
+        background: rgba(15, 23, 42, 0.1);
+        color: #0f172a;
+      }
       .period-panel {
         display: grid;
         gap: 12px;
@@ -788,6 +792,10 @@
       .status-pill.review {
         background: rgba(37, 99, 235, 0.12);
         color: #1d4ed8;
+      }
+      .status-pill.locked {
+        background: rgba(15, 23, 42, 0.1);
+        color: #0f172a;
       }
       .muted {
         color: var(--muted);
@@ -1681,6 +1689,7 @@
           <p class="eyebrow">月结</p>
           <h2>月度收入与老师结算成本</h2>
           <div class="tag-row" style="margin-bottom: 12px;"><span class="tag" id="periodReviewStatus">草稿</span></div>
+          <div class="auth-note" id="periodLockNotice" hidden></div>
           <form id="monthlyForm" class="form-grid">
             <label class="field">课时总收入<input name="lessonIncome" type="number" min="0" step="0.01"></label>
             <label class="field">其他收入<input name="otherIncome" type="number" min="0" step="0.01"></label>
@@ -1696,7 +1705,7 @@
             <label class="field">其他老师结算成本<input name="otherTeacherCost" type="number" min="0" step="0.01"></label>
             <label class="field">课时剩余（Excel 原值）<input name="classHourBalance" type="number" step="0.01"></label>
           </form>
-          <div class="actions"><button class="button" type="button" id="saveMonthlyButton">保存本月数据</button><button class="button secondary" type="button" id="confirmMonthlyReviewButton">确认本月复核</button><button class="button secondary" type="button" id="exportSummaryButton">导出月度汇总 CSV</button></div>
+          <div class="actions"><button class="button" type="button" id="saveMonthlyButton">保存本月数据</button><button class="button secondary" type="button" id="confirmMonthlyReviewButton">确认本月复核</button><button class="button secondary" type="button" id="lockMonthlyReviewButton">锁定本月月结</button><button class="button secondary" type="button" id="exportSummaryButton">导出月度汇总 CSV</button></div>
           <div class="auth-note" id="financeSaveMessage">财务数据保存后默认进入“待复核”。</div>
         </article>
         <aside class="card"><p class="eyebrow">口径</p><h2>月结口径</h2><div class="mini-list"><div class="mini-item"><strong>收入</strong><p>课时总收入、其他收入、课时剩余。</p></div><div class="mini-item"><strong>成本</strong><p>工资、社保、公积金、提成、补贴、日常支出、其他经营成本。</p></div><div class="mini-item"><strong>分红</strong><p>按经营毛利润计算分红池和留存利润。</p></div></div></aside>
@@ -1781,6 +1790,8 @@
         return {
           periodName,
           reviewStatus: "草稿",
+          lockedAt: "",
+          lockedBy: "",
           lessonIncome: 0,
           otherIncome: 0,
           otherExpense: 0,
@@ -1920,9 +1931,19 @@
             const existing = merged.periods[periodName] || createPeriod(periodName);
             const normalizedExisting = normalizePeriod(periodName, existing);
             const normalizedIncoming = normalizePeriod(periodName, periodValue);
+            const lockedPeriod = periodIsLocked(normalizedExisting)
+              ? normalizedExisting
+              : periodIsLocked(normalizedIncoming)
+                ? normalizedIncoming
+                : null;
             merged.periods[periodName] = {
               ...normalizedExisting,
               ...normalizedIncoming,
+              ...(lockedPeriod ? {
+                reviewStatus: "已锁定",
+                lockedAt: lockedPeriod.lockedAt || normalizedExisting.lockedAt || normalizedIncoming.lockedAt || "",
+                lockedBy: lockedPeriod.lockedBy || normalizedExisting.lockedBy || normalizedIncoming.lockedBy || ""
+              } : {}),
               admissionReceipts: mergeFinanceRecordRows(normalizedExisting.admissionReceipts, normalizedIncoming.admissionReceipts),
               attendanceSettlementReviews: mergeFinanceRecordRows(normalizedExisting.attendanceSettlementReviews, normalizedIncoming.attendanceSettlementReviews),
               teacherWageReviews: mergeFinanceRecordRows(normalizedExisting.teacherWageReviews, normalizedIncoming.teacherWageReviews),
@@ -2240,6 +2261,9 @@
       function financeReviewStatusMeta(status, options = {}) {
         const text = String(status || "").trim();
         const needsReview = Boolean(options.needsReview);
+        if (/已锁定|锁定/.test(text)) {
+          return { label: "已锁定", className: "locked", note: "本月月结已封账，后续变更走下月调整或管理员处理。" };
+        }
         if (/离职/.test(text)) {
           return { label: "可核对", className: "review", note: "离职老师只保留本月排课和结算核对。" };
         }
@@ -2289,6 +2313,29 @@
             <small>${escapeHtml(reviewHelpText(text, sourceLabel))}</small>
           </div>
         `;
+      }
+
+      function periodIsLocked(period = getPeriod()) {
+        return String(period?.reviewStatus || "").includes("已锁定") || Boolean(period?.lockedAt);
+      }
+
+      function currentPeriodIsLocked() {
+        return periodIsLocked(getPeriod());
+      }
+
+      function lockedPeriodMessage(period = getPeriod()) {
+        const time = period.lockedAt
+          ? (window.JRC_TIME?.formatBeijingDateTime?.(period.lockedAt, { seconds: false }) || String(period.lockedAt).slice(0, 16).replace("T", " "))
+          : "";
+        const by = period.lockedBy || "管理员";
+        return `${currentPeriod} 月结已锁定${time ? `（${by}｜${time}）` : ""}，普通录入、自动带入和确认动作已暂停；需要调整时请走下月调整或管理员处理。`;
+      }
+
+      function guardUnlockedPeriod(actionText = "修改本月月结") {
+        if (!currentPeriodIsLocked()) return true;
+        setFinanceMessage(`${lockedPeriodMessage()}不能${actionText}。`);
+        byId("monthlySection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+        return false;
       }
 
       function recordFinanceLink(action, count = 1, samples = [], note = "") {
@@ -2747,7 +2794,7 @@
           writeState(state);
           return state.periods[periodName];
         }
-        if (!state.periods[periodName].importSeeded) {
+        if (!periodIsLocked(state.periods[periodName]) && !state.periods[periodName].importSeeded) {
           if (seedPeriodFromImportedRows(periodName, state.periods[periodName])) writeState(state);
         }
         return state.periods[periodName];
@@ -2802,6 +2849,7 @@
       }
 
       function syncPeriodFromForm(options = {}) {
+        if (!guardUnlockedPeriod("保存本月数据")) return;
         const period = getPeriod();
         const form = byId("monthlyForm");
         MONEY_FIELDS.forEach((field) => {
@@ -2827,6 +2875,7 @@
       }
 
       function confirmCurrentPeriodReview() {
+        if (!guardUnlockedPeriod("确认本月复核")) return;
         const attendanceTotals = attendanceTotalsForCurrentPeriod();
         if (attendanceTotals.followupCount > 0) {
           setFinanceMessage(`当前还有 ${attendanceTotals.followupCount} 人次点名异常暂缓。请先到“点名课时费与课销”处理缺勤/请假/未点名，再确认月结。`);
@@ -2853,6 +2902,42 @@
           setFinanceMessage(result?.ok
             ? `已保存到云端：${currentPeriod} 财务数据已确认复核。`
             : `已暂存在当前设备：${currentPeriod} 财务数据已确认复核，云端同步稍后再试。`);
+        });
+        render();
+      }
+
+      function lockCurrentPeriodReview() {
+        const period = getPeriod();
+        if (periodIsLocked(period)) {
+          setFinanceMessage(lockedPeriodMessage(period));
+          return;
+        }
+        if (period.reviewStatus !== "已确认") {
+          setFinanceMessage("请先完成“确认本月复核”，确认后再锁定本月月结。");
+          byId("monthlySection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        const attendanceTotals = attendanceTotalsForCurrentPeriod();
+        if (attendanceTotals.followupCount > 0) {
+          setFinanceMessage(`当前还有 ${attendanceTotals.followupCount} 人次点名异常暂缓。请先处理课消异常，再锁定月结。`);
+          byId("attendanceFinanceSection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        const confirmed = window.confirm(`${currentPeriod} 月结锁定后，普通保存、自动带入、新增支出、老师工资核对和课消确认都会暂停。确认锁定吗？`);
+        if (!confirmed) return;
+        period.reviewStatus = "已锁定";
+        period.lockedAt = new Date().toISOString();
+        period.lockedBy = window.JRC_CURRENT_EMPLOYEE?.name || "未登录";
+        recordFinanceLink(
+          "财务月结锁定",
+          1,
+          [currentPeriod],
+          "月结锁定后作为本月封账结果；后续变化不再直接改本月，走下月调整或管理员处理。"
+        );
+        writeState(state).then((result) => {
+          setFinanceMessage(result?.ok
+            ? `已锁定并同步云端：${currentPeriod} 月结进入封账状态。`
+            : `已在当前设备锁定：${currentPeriod} 月结进入封账状态，云端稍后同步。`);
         });
         render();
       }
@@ -2980,7 +3065,7 @@
           <a class="workbench-strip-card" href="#monthlySection">
             <span>月结状态</span>
             <strong>${escapeHtml(period.reviewStatus || "草稿")}</strong>
-            <em>${period.reviewStatus === "已确认" ? "本月已确认复核" : "确认前不作为最终发薪依据"}</em>
+            <em>${periodIsLocked(period) ? "本月已封账，普通修改已暂停" : period.reviewStatus === "已确认" ? "可锁定本月月结" : "确认前不作为最终发薪依据"}</em>
           </a>
         `;
       }
@@ -3000,11 +3085,11 @@
         const cards = [
           {
             action: "period",
-            tone: period.reviewStatus === "已确认" ? "" : "primary",
+            tone: periodIsLocked(period) ? "" : period.reviewStatus === "已确认" ? "" : "primary",
             label: "第一步",
             value: currentPeriod,
             title: "先确认月份",
-            detail: period.reviewStatus === "已确认" ? "本月已经确认复核，可继续查看导出。" : "月份错了，下面所有老师结算都会看错。"
+            detail: periodIsLocked(period) ? "本月已经锁定，只能查看和导出。" : period.reviewStatus === "已确认" ? "本月已确认复核，可以锁定封账。" : "月份错了，下面所有老师结算都会看错。"
           },
           {
             action: "settlement",
@@ -3260,6 +3345,10 @@
           applyFinancePeriod(periodName, { message: false });
         }
         const period = getPeriod(periodName);
+        if (periodIsLocked(period)) {
+          setFinanceMessage(`${periodName} 月结已锁定，不能再确认招生入账。`);
+          return;
+        }
         const receipts = Array.isArray(period.admissionReceipts) ? period.admissionReceipts : [];
         if (receipts.some((item) => item.sourceId === receiptId || item.id === receiptId)) {
           setFinanceMessage("这条招生实收已经确认过，不会重复入账。");
@@ -3802,6 +3891,7 @@
       }
 
       function applyFinanceAutofill() {
+        if (!guardUnlockedPeriod("一键带入本月草算")) return;
         const period = getPeriod();
         const { expenseRows, salaryRows, revenueRows, financeSummaryRows } = currentImportedRows();
         if (!expenseRows.length && !salaryRows.length && !revenueRows.length && !financeSummaryRows.length) {
@@ -4273,6 +4363,10 @@
           return;
         }
         const period = getPeriod(row.period || currentPeriod);
+        if (periodIsLocked(period)) {
+          setFinanceMessage(`${row.period || currentPeriod} 月结已锁定，不能再确认点名结算。`);
+          return;
+        }
         const reviews = Array.isArray(period.attendanceSettlementReviews) ? period.attendanceSettlementReviews : [];
         const review = {
           id: settlementId,
@@ -4903,6 +4997,7 @@
           setFinanceMessage("当前账号没有财务确认权限，不能确认工资单核对。");
           return;
         }
+        if (!guardUnlockedPeriod("确认老师工资单")) return;
         const teacher = byId("financeTeacherSelect")?.value || "";
         if (!teacher) {
           setFinanceMessage("请先选择老师，再确认工资单核对。");
@@ -5096,7 +5191,10 @@
       function render() {
         const period = getPeriod();
         const reviewNode = byId("periodReviewStatus");
-        if (reviewNode) reviewNode.textContent = period.reviewStatus || "草稿";
+        if (reviewNode) {
+          reviewNode.textContent = period.reviewStatus || "草稿";
+          reviewNode.className = `tag ${periodIsLocked(period) ? "locked" : ""}`;
+        }
         renderSummary(period);
         renderFinanceExcelWorkbooks();
         renderFinanceCommandCenter(period);
@@ -5121,6 +5219,46 @@
         renderAttendanceDetailPreview();
         renderAttendanceFlowStatus();
         renderWorkflowMonthlyCandidates();
+        applyPeriodLockState(period);
+      }
+
+      function applyPeriodLockState(period = getPeriod()) {
+        const locked = periodIsLocked(period);
+        const notice = byId("periodLockNotice");
+        if (notice) {
+          notice.hidden = !locked;
+          notice.textContent = locked ? lockedPeriodMessage(period) : "";
+        }
+        const lockButton = byId("lockMonthlyReviewButton");
+        if (lockButton) {
+          lockButton.disabled = locked || period.reviewStatus !== "已确认" || !canEditFinance();
+          lockButton.textContent = locked ? "本月已锁定" : "锁定本月月结";
+          lockButton.title = locked ? "本月已封账" : period.reviewStatus === "已确认" ? "确认锁定本月月结" : "先确认本月复核后才能锁定";
+        }
+        [
+          "saveMonthlyButton",
+          "confirmMonthlyReviewButton",
+          "financeAutofillButton",
+          "addExpenseButton"
+        ].forEach((id) => {
+          const node = byId(id);
+          if (node) node.disabled = locked || !canEditFinance();
+        });
+        const monthlyForm = byId("monthlyForm");
+        if (monthlyForm) {
+          Array.from(monthlyForm.elements || []).forEach((node) => {
+            node.disabled = locked || !canEditFinance();
+          });
+        }
+        const expenseForm = byId("expenseForm");
+        if (expenseForm) {
+          Array.from(expenseForm.elements || []).forEach((node) => {
+            node.disabled = locked || !canEditFinance();
+          });
+        }
+        document.querySelectorAll("[data-confirm-admission-receipt], [data-confirm-attendance-settlement], #confirmTeacherWageReviewButton, [data-delete-expense]").forEach((node) => {
+          if (locked) node.disabled = true;
+        });
       }
 
       window.addEventListener("storage", (event) => {
@@ -5198,6 +5336,7 @@
       }
 
       function addExpense() {
+        if (!guardUnlockedPeriod("新增支出")) return;
         const period = getPeriod();
         const form = byId("expenseForm");
         const amount = toNumber(form.elements.amount.value);
@@ -5230,6 +5369,7 @@
       }
 
       function deleteExpense(id) {
+        if (!guardUnlockedPeriod("删除支出")) return;
         const period = getPeriod();
         period.expenses = (period.expenses || []).filter((expense) => expense.id !== id);
         period.reviewStatus = "待复核";
@@ -5501,6 +5641,7 @@
           const keepAttendanceDecision = Boolean(node.dataset?.attendanceView);
           if (!canEdit && !keepEnabled && !keepQuickButton && !keepWorkbenchButton && !keepTeacherCard && !keepAttendanceDecision) node.disabled = true;
         });
+        applyPeriodLockState(getPeriod());
       }
 
       function selectCurrentFinanceTeacher() {
@@ -5684,6 +5825,7 @@
       byId("monthlyForm").addEventListener("input", () => syncPeriodFromForm());
       byId("saveMonthlyButton").addEventListener("click", () => syncPeriodFromForm({ log: true }));
       byId("confirmMonthlyReviewButton").addEventListener("click", confirmCurrentPeriodReview);
+      byId("lockMonthlyReviewButton")?.addEventListener("click", lockCurrentPeriodReview);
       byId("addExpenseButton").addEventListener("click", addExpense);
       byId("exportSummaryButton").addEventListener("click", exportSummary);
       byId("exportExpensesButton").addEventListener("click", exportExpenses);

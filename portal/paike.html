@@ -369,10 +369,18 @@
         gap: 10px;
       }
       .launch-status-card {
+        display: block;
         padding: 14px;
         border: 1px solid var(--line);
         border-radius: 16px;
         background: rgba(255,255,255,0.9);
+        color: inherit;
+        text-align: left;
+        text-decoration: none;
+      }
+      .launch-status-card:hover {
+        border-color: rgba(13,148,136,0.32);
+        background: rgba(13,148,136,0.08);
       }
       .launch-status-card span {
         display: block;
@@ -4760,18 +4768,43 @@
           pendingCount ? `${pendingCount}条待排课` : ""
         ].filter(Boolean);
         const cards = [
-          ["投用检查", launchWarnings.length ? `${launchWarnings.length}项` : "通过", launchWarnings.length ? launchWarnings.join("、") : "可进入日常排课使用", launchWarnings.length ? "warn" : ""],
-          ["正式课表", officialCount, excelCount ? `已并网 ${excelCount} 节 Excel 课程` : (officialCount ? "已接入正式课表" : "待并网"), officialCount ? "" : "warn"],
-          ["今天课程", todayCount, todayCount ? "今天有课" : "今天暂无课", ""],
-          ["待处理", todoCount, todoCount ? `冲突${conflictCount} / 待排${pendingCount}` : (missingRoomCount ? `紧急待办暂无；当前月 ${missingRoomCount} 节缺教室，不阻塞使用` : "暂无紧急待办"), todoCount ? "warn" : ""]
+          { label: "投用检查", value: launchWarnings.length ? `${launchWarnings.length}项` : "通过", note: launchWarnings.length ? launchWarnings.join("、") : "可进入日常排课使用", tone: launchWarnings.length ? "warn" : "", action: launchWarnings.length ? "issues" : "teacher" },
+          { label: "冲突检测", value: conflictCount, note: conflictCount ? "优先处理同老师/同教室/同学生重叠" : "当前月份暂无疑似冲突", tone: conflictCount ? "warn" : "", action: "conflicts" },
+          { label: "未写教室", value: missingRoomCount, note: missingRoomCount ? "不阻塞历史并网，排新课前集中补齐" : "当前月份教室信息完整", tone: missingRoomCount ? "warn" : "", action: "missing-room" },
+          { label: "待排课/今天课程", value: `${pendingCount}/${todayCount}`, note: pendingCount ? `新生待排 ${pendingCount} 条；今天 ${todayCount} 节课` : `今天 ${todayCount} 节课，暂无新生待排`, tone: pendingCount ? "warn" : "", action: pendingCount ? "pending" : "today" }
         ];
-        grid.innerHTML = cards.map(([label, value, note, tone]) => `
-          <div class="launch-status-card">
-            <span>${escapeHtml(label)}</span>
-            <strong>${escapeHtml(value)}</strong>
-            <p><span class="status-pill ${escapeHtml(tone)}">${escapeHtml(note)}</span></p>
-          </div>
+        grid.innerHTML = cards.map((card) => `
+          <button class="launch-status-card" type="button" data-launch-status-action="${escapeHtml(card.action)}">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p><span class="status-pill ${escapeHtml(card.tone)}">${escapeHtml(card.note)}</span></p>
+          </button>
         `).join("");
+      }
+
+      function openPaikeExceptionMode(mode = "conflicts") {
+        const details = byId("paikeExceptionDetails");
+        if (details) details.open = true;
+        if (byId("teacherSheetMode")) byId("teacherSheetMode").value = mode;
+        renderTeacherSheet();
+        if (mode === "missing-room") byId("paikeMissingRoomList")?.scrollIntoView({ block: "start", behavior: "smooth" });
+        else byId("paikeConflictDetailList")?.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+
+      function handleLaunchStatusAction(action) {
+        if (action === "conflicts") {
+          openPaikeExceptionMode("conflicts");
+          return;
+        }
+        if (action === "missing-room") {
+          openPaikeExceptionMode("missing-room");
+          return;
+        }
+        if (action === "pending") {
+          byId("pendingSchedulePoolPanel")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        handleProductionAction(action || "teacher");
       }
 
       function renderTodayCommandPanel() {
@@ -5133,6 +5166,11 @@
         const button = event.target.closest("[data-production-action]");
         if (!button) return;
         handleProductionAction(button.getAttribute("data-production-action") || "");
+      });
+      byId("paikeLaunchStatusGrid")?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-launch-status-action]");
+        if (!button) return;
+        handleLaunchStatusAction(button.getAttribute("data-launch-status-action") || "");
       });
       ["paikeRangeFilter", "paikeTeacherFilter", "paikeClassFilter", "paikeKeywordFilter"].forEach((id) => {
         byId(id)?.addEventListener("input", renderWorkbench);

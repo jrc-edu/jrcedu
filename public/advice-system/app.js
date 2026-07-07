@@ -3,6 +3,7 @@ const STORAGE_KEY = "advice-system-stage-prototype";
 const defaultState = {
   activeView: "dashboard",
   activeLeadFilter: "all",
+  funnelStage: "",
   leadSearchQuery: "",
   leadOwnerFilter: "",
   leadChannelFilter: "",
@@ -20,7 +21,6 @@ const defaultState = {
   leads: [],
   followups: [],
   referralLearningReports: [],
-  parentRiskRecords: [],
 };
 
 const state = loadState();
@@ -39,11 +39,8 @@ const ownerOptions = ["待分配", "陈雨晴", "高芳燕", "颜雨涵", "周�
 const trialTeacherOptions = ["待安排", "叶源泽", "李舒", "赵萱", "朱永乐", "郑嘉艺", "潘云贵", "曹德顺", "吴水琴", "吴建勇", "海滢滢", "程志豪"];
 const channelOptions = ["待补来源", "线上客户", "老生家长转介绍", "扩科", "其他"];
 const courseProductOptions = ["程老师班课", "科学班课", "数学小班课", "科学小班课", "数学一对一", "科学一对一"];
-const standaloneClassCourseOptions = ["程老师班课", "科学班课"];
 const startTimeOptions = ["周五 18:00", "周五 19:30", "周六 08:30", "周六 10:20", "周六 13:30", "周六 15:30", "周六 16:40-18:10", "周六 18:30", "周日 08:30", "周日 10:20", "周日 13:30", "周日 15:30", "周日 16:40-18:10", "周日 18:30"];
 const channelOwnerOptions = ["待补渠道归属", "陈雨晴", "颜雨涵", "高芳燕", "周珊", "前台"];
-const parentRiskLevelOptions = ["建议谨慎续报", "建议逐步劝退"];
-const parentRiskStatusOptions = ["观察中", "已处理"];
 const importTemplateFields = [
   "学生姓名",
   "年级",
@@ -519,40 +516,6 @@ function mergeReferralReportRows(...groups) {
   return [...map.values()].sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")));
 }
 
-function parentRiskRecordId(row) {
-  return String(row?.id || buildAdmissionsId("parent-risk", [row?.studentName, row?.contact, row?.createdAt, row?.level])).trim();
-}
-
-function mergeParentRiskRows(...groups) {
-  const map = new Map();
-  groups.flat().forEach((row) => {
-    if (!row || typeof row !== "object") return;
-    const id = parentRiskRecordId(row);
-    const existing = map.get(id) || {};
-    map.set(id, {
-      ...existing,
-      ...row,
-      id,
-      level: parentRiskLevelOptions.includes(row.level) ? row.level : parentRiskLevelOptions[0],
-      status: parentRiskStatusOptions.includes(row.status) ? row.status : parentRiskStatusOptions[0],
-      studentName: String(row.studentName || "").trim(),
-      contact: String(row.contact || "").trim(),
-      reason: String(row.reason || "").trim(),
-      eventRecord: String(row.eventRecord || row.event || "").trim(),
-      suggestion: String(row.suggestion || "").trim(),
-      recorder: String(row.recorder || "").trim(),
-      createdAt: row.createdAt || formatNowStamp(),
-      updatedAt: row.updatedAt || row.createdAt || formatNowStamp(),
-    });
-  });
-  return [...map.values()].sort((left, right) => {
-    const leftOpen = left.status === "已处理" ? 0 : 1;
-    const rightOpen = right.status === "已处理" ? 0 : 1;
-    if (leftOpen !== rightOpen) return rightOpen - leftOpen;
-    return String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || ""));
-  });
-}
-
 function normalizeState(nextState) {
   nextState.leads = mergeLeadRows((nextState.leads || []).map((lead) => ({
     ...lead,
@@ -565,7 +528,6 @@ function normalizeState(nextState) {
   nextState.followups = mergeFollowupRows(Array.isArray(nextState.followups) ? nextState.followups : []);
   nextState.auditLogs = mergeAuditRows(Array.isArray(nextState.auditLogs) ? nextState.auditLogs : []);
   nextState.referralLearningReports = mergeReferralReportRows(Array.isArray(nextState.referralLearningReports) ? nextState.referralLearningReports : []);
-  nextState.parentRiskRecords = mergeParentRiskRows(Array.isArray(nextState.parentRiskRecords) ? nextState.parentRiskRecords : []);
   return nextState;
 }
 
@@ -589,7 +551,6 @@ function persistState() {
     state.followups = mergeFollowupRows(state.followups);
     state.auditLogs = mergeAuditRows(state.auditLogs);
     state.referralLearningReports = mergeReferralReportRows(state.referralLearningReports || []);
-    state.parentRiskRecords = mergeParentRiskRows(state.parentRiskRecords || []);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     scheduleCloudPersist();
   } catch {}
@@ -617,8 +578,7 @@ function scheduleCloudPersist() {
         leads: mergeLeadRows(remoteState.leads || [], state.leads || []),
         followups: mergeFollowupRows(remoteState.followups || [], state.followups || []),
         auditLogs: mergeAuditRows(remoteState.auditLogs || [], state.auditLogs || []),
-        referralLearningReports: mergeReferralReportRows(remoteState.referralLearningReports || [], state.referralLearningReports || []),
-        parentRiskRecords: mergeParentRiskRows(remoteState.parentRiskRecords || [], state.parentRiskRecords || [])
+        referralLearningReports: mergeReferralReportRows(remoteState.referralLearningReports || [], state.referralLearningReports || [])
       });
       Object.keys(state).forEach((key) => delete state[key]);
       Object.assign(state, mergedState);
@@ -649,8 +609,7 @@ async function hydrateCloudState() {
         leads: mergeLeadRows(state.leads || [], nextState.leads || []),
         followups: mergeFollowupRows(state.followups || [], nextState.followups || []),
         auditLogs: mergeAuditRows(state.auditLogs || [], nextState.auditLogs || []),
-        referralLearningReports: mergeReferralReportRows(state.referralLearningReports || [], nextState.referralLearningReports || []),
-        parentRiskRecords: mergeParentRiskRows(state.parentRiskRecords || [], nextState.parentRiskRecords || [])
+        referralLearningReports: mergeReferralReportRows(state.referralLearningReports || [], nextState.referralLearningReports || [])
       });
       Object.keys(state).forEach((key) => delete state[key]);
       Object.assign(state, mergedState);
@@ -805,91 +764,6 @@ function normalizePhone(phone) {
 
 function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
-}
-
-function compactRiskText(value) {
-  return String(value || "").replace(/\s+/g, "").trim().toLowerCase();
-}
-
-function riskScore(level) {
-  return level === "建议逐步劝退" ? 2 : 1;
-}
-
-function parentRiskMatchesLead(record, lead) {
-  if (!record || !lead || record.status === "已处理") return false;
-  const recordName = compactRiskText(record.studentName);
-  const leadName = compactRiskText(lead.studentName);
-  if (recordName && leadName && recordName === leadName) return true;
-  const recordPhone = normalizePhone(`${record.contact || ""} ${record.eventRecord || ""}`);
-  const leadPhone = normalizePhone(lead.parentPhone || lead.phone || "");
-  return Boolean(recordPhone && leadPhone && (recordPhone === leadPhone || recordPhone.includes(leadPhone) || leadPhone.includes(recordPhone)));
-}
-
-function findParentRiskForLead(lead) {
-  return (state.parentRiskRecords || [])
-    .filter((record) => parentRiskMatchesLead(record, lead))
-    .sort((left, right) => riskScore(right.level) - riskScore(left.level) || String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")))[0] || null;
-}
-
-function renderParentRiskInline(lead) {
-  const risk = findParentRiskForLead(lead);
-  if (!risk) return "";
-  const tagClass = risk.level === "建议逐步劝退" ? "red" : "amber";
-  return `<br><span class="tag ${tagClass}">家长风险：${escapeHtml(risk.level)}</span>`;
-}
-
-function formatDatetimeLocalFromStamp(value) {
-  const date = value ? new Date(String(value).replace(" ", "T")) : new Date();
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hour}:${minute}`;
-}
-
-function formatParentRiskTime(value) {
-  return String(value || "").replace("T", " ").slice(0, 16) || formatNowStamp();
-}
-
-function isStandaloneClassCourse(courseProduct) {
-  return standaloneClassCourseOptions.includes(String(courseProduct || "").trim());
-}
-
-function enrollmentClassOptionSeeds(courseProduct, lead) {
-  const grade = String(lead?.grade || "").trim();
-  const startDate = String(lead?.startDate || lead?.startTime || "").trim();
-  const existing = (state.leads || [])
-    .filter((item) => item.courseProduct === courseProduct && item.enrolledClassName)
-    .map((item) => item.enrolledClassName);
-  const courseSeeds = courseProduct === "程老师班课"
-    ? [
-        grade ? `程老师${grade}班课` : "",
-        startDate ? `程老师班课｜${startDate}` : "",
-        "程老师周五班课",
-        "程老师周六班课",
-        "程老师周日班课",
-        "程老师班课待定"
-      ]
-    : [
-        grade ? `科学${grade}班课` : "",
-        startDate ? `科学班课｜${startDate}` : "",
-        "科学周六班课",
-        "科学周日班课",
-        "科学班课待定"
-      ];
-  return uniqueValues([...existing, ...courseSeeds]).slice(0, 10);
-}
-
-function buildPaikeUrl(lead) {
-  const params = new URLSearchParams();
-  params.set("from", "admissions");
-  if (lead?.studentName) params.set("student", lead.studentName);
-  if (lead?.courseProduct) params.set("course", lead.courseProduct);
-  if (lead?.trialTeacher) params.set("teacher", lead.trialTeacher);
-  if (lead?.startDate) params.set("time", lead.startDate);
-  return `/jrcedu/portal/paike.html?${params.toString()}`;
 }
 
 function percent(part, total) {
@@ -1141,6 +1015,10 @@ function buildSopTasks() {
 
 function getFilteredLeads() {
   return state.leads.filter((lead) => {
+    if (state.funnelStage === "communicated" && !(lead.status === "已沟通待邀约" || lead.status === "持续跟进中")) return false;
+    if (state.funnelStage === "trial-pending" && lead.status !== "已预约试听") return false;
+    if (state.funnelStage === "feedback-pending" && !(lead.status === "试听完成待转化" && !isAdmissionEnrolled(lead))) return false;
+    if (state.funnelStage === "high-intent" && !(String(lead.intent || "").startsWith("A") && !isAdmissionEnrolled(lead))) return false;
     if (state.activeLeadFilter === "new" && lead.status !== "新建未联系") return false;
     if (state.activeLeadFilter === "trial")
       if (!(lead.status === "已预约试听" || lead.status === "试听完成待转化")) return false;
@@ -1294,7 +1172,7 @@ function renderLeadTable() {
     .map(
       (lead) => `
         <tr>
-          <td>${lead.studentName}<br>家长：${lead.parentPhone}<br>${lead.grade} / ${lead.subject}${renderParentRiskInline(lead)}</td>
+          <td>${lead.studentName}<br>家长：${lead.parentPhone}<br>${lead.grade} / ${lead.subject}</td>
           <td><span class="tag ${lead.channel.includes("转介绍") ? "green" : lead.channel.includes("自然") ? "red" : ""}">${lead.channel}</span><br>${lead.channelMeta}</td>
           <td>
             <div>招生顾问：${lead.owner}</div>
@@ -1354,7 +1232,7 @@ function renderLeadCards(filteredLeads, editable) {
                 <div class="lead-kv">试听：${escapeHtml(lead.trialTime ? formatTrialDisplay(lead.trialTime) : lead.trial)}</div>
                 <div class="lead-kv">老师：${escapeHtml(lead.trialTeacher || "待安排")}</div>
               </div>
-              <div class="lead-card-note">${escapeHtml(lead.nextAction || lead.note || "待补下一步")}${renderParentRiskInline(lead)}</div>
+              <div class="lead-card-note">${escapeHtml(lead.nextAction || lead.note || "待补下一步")}</div>
               <div class="lead-card-actions">
                 <button class="button small secondary" type="button" data-action="view-detail" data-student="${escapeHtml(lead.studentName)}">详情</button>
                 <button class="button small" type="button" data-action="advance-status" data-student="${escapeHtml(lead.studentName)}" ${editable ? "" : "disabled"}>推进</button>
@@ -1552,7 +1430,7 @@ function renderSimplePipelineBoard() {
             <strong>${escapeHtml(lead.studentName || "未命名学生")}</strong>
             <p>${escapeHtml([lead.grade, lead.parentPhone || lead.wechat || "待补联系方式"].filter(Boolean).join(" / "))}</p>
             <p>${escapeHtml(`负责人：${lead.owner || "待分配"}｜来源：${normalizeLeadChannelValue(lead.channel)}`)}</p>
-            <p>${escapeHtml(lead.nextAction || lead.note || "待补下一步动作")}${renderParentRiskInline(lead)}</p>
+            <p>${escapeHtml(lead.nextAction || lead.note || "待补下一步动作")}</p>
             <div class="pipeline-actions">${buildPipelineActionButtons(lead, stage.key, editable)}</div>
           </article>
         `).join("")
@@ -2103,21 +1981,17 @@ function renderEnrollmentLeadOptions() {
   byId("enrollReferrer").value = activeLead.referrerName || deriveReferrerText(activeLead.channelMeta);
   if (byId("enrollChannelOther")) byId("enrollChannelOther").value = activeLead.channelOtherNote || byId("enrollChannelOther").value || "";
   byId("enrollAttributionPreview").value = formatAttributionSnapshot(buildAttributionSnapshot(activeLead));
-  const activeParentRisk = findParentRiskForLead(activeLead);
-  const parentRiskNotice = activeParentRisk
-    ? `\n\n家长风险提醒：${activeParentRisk.level}。原因：${activeParentRisk.reason || activeParentRisk.eventRecord || "请查看家长风险池记录"}。报名、续费或扩科前建议由负责人先复核。`
-    : "";
   byId("enrollRemark").value =
     activeLead.enrolledAmount > 0
-      ? `已报名，实收 ${activeLead.enrolledAmount}。续费扩科沿用当前归属链。${parentRiskNotice}`
-      : `${activeLead.nextAction}。如果扩科或续费，需要继承当前顾问和来源归属。当前链路：${activeLead.channel} / ${deriveChannelOwner(activeLead)} / ${activeLead.owner}${(activeLead.referrerName || deriveReferrerText(activeLead.channelMeta)) !== "无" ? ` / 推荐人 ${activeLead.referrerName || deriveReferrerText(activeLead.channelMeta)}` : ""}${parentRiskNotice}`;
+      ? `已报名，实收 ${activeLead.enrolledAmount}。续费扩科沿用当前归属链。`
+      : `${activeLead.nextAction}。如果扩科或续费，需要继承当前顾问和来源归属。当前链路：${activeLead.channel} / ${deriveChannelOwner(activeLead)} / ${activeLead.owner}${(activeLead.referrerName || deriveReferrerText(activeLead.channelMeta)) !== "无" ? ` / 推荐人 ${activeLead.referrerName || deriveReferrerText(activeLead.channelMeta)}` : ""}`;
 
   byId("renewStudentName").value = activeLead.studentName;
   byId("renewAttributionPreview").value = formatAttributionSnapshot(
     activeLead.attributionLocked && activeLead.attributionSnapshot
       ? activeLead.attributionSnapshot
       : buildAttributionSnapshot(activeLead)
-  ) + (activeParentRisk ? `｜家长风险：${activeParentRisk.level}` : "");
+  );
 }
 
 function renderStudentArchive() {
@@ -2318,55 +2192,6 @@ function renderPublicPool() {
     : "<p>当前没有待回收或待重新分配的公海线索。</p>";
 }
 
-function renderParentRiskPool() {
-  const body = byId("parentRiskTableBody");
-  if (!body) return;
-  const records = mergeParentRiskRows(state.parentRiskRecords || []);
-  state.parentRiskRecords = records;
-  const openRecords = records.filter((record) => record.status !== "已处理");
-  const totalNode = byId("parentRiskTotalCount");
-  const cautionNode = byId("parentRiskCautionCount");
-  const exitNode = byId("parentRiskExitCount");
-  const openNode = byId("parentRiskOpenCount");
-  if (totalNode) totalNode.textContent = String(records.length);
-  if (cautionNode) cautionNode.textContent = String(openRecords.filter((record) => record.level === "建议谨慎续报").length);
-  if (exitNode) exitNode.textContent = String(openRecords.filter((record) => record.level === "建议逐步劝退").length);
-  if (openNode) openNode.textContent = String(openRecords.length);
-
-  const recorderInput = byId("parentRiskRecorderInput");
-  if (recorderInput && !recorderInput.value) recorderInput.value = getCurrentEmployee()?.name || "";
-  const timeInput = byId("parentRiskTimeInput");
-  if (timeInput && !timeInput.value) timeInput.value = formatDatetimeLocalFromStamp();
-
-  if (!records.length) {
-    body.innerHTML = `
-      <tr>
-        <td colspan="7">暂无家长风险记录。遇到明显影响后续服务和续报判断的沟通事件，再在这里登记。</td>
-      </tr>
-    `;
-    return;
-  }
-
-  body.innerHTML = records.map((record) => {
-    const levelClass = record.level === "建议逐步劝退" ? "red" : "amber";
-    const statusClass = record.status === "已处理" ? "green" : "amber";
-    return `
-      <tr>
-        <td><strong>${escapeHtml(record.studentName || "未填学生")}</strong><br>${escapeHtml(record.contact || "未填联系方式")}</td>
-        <td><span class="tag ${levelClass}">${escapeHtml(record.level)}</span></td>
-        <td>${escapeHtml(record.reason || "未填原因")}<br><span class="hint">${escapeHtml(record.eventRecord || "未填事件记录")}</span></td>
-        <td>${escapeHtml(record.suggestion || "续报、扩科、长期班前由负责人复核。")}</td>
-        <td><span class="tag ${statusClass}">${escapeHtml(record.status)}</span></td>
-        <td>${escapeHtml(record.recorder || "未填记录人")}<br>${escapeHtml(formatParentRiskTime(record.createdAt))}</td>
-        <td>
-          <button class="button small secondary" type="button" data-parent-risk-toggle="${escapeHtml(record.id)}">${record.status === "已处理" ? "重新观察" : "标为已处理"}</button>
-        </td>
-      </tr>
-    `;
-  }).join("");
-  bindParentRiskActions();
-}
-
 function renderMetrics() {
   const total = state.leads.length;
   const online = state.leads.filter((lead) => normalizeLeadChannelValue(lead.channel) === "线上客户").length;
@@ -2401,6 +2226,112 @@ function renderMetrics() {
   if (byId("funnelTrialRate")) byId("funnelTrialRate").textContent = `邀约率 ${percent(trialTotal, total)}`;
   if (byId("funnelEnrollCount")) byId("funnelEnrollCount").textContent = String(enrolled);
   if (byId("funnelEnrollRate")) byId("funnelEnrollRate").textContent = `成交率 ${percent(enrolled, total)}`;
+  renderFunnelActions();
+}
+
+function buildFunnelActions() {
+  const notContacted = state.leads.filter((lead) => lead.status === "新建未联系");
+  const communicatedNotTrial = state.leads.filter((lead) =>
+    !isAdmissionEnrolled(lead) &&
+    (lead.status === "已沟通待邀约" || lead.status === "持续跟进中")
+  );
+  const trialPending = state.leads.filter((lead) => lead.status === "已预约试听");
+  const feedbackPending = state.leads.filter((lead) =>
+    lead.status === "试听完成待转化" && !isAdmissionEnrolled(lead)
+  );
+  const highIntentUnpaid = state.leads.filter((lead) =>
+    String(lead.intent || "").startsWith("A") && !isAdmissionEnrolled(lead)
+  );
+  return [
+    {
+      key: "new",
+      count: notContacted.length,
+      title: "未首联线索",
+      detail: "先确认年级、薄弱点、可试听时间和家长真实需求。",
+      filter: "new"
+    },
+    {
+      key: "communicated",
+      count: communicatedNotTrial.length,
+      title: "已沟通但未约试听",
+      detail: "核心动作是给出明确试听时间，不要停留在泛泛跟进。",
+      filter: "all",
+      stage: "communicated"
+    },
+    {
+      key: "trial",
+      count: trialPending.length,
+      title: "已预约待到课",
+      detail: "课前提醒、老师准备和试听后反馈要连起来。",
+      filter: "trial",
+      stage: "trial-pending"
+    },
+    {
+      key: "feedback",
+      count: feedbackPending.length,
+      title: "试听完成未报名",
+      detail: "48 小时内补反馈、报价和下一步报名方案。",
+      filter: "trial",
+      stage: "feedback-pending"
+    },
+    {
+      key: "high-intent",
+      count: highIntentUnpaid.length,
+      title: "A 类高意向未报名",
+      detail: "优先处理异议、优惠口径和班型选择，避免热度流失。",
+      filter: "all",
+      stage: "high-intent"
+    }
+  ];
+}
+
+function renderFunnelActions() {
+  const holder = byId("funnelActionList");
+  if (!holder) return;
+  const actions = buildFunnelActions().filter((item) => item.count > 0).slice(0, 4);
+  holder.innerHTML = actions.length ? actions.map((item) => `
+    <div class="funnel-action-card">
+      <div>
+        <strong>${escapeHtml(item.title)}</strong>
+        <p>${escapeHtml(item.detail)}</p>
+      </div>
+      <div>
+        <b>${escapeHtml(item.count)}</b>
+        <button class="button small secondary" type="button" data-funnel-action="${escapeHtml(item.key)}">去处理</button>
+      </div>
+    </div>
+  `).join("") : `
+    <div class="funnel-action-card">
+      <div>
+        <strong>当前漏斗没有明显卡点</strong>
+        <p>继续录入新线索、保存跟进记录，系统会自动更新这里。</p>
+      </div>
+      <div><b>0</b></div>
+    </div>
+  `;
+}
+
+function applyFunnelAction(key) {
+  const action = buildFunnelActions().find((item) => item.key === key);
+  if (!action) return;
+  state.activeLeadFilter = action.filter || "all";
+  state.funnelStage = action.stage || "";
+  state.leadSearchQuery = "";
+  state.leadIntentFilter = "";
+  state.leadOwnerFilter = "";
+  state.leadChannelFilter = "";
+  const searchInput = byId("leadSearchInput");
+  if (searchInput) searchInput.value = "";
+  const intentSelect = byId("leadIntentFilter");
+  if (intentSelect) intentSelect.value = state.leadIntentFilter;
+  const ownerSelect = byId("leadOwnerFilter");
+  if (ownerSelect) ownerSelect.value = "";
+  const channelSelect = byId("leadChannelFilter");
+  if (channelSelect) channelSelect.value = "";
+  renderLeadFilterControls();
+  renderLeadTable();
+  byId("leadTableSection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+  showToast(`已打开：${action.title}，共 ${action.count} 条。`);
 }
 
 function getDormantLeads() {
@@ -2920,7 +2851,6 @@ function bindEnrollmentCreate() {
     target.status = "定金 / 已报名";
     touchLead(target);
     target.courseProduct = byId("enrollCourseProduct")?.value || target.courseProduct || "程老师班课";
-    const standaloneClassCourse = isStandaloneClassCourse(target.courseProduct);
     target.startDate = resolveEnrollmentStartTime();
     target.channel = nextChannelForSelect === "其他" && nextOtherNote ? `其他：${nextOtherNote}` : nextChannelForSelect;
     target.channelOtherNote = nextOtherNote;
@@ -2931,31 +2861,17 @@ function bindEnrollmentCreate() {
     target.enrolledAt = formatNowStamp();
     target.attributionLocked = true;
     target.attributionSnapshot = buildAttributionSnapshot(target);
-    target.requiresPaike = !standaloneClassCourse;
-    target.requiresFinance = !standaloneClassCourse;
-    target.financeExcluded = standaloneClassCourse;
-    target.settlementMode = standaloneClassCourse ? "单独结算" : "常规财务";
-    target.schedulingMode = standaloneClassCourse ? "班级入班" : "排课系统";
-    target.classPlacementStatus = standaloneClassCourse
-      ? (target.enrolledClassName ? "已入班" : "待选班")
-      : "待排课";
     target.financeProfile = {
       settledAmount: amount,
-      pendingCommission: standaloneClassCourse ? "单独结算，不进财务系统" : "待结算",
+      pendingCommission: "待结算",
       referralReward: target.referrerName ? "待判断" : "无",
-      settlementMode: target.settlementMode,
     };
     target.nextAction = byId("enrollRemark").value.trim() || "已报名";
-    if (standaloneClassCourse && !target.enrolledClassName) {
-      target.nextAction = `${target.nextAction}；待选择班级入班（单独结算，不进入排课/财务）。`;
-    } else if (!standaloneClassCourse) {
-      target.nextAction = `${target.nextAction}；进入排课系统安排老师、时间和教室。`;
-    }
     target.lastFollowup = "刚刚报名";
     target.note = `报名登记完成 / 课程：${target.courseProduct} / 开课：${target.startDate || "待定"} / 渠道：${target.channel} / 顾问：${target.owner}`;
     pushFollowup(
       target.studentName,
-      `已登记报名，课程 ${target.courseProduct}，开课时间 ${target.startDate || "待定"}，实收金额 ${amount}，状态更新为定金 / 已报名。${standaloneClassCourse ? "本课程单独结算，后续直接选择班级入班，不进入排课系统和财务系统自动结算。" : "本课程需要进入排课系统安排正式课程。"}归属链已锁定：${target.attributionSnapshot.channel} / ${target.attributionSnapshot.channelOwner} / ${target.attributionSnapshot.owner}${target.attributionSnapshot.referrerName ? ` / 推荐人 ${target.attributionSnapshot.referrerName}` : ""}。`
+      `已登记报名，课程 ${target.courseProduct}，开课时间 ${target.startDate || "待定"}，实收金额 ${amount}，状态更新为定金 / 已报名。归属链已锁定：${target.attributionSnapshot.channel} / ${target.attributionSnapshot.channelOwner} / ${target.attributionSnapshot.owner}${target.attributionSnapshot.referrerName ? ` / 推荐人 ${target.attributionSnapshot.referrerName}` : ""}。`
     );
     logAudit("登记报名", target.studentName, `实收 ${amount}，锁定归属链 ${formatAttributionSnapshot(target.attributionSnapshot)}。`);
     renderAll();
@@ -2963,7 +2879,6 @@ function bindEnrollmentCreate() {
     const linkText = linkedRows.length ? "，已同步到学生服务入学交接" : "，学生服务稍后会自动读取";
     setInlineMessage("createEnrollmentMessage", `已登记报名：${name} / 实收 ${amount}${linkText}`, "success");
     showToast(`报名登记已保存，归属链已锁定${linkText}`);
-    openEnrollmentRoutingModal(target);
   });
 }
 
@@ -3501,192 +3416,6 @@ function bindAttributionUnlock() {
   });
 }
 
-function clearParentRiskForm() {
-  [
-    "parentRiskStudentInput",
-    "parentRiskContactInput",
-    "parentRiskReasonInput",
-    "parentRiskEventInput",
-    "parentRiskSuggestionInput",
-  ].forEach((id) => {
-    const node = byId(id);
-    if (node) node.value = "";
-  });
-  const levelSelect = byId("parentRiskLevelSelect");
-  if (levelSelect) levelSelect.value = parentRiskLevelOptions[0];
-  const statusSelect = byId("parentRiskStatusSelect");
-  if (statusSelect) statusSelect.value = parentRiskStatusOptions[0];
-  const recorderInput = byId("parentRiskRecorderInput");
-  if (recorderInput) recorderInput.value = getCurrentEmployee()?.name || "";
-  const timeInput = byId("parentRiskTimeInput");
-  if (timeInput) timeInput.value = formatDatetimeLocalFromStamp();
-}
-
-function closeEnrollmentRoutingModal() {
-  const modal = byId("enrollmentRoutingModal");
-  if (!modal) return;
-  modal.classList.remove("show");
-  modal.setAttribute("aria-hidden", "true");
-  setInlineMessage("enrollmentRoutingMessage", "");
-}
-
-function assignStandaloneEnrollmentClass(studentName, className) {
-  const target = state.leads.find((lead) => lead.studentName === studentName);
-  const cleanClassName = String(className || "").trim();
-  if (!target || !cleanClassName) {
-    setInlineMessage("enrollmentRoutingMessage", "请先选择或填写班级名称。", "error");
-    return;
-  }
-  target.enrolledClassName = cleanClassName;
-  target.classPlacementStatus = "已入班";
-  target.requiresPaike = false;
-  target.requiresFinance = false;
-  target.financeExcluded = true;
-  target.settlementMode = "单独结算";
-  target.schedulingMode = "班级入班";
-  target.nextAction = `已入班：${cleanClassName}。${target.courseProduct}单独结算，不进入排课系统和财务系统自动结算。`;
-  target.lastFollowup = "刚刚入班";
-  touchLead(target);
-  pushFollowup(target.studentName, `${target.courseProduct}报名后已选择班级：${cleanClassName}。本课程单独结算，不进入排课系统和财务系统自动结算。`);
-  logAudit("报名后入班", target.studentName, `${target.courseProduct} -> ${cleanClassName}，单独结算。`);
-  persistState();
-  renderAll();
-  closeEnrollmentRoutingModal();
-  setInlineMessage("createEnrollmentMessage", `${target.studentName} 已进入 ${cleanClassName}。`, "success");
-  showToast(`${target.studentName} 已入班：${cleanClassName}`);
-}
-
-function openEnrollmentRoutingModal(lead) {
-  const modal = byId("enrollmentRoutingModal");
-  const title = byId("enrollmentRoutingTitle");
-  const note = byId("enrollmentRoutingNote");
-  const body = byId("enrollmentRoutingBody");
-  if (!modal || !title || !note || !body || !lead) return;
-  modal.dataset.studentName = lead.studentName || "";
-  const courseProduct = lead.courseProduct || "";
-  if (isStandaloneClassCourse(courseProduct)) {
-    const options = enrollmentClassOptionSeeds(courseProduct, lead);
-    title.textContent = `${lead.studentName} 报名后入班`;
-    note.textContent = `${courseProduct}不进入排课系统和财务系统自动结算。请直接选择要进入的班级；没有对应班级时，在下面手填新班级名称。`;
-    body.innerHTML = `
-      <div class="class-option-grid">
-        ${options.map((className) => `
-          <button class="class-option-card" type="button" data-routing-class="${escapeHtml(className)}">
-            <strong>${escapeHtml(className)}</strong>
-            <span>点击后写入招生记录，后续不进入排课/财务自动结算。</span>
-          </button>
-        `).join("")}
-      </div>
-      <div class="routing-custom-class">
-        <input id="routingCustomClassInput" placeholder="手填新班级名称，例如：程老师暑假初一A班">
-        <button class="button small" type="button" id="routingCustomClassButton">加入这个班</button>
-      </div>
-    `;
-  } else {
-    title.textContent = `${lead.studentName} 需要进入排课系统`;
-    note.textContent = `${courseProduct || "当前课程"}需要由排课负责人确认老师、日期、时间和教室。点击下面按钮直接进入排课系统。`;
-    body.innerHTML = `
-      <div class="quick-actions">
-        <button class="quick-card" type="button" data-routing-paike="${escapeHtml(lead.studentName || "")}">
-          <strong>进入排课系统</strong>
-          <p>打开后在“招生报名待排课”或“未排课名单 / 待排课池”里继续安排课程。</p>
-        </button>
-      </div>
-    `;
-  }
-  setInlineMessage("enrollmentRoutingMessage", "");
-  modal.classList.add("show");
-  modal.setAttribute("aria-hidden", "false");
-}
-
-function bindEnrollmentRoutingModal() {
-  byId("closeEnrollmentRoutingButton")?.addEventListener("click", closeEnrollmentRoutingModal);
-  byId("enrollmentRoutingModal")?.addEventListener("click", (event) => {
-    if (event.target === byId("enrollmentRoutingModal")) closeEnrollmentRoutingModal();
-  });
-  byId("enrollmentRoutingBody")?.addEventListener("click", (event) => {
-    const classButton = event.target.closest("[data-routing-class]");
-    if (classButton) {
-      assignStandaloneEnrollmentClass(byId("enrollmentRoutingModal")?.dataset.studentName || "", classButton.getAttribute("data-routing-class") || "");
-      return;
-    }
-    const customButton = event.target.closest("#routingCustomClassButton");
-    if (customButton) {
-      assignStandaloneEnrollmentClass(byId("enrollmentRoutingModal")?.dataset.studentName || "", byId("routingCustomClassInput")?.value || "");
-      return;
-    }
-    const paikeButton = event.target.closest("[data-routing-paike]");
-    if (paikeButton) {
-      const target = state.leads.find((lead) => lead.studentName === paikeButton.getAttribute("data-routing-paike"));
-      window.location.href = buildPaikeUrl(target || { studentName: paikeButton.getAttribute("data-routing-paike") });
-    }
-  });
-}
-
-function bindParentRiskPool() {
-  const button = byId("saveParentRiskButton");
-  if (!button) return;
-  button.addEventListener("click", () => {
-    if (!canEditAdmissions()) {
-      setInlineMessage("parentRiskMessage", "当前账号没有招生编辑权限。", "error");
-      return;
-    }
-    const studentName = byId("parentRiskStudentInput")?.value.trim() || "";
-    const contact = byId("parentRiskContactInput")?.value.trim() || "";
-    const reason = byId("parentRiskReasonInput")?.value.trim() || "";
-    const eventRecord = byId("parentRiskEventInput")?.value.trim() || "";
-    if (!studentName || !reason) {
-      setInlineMessage("parentRiskMessage", "请至少填写学生姓名和风险原因。", "error");
-      return;
-    }
-    const createdAt = formatParentRiskTime(byId("parentRiskTimeInput")?.value || formatNowStamp());
-    const record = {
-      id: `parent-risk-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-      studentName,
-      contact,
-      level: byId("parentRiskLevelSelect")?.value || parentRiskLevelOptions[0],
-      reason,
-      eventRecord,
-      suggestion: byId("parentRiskSuggestionInput")?.value.trim() || "续报、扩科、长期班前由负责人复核。",
-      recorder: byId("parentRiskRecorderInput")?.value.trim() || getCurrentEmployee()?.name || getOperatorLabel(),
-      status: byId("parentRiskStatusSelect")?.value || parentRiskStatusOptions[0],
-      createdAt,
-      updatedAt: formatNowStamp(),
-    };
-    state.parentRiskRecords = mergeParentRiskRows([record], state.parentRiskRecords || []);
-    const targetLead = state.leads.find((lead) => parentRiskMatchesLead(record, lead) || compactRiskText(lead.studentName) === compactRiskText(studentName));
-    if (targetLead) {
-      pushFollowup(targetLead.studentName, `家长风险池新增记录：${record.level}。原因：${record.reason}。后续报名、续费、扩科前需复核。`);
-    }
-    logAudit("新增家长风险记录", studentName, `${record.level}：${record.reason}`);
-    persistState();
-    renderAll();
-    clearParentRiskForm();
-    setInlineMessage("parentRiskMessage", `已保存 ${studentName} 的家长风险记录。`, "success");
-    showToast("家长风险记录已保存");
-  });
-}
-
-function bindParentRiskActions() {
-  document.querySelectorAll("[data-parent-risk-toggle]").forEach((button) => {
-    button.onclick = () => {
-      if (!canEditAdmissions()) {
-        setInlineMessage("parentRiskMessage", "当前账号没有招生编辑权限。", "error");
-        return;
-      }
-      const id = button.getAttribute("data-parent-risk-toggle");
-      const target = (state.parentRiskRecords || []).find((record) => record.id === id);
-      if (!target) return;
-      target.status = target.status === "已处理" ? "观察中" : "已处理";
-      target.updatedAt = formatNowStamp();
-      logAudit("调整家长风险状态", target.studentName, `${target.level} 调整为 ${target.status}`);
-      persistState();
-      renderAll();
-      setInlineMessage("parentRiskMessage", `${target.studentName} 已调整为：${target.status}`, "success");
-    };
-  });
-}
-
 function bindNavigation() {
   const navItems = Array.from(document.querySelectorAll(".nav-item[data-nav-target]"));
   const sections = Array.from(document.querySelectorAll("[data-section-group]"));
@@ -3978,17 +3707,7 @@ function applyPermissionState() {
     '#quickLeadOwner',
     '#quickLeadIntent',
     '#quickLeadNote',
-    '#quickCreateLeadButton',
-    '#parentRiskStudentInput',
-    '#parentRiskContactInput',
-    '#parentRiskLevelSelect',
-    '#parentRiskRecorderInput',
-    '#parentRiskStatusSelect',
-    '#parentRiskTimeInput',
-    '#parentRiskReasonInput',
-    '#parentRiskEventInput',
-    '#parentRiskSuggestionInput',
-    '#saveParentRiskButton'
+    '#quickCreateLeadButton'
   ];
   document.querySelectorAll(editSelectors.join(",")).forEach((node) => {
     if (!["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(node.tagName)) return;
@@ -4025,6 +3744,7 @@ function bindLeadFilters() {
     if (!button) return;
     button.addEventListener("click", () => {
       state.activeLeadFilter = value;
+      state.funnelStage = "";
       renderLeadTable();
     });
   });
@@ -4041,8 +3761,15 @@ function bindLeadFilters() {
     const eventName = node.tagName === "INPUT" ? "input" : "change";
     node.addEventListener(eventName, () => {
       state[key] = node.value;
+      state.funnelStage = "";
       renderLeadTable();
     });
+  });
+
+  byId("funnelActionList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-funnel-action]");
+    if (!button) return;
+    applyFunnelAction(button.getAttribute("data-funnel-action") || "");
   });
 
   const exportButton = byId("exportFilteredLeadsButton");
@@ -4103,7 +3830,6 @@ function renderAll() {
   renderSopTasks();
   renderFollowups();
   renderPublicPool();
-  renderParentRiskPool();
   renderFollowupLeadOptions();
   renderQuickFollowupDefaults();
   renderFeedbackLeadOptions();
@@ -4136,8 +3862,6 @@ bindBatchImport();
 bindTrialCreate();
 bindDetailSave();
 bindAttributionUnlock();
-bindEnrollmentRoutingModal();
-bindParentRiskPool();
 bindNavigation();
 bindLeadFilters();
 bindAdmissionsHelp();

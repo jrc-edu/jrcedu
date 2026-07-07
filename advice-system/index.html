@@ -201,6 +201,38 @@
       .metric {
         padding: 16px;
       }
+      .funnel-action-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .funnel-action-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+      }
+      .funnel-action-card strong {
+        display: block;
+        color: var(--ink);
+        font-size: 15px;
+      }
+      .funnel-action-card p {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .funnel-action-card b {
+        display: block;
+        color: var(--brand);
+        font-size: 22px;
+        text-align: right;
+      }
       .quick-actions {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2295,6 +2327,7 @@
                 <div class="metric-meta" id="funnelEnrollRate">成交率 0%</div>
               </div>
             </div>
+            <div class="funnel-action-list" id="funnelActionList"></div>
           </section>
 
           <section class="panel content-section" data-section-group="trials">

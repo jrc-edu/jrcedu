@@ -3,6 +3,7 @@ const STORAGE_KEY = "advice-system-stage-prototype";
 const defaultState = {
   activeView: "dashboard",
   activeLeadFilter: "all",
+  funnelStage: "",
   leadSearchQuery: "",
   leadOwnerFilter: "",
   leadChannelFilter: "",
@@ -1014,6 +1015,10 @@ function buildSopTasks() {
 
 function getFilteredLeads() {
   return state.leads.filter((lead) => {
+    if (state.funnelStage === "communicated" && !(lead.status === "已沟通待邀约" || lead.status === "持续跟进中")) return false;
+    if (state.funnelStage === "trial-pending" && lead.status !== "已预约试听") return false;
+    if (state.funnelStage === "feedback-pending" && !(lead.status === "试听完成待转化" && !isAdmissionEnrolled(lead))) return false;
+    if (state.funnelStage === "high-intent" && !(String(lead.intent || "").startsWith("A") && !isAdmissionEnrolled(lead))) return false;
     if (state.activeLeadFilter === "new" && lead.status !== "新建未联系") return false;
     if (state.activeLeadFilter === "trial")
       if (!(lead.status === "已预约试听" || lead.status === "试听完成待转化")) return false;
@@ -2221,6 +2226,112 @@ function renderMetrics() {
   if (byId("funnelTrialRate")) byId("funnelTrialRate").textContent = `邀约率 ${percent(trialTotal, total)}`;
   if (byId("funnelEnrollCount")) byId("funnelEnrollCount").textContent = String(enrolled);
   if (byId("funnelEnrollRate")) byId("funnelEnrollRate").textContent = `成交率 ${percent(enrolled, total)}`;
+  renderFunnelActions();
+}
+
+function buildFunnelActions() {
+  const notContacted = state.leads.filter((lead) => lead.status === "新建未联系");
+  const communicatedNotTrial = state.leads.filter((lead) =>
+    !isAdmissionEnrolled(lead) &&
+    (lead.status === "已沟通待邀约" || lead.status === "持续跟进中")
+  );
+  const trialPending = state.leads.filter((lead) => lead.status === "已预约试听");
+  const feedbackPending = state.leads.filter((lead) =>
+    lead.status === "试听完成待转化" && !isAdmissionEnrolled(lead)
+  );
+  const highIntentUnpaid = state.leads.filter((lead) =>
+    String(lead.intent || "").startsWith("A") && !isAdmissionEnrolled(lead)
+  );
+  return [
+    {
+      key: "new",
+      count: notContacted.length,
+      title: "未首联线索",
+      detail: "先确认年级、薄弱点、可试听时间和家长真实需求。",
+      filter: "new"
+    },
+    {
+      key: "communicated",
+      count: communicatedNotTrial.length,
+      title: "已沟通但未约试听",
+      detail: "核心动作是给出明确试听时间，不要停留在泛泛跟进。",
+      filter: "all",
+      stage: "communicated"
+    },
+    {
+      key: "trial",
+      count: trialPending.length,
+      title: "已预约待到课",
+      detail: "课前提醒、老师准备和试听后反馈要连起来。",
+      filter: "trial",
+      stage: "trial-pending"
+    },
+    {
+      key: "feedback",
+      count: feedbackPending.length,
+      title: "试听完成未报名",
+      detail: "48 小时内补反馈、报价和下一步报名方案。",
+      filter: "trial",
+      stage: "feedback-pending"
+    },
+    {
+      key: "high-intent",
+      count: highIntentUnpaid.length,
+      title: "A 类高意向未报名",
+      detail: "优先处理异议、优惠口径和班型选择，避免热度流失。",
+      filter: "all",
+      stage: "high-intent"
+    }
+  ];
+}
+
+function renderFunnelActions() {
+  const holder = byId("funnelActionList");
+  if (!holder) return;
+  const actions = buildFunnelActions().filter((item) => item.count > 0).slice(0, 4);
+  holder.innerHTML = actions.length ? actions.map((item) => `
+    <div class="funnel-action-card">
+      <div>
+        <strong>${escapeHtml(item.title)}</strong>
+        <p>${escapeHtml(item.detail)}</p>
+      </div>
+      <div>
+        <b>${escapeHtml(item.count)}</b>
+        <button class="button small secondary" type="button" data-funnel-action="${escapeHtml(item.key)}">去处理</button>
+      </div>
+    </div>
+  `).join("") : `
+    <div class="funnel-action-card">
+      <div>
+        <strong>当前漏斗没有明显卡点</strong>
+        <p>继续录入新线索、保存跟进记录，系统会自动更新这里。</p>
+      </div>
+      <div><b>0</b></div>
+    </div>
+  `;
+}
+
+function applyFunnelAction(key) {
+  const action = buildFunnelActions().find((item) => item.key === key);
+  if (!action) return;
+  state.activeLeadFilter = action.filter || "all";
+  state.funnelStage = action.stage || "";
+  state.leadSearchQuery = "";
+  state.leadIntentFilter = "";
+  state.leadOwnerFilter = "";
+  state.leadChannelFilter = "";
+  const searchInput = byId("leadSearchInput");
+  if (searchInput) searchInput.value = "";
+  const intentSelect = byId("leadIntentFilter");
+  if (intentSelect) intentSelect.value = state.leadIntentFilter;
+  const ownerSelect = byId("leadOwnerFilter");
+  if (ownerSelect) ownerSelect.value = "";
+  const channelSelect = byId("leadChannelFilter");
+  if (channelSelect) channelSelect.value = "";
+  renderLeadFilterControls();
+  renderLeadTable();
+  byId("leadTableSection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+  showToast(`已打开：${action.title}，共 ${action.count} 条。`);
 }
 
 function getDormantLeads() {
@@ -3633,6 +3744,7 @@ function bindLeadFilters() {
     if (!button) return;
     button.addEventListener("click", () => {
       state.activeLeadFilter = value;
+      state.funnelStage = "";
       renderLeadTable();
     });
   });
@@ -3649,8 +3761,15 @@ function bindLeadFilters() {
     const eventName = node.tagName === "INPUT" ? "input" : "change";
     node.addEventListener(eventName, () => {
       state[key] = node.value;
+      state.funnelStage = "";
       renderLeadTable();
     });
+  });
+
+  byId("funnelActionList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-funnel-action]");
+    if (!button) return;
+    applyFunnelAction(button.getAttribute("data-funnel-action") || "");
   });
 
   const exportButton = byId("exportFilteredLeadsButton");

@@ -1651,6 +1651,74 @@
     }
   }
 
+  function readVideoOpsSummary() {
+    const state = safeParse(localStorage.getItem(videoOpsKey), {});
+    const snapshots = Array.isArray(state.snapshots) ? state.snapshots : [];
+    const ownSnapshots = snapshots.filter((row) => !/同行账号|标杆/.test(String(row.accountType || row.sourceType || "")));
+    return {
+      total: snapshots.length,
+      own: ownSnapshots.length || snapshots.length,
+      accounts: Array.isArray(state.accounts) ? state.accounts.length : 0
+    };
+  }
+
+  function dailyBriefCardHtml(card) {
+    const href = card.href || "./suggestions.html";
+    return `
+      <a class="daily-brief-card" href="${escapeHtml(href)}">
+        <span>${escapeHtml(card.label || "今日")}</span>
+        <strong>${escapeHtml(card.value ?? "-")}</strong>
+        <p>${escapeHtml(card.detail || "等待系统数据流入。")}</p>
+      </a>
+    `;
+  }
+
+  function renderDailyBrief({ admissions, workflow, paikeReviewCount } = {}) {
+    const holder = $("portalDailyBriefGrid");
+    if (!holder) return;
+    const badge = $("portalDailyBriefBadge");
+    const snapshot = readBusinessLinkSnapshot();
+    const counts = { ...(snapshot?.counts || {}), ...(workflow?.counts || {}) };
+    const leads = admissions?.leads || [];
+    const pending = admissions?.pending || [];
+    const video = readVideoOpsSummary();
+    const attendanceExceptionCount = Number(counts.attendanceExceptionRows || counts.attendanceUnresolved || 0);
+    const financeCandidateCount = Number(counts.monthlyFinanceCandidates || counts.workflowFinanceCandidates || counts.financePeriods || 0);
+    const paikeTodoCount = Number(paikeReviewCount || 0) + Number(counts.paikeCandidates || 0) + Number(counts.preimportHighIssues || 0);
+    const alertCount = pending.length + paikeTodoCount + attendanceExceptionCount + financeCandidateCount + Number(counts.parentRiskGuards || 0);
+    if (badge) {
+      badge.className = `badge ${alertCount ? "status-warn" : "status-ok"}`;
+      badge.textContent = alertCount ? `${alertCount} 个待看点` : "今日正常";
+    }
+    const cards = [
+      {
+        label: "招生转化",
+        value: pending.length ? `${pending.length} 待处理` : `${leads.length} 线索`,
+        detail: pending.length ? "先处理未首联、试听后待转化和 A 类未报名。" : "当前没有明显招生卡点。",
+        href: "/jrcedu/advice-system/index.html"
+      },
+      {
+        label: "排课课消",
+        value: paikeTodoCount || Number(counts.scheduleRows || 0) || "待数据",
+        detail: paikeTodoCount ? "优先看冲突、待排课和 Excel 并网差异。" : `点名异常 ${attendanceExceptionCount} 人次，按实际业务继续录入。`,
+        href: "./paike.html?workflow=official-schedule#paikeLaunchPanel"
+      },
+      {
+        label: "财务月结",
+        value: financeCandidateCount || Number(counts.financePeriods || 0) || "未锁定",
+        detail: financeCandidateCount ? "已有月结候选，确认复核后再锁定本月。" : "等课消、工资和支出数据齐后确认月结。",
+        href: "./finance.html#monthlySection"
+      },
+      {
+        label: "短视频",
+        value: video.own || video.total || "待采集",
+        detail: video.own ? `已读到 ${video.own} 条自有视频样本，用于复拍和选题。` : "自有账号数据采集后，这里会提示复盘入口。",
+        href: "./video-ops.html?v=20260705x"
+      }
+    ];
+    holder.innerHTML = cards.map(dailyBriefCardHtml).join("");
+  }
+
   function workflowIssueActions(workflow) {
     const counts = workflow?.counts || {};
     const rows = [];
@@ -2283,6 +2351,7 @@
     if ($("portalAdmissionsCount")) $("portalAdmissionsCount").textContent = String(leads.length);
     if ($("portalAdmissionsTodoCount")) $("portalAdmissionsTodoCount").textContent = String(pending.length);
     if ($("portalAuditCount")) $("portalAuditCount").textContent = String(auditCount);
+    renderDailyBrief({ admissions: { leads, pending }, workflow, paikeReviewCount });
 
     const todos = [];
     if (hasPermission("admissions.access") && pending.length > 0) {
