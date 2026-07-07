@@ -353,7 +353,7 @@
       }
       .command-grid {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
         margin-top: 16px;
       }
@@ -370,7 +370,7 @@
       .command-card {
         display: grid;
         gap: 7px;
-        min-height: 136px;
+        min-height: 116px;
       }
       .command-card:hover,
       .command-owner-card:hover {
@@ -399,7 +399,7 @@
       }
       .command-body {
         display: grid;
-        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        grid-template-columns: minmax(0, 1fr);
         gap: 10px;
         margin-top: 14px;
       }
@@ -575,6 +575,31 @@
         background: rgba(255, 255, 255, 0.62);
         padding: 18px;
         box-shadow: none;
+      }
+      .admin-utility-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .admin-utility-card {
+        display: grid;
+        gap: 8px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.78);
+        color: inherit;
+        text-decoration: none;
+      }
+      .admin-utility-card strong {
+        color: var(--ink);
+        font-size: 15px;
+      }
+      .admin-utility-card span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
       }
       .admin-diagnostic-panel p {
         margin-top: 8px;
@@ -805,6 +830,9 @@
         .quick-entry-grid {
           grid-template-columns: 1fr;
         }
+        .admin-utility-grid {
+          grid-template-columns: 1fr;
+        }
         .button {
           width: 100%;
           min-height: 46px;
@@ -846,61 +874,19 @@
           <div class="workbench-section">
             <div class="card-head">
               <div>
-                <p class="eyebrow">任务</p>
-                <h3>我的建议任务</h3>
+                <p class="eyebrow">待处理</p>
+                <h3>我的待处理</h3>
               </div>
-              <span class="badge" id="portalMyTaskBadge">0</span>
+              <span class="badge" id="portalMyWorkBadge">0</span>
             </div>
-            <div class="workbench-list" id="portalMyTaskList">
+            <div class="workbench-list" id="portalMyWorkList">
               <div class="workbench-item">
                 <span class="badge">加载中</span>
                 <div>
-                  <strong>正在读取任务</strong>
-                  <p>这里会显示与你有关的建议任务。</p>
+                  <strong>正在读取待处理事项</strong>
+                  <p>建议任务、流程提醒和反馈复核会合并显示在这里。</p>
                 </div>
                 <a class="text-link" href="./suggestions.html">进入</a>
-              </div>
-            </div>
-          </div>
-          <div class="workbench-section">
-            <div class="card-head">
-              <div>
-                <p class="eyebrow">流程</p>
-                <h3>我的流程提醒</h3>
-              </div>
-              <span class="badge" id="portalMyFlowBadge">0</span>
-            </div>
-            <div class="workbench-list" id="portalMyFlowList">
-              <div class="workbench-item">
-                <span class="badge">加载中</span>
-                <div>
-                  <strong>正在读取流程提醒</strong>
-                  <p>今日点名、缺勤闭环等会按责任人显示在这里。</p>
-                </div>
-                <a class="text-link" href="./student-service.html">查看</a>
-              </div>
-            </div>
-          </div>
-          <div class="workbench-section">
-            <div class="card-head">
-              <div>
-                <p class="eyebrow">反馈</p>
-                <h3>我的反馈复核</h3>
-              </div>
-              <span class="badge" id="portalMyFeedbackBadge">0</span>
-            </div>
-            <div class="workbench-kpi" id="portalMyFeedbackStats">
-              <div class="workbench-kpi-card"><span>已提交</span><strong>0</strong></div>
-              <div class="workbench-kpi-card"><span>已处理</span><strong>0</strong></div>
-            </div>
-            <div class="workbench-list" id="portalMyFeedbackList">
-              <div class="workbench-item">
-                <span class="badge">加载中</span>
-                <div>
-                  <strong>正在读取反馈</strong>
-                  <p>这里会显示你提交的问题和处理进展。</p>
-                </div>
-                <a class="text-link" href="./trial-feedback.html">查看</a>
               </div>
             </div>
           </div>
@@ -912,43 +898,14 @@
         <div class="command-head">
           <div>
             <p class="eyebrow">经营驾驶舱</p>
-            <h2>今日经营指挥台</h2>
-            <p>基于底层业务链路画像，把招生、排课、课消、财务、风险和报表里的关键断点转成今天最该处理的动作、负责人和入口。它不重新判断数据，只读取底层链路状态。</p>
+            <h2>管理员今日重点</h2>
+            <p>只显示今天最该处理的关键动作。完整验收、数据链路和系统诊断已下沉到管理员高级诊断。</p>
           </div>
           <span class="badge" id="portalOperatingCommandBadge">读取中</span>
         </div>
         <div class="command-grid" id="portalOperatingCommandCards"></div>
         <div class="command-body">
           <div class="command-owner-list" id="portalOperatingCommandOwners"></div>
-          <div class="command-rule-list" id="portalOperatingCommandRules"></div>
-        </div>
-      </section>
-
-      <section class="card acceptance-panel" id="portalOperatingAcceptance" data-requires-permission-card="admin.access">
-        <div class="acceptance-head">
-          <div>
-            <p class="eyebrow">一体化验收</p>
-            <h2>经营协同验收台</h2>
-            <p>参考成熟教培系统的方向，把工作台按“CRM招生、教务排课、点名课消、财务月结、风险标签、经营报表、数据链路”统一验收。这里不替代各系统，只负责发现断点、明确下一步。</p>
-          </div>
-          <span class="badge" id="portalOperatingAcceptanceBadge">读取中</span>
-        </div>
-        <div class="acceptance-summary" id="portalOperatingAcceptanceSummary"></div>
-        <div class="acceptance-lane-grid" id="portalOperatingAcceptanceLanes"></div>
-        <div class="acceptance-flow" aria-label="教培经营主链路">
-          <div class="acceptance-flow-step"><strong>1. 招生线索</strong><span>线索、试听、报名、渠道和转介绍。</span></div>
-          <div class="acceptance-flow-step"><strong>2. 建档排课</strong><span>报名进入学生档案和正式课表。</span></div>
-          <div class="acceptance-flow-step"><strong>3. 点名课消</strong><span>每节课形成到课、缺勤、出门测和反馈。</span></div>
-          <div class="acceptance-flow-step"><strong>4. 财务月结</strong><span>课消、工资、成本、利润进入月结复核。</span></div>
-          <div class="acceptance-flow-step"><strong>5. 风险标签</strong><span>学生、家长、教学、财务风险沉淀到决策。</span></div>
-          <div class="acceptance-flow-step"><strong>6. 经营报表</strong><span>招生、课消、财务、质量、短视频统一复盘。</span></div>
-        </div>
-        <div class="acceptance-actions" id="portalOperatingAcceptanceActions"></div>
-        <div class="acceptance-principles">
-          <div class="acceptance-principle"><strong>数据同源</strong><p>学生、老师、课程、金额、课次尽量只维护一次，各系统读取同一口径。</p></div>
-          <div class="acceptance-principle"><strong>业务闭环</strong><p>报名后必须能排课，排课后必须能点名，点名后才能进入课消和财务候选。</p></div>
-          <div class="acceptance-principle"><strong>风险前置</strong><p>家长风险、缺勤风险、教学质量风险、财务差异都要在续费和月结前提醒。</p></div>
-          <div class="acceptance-principle"><strong>报表验收</strong><p>报表不是摆设，要能反推今天该补哪条数据、哪个负责人处理。</p></div>
         </div>
       </section>
 
@@ -969,25 +926,6 @@
           </ul>
           <div class="actions">
             <a class="button" data-requires-permission="ai.access" href="./ai-assistant.html">进入课堂反馈AI助手</a>
-          </div>
-        </article>
-
-        <article class="card" data-system-card="aiCapabilities" data-requires-permission-card="admin.access">
-          <div class="card-head">
-            <div>
-              <p class="eyebrow">AI Center</p>
-              <h2>AI管理中心</h2>
-            </div>
-            <span class="badge">管理员</span>
-          </div>
-          <p>管理员查看 DeepSeek 接口状态、AI 启用情况和高风险业务边界。</p>
-          <ul class="list">
-            <li>检测 DeepSeek 是否接通</li>
-            <li>验证课堂反馈和短视频 AI</li>
-            <li>确认财务、排课、人事不被 AI 自动直改</li>
-          </ul>
-          <div class="actions">
-            <a class="button" data-requires-permission="admin.access" href="./ai-capabilities.html">查看AI管理中心</a>
           </div>
         </article>
 
@@ -1045,25 +983,6 @@
           </ul>
           <div class="actions">
             <a class="button" data-requires-permission="suggestions.access" href="./suggestions.html">进入建议任务系统</a>
-          </div>
-        </article>
-
-        <article class="card" data-system-card="trialFeedback" data-requires-permission-card="suggestions.access">
-          <div class="card-head">
-            <div>
-              <p class="eyebrow">Trial</p>
-              <h2>试用反馈整改系统</h2>
-            </div>
-            <span class="badge">临时专项</span>
-          </div>
-          <p>负责试用期问题收集、整改处理、提出人复核和本轮待讨论台账导出。</p>
-          <ul class="list">
-            <li>查看全站试用反馈</li>
-            <li>只看自己和待我复核</li>
-            <li>转任务、标记已处理、确认解决</li>
-          </ul>
-          <div class="actions">
-            <a class="button" data-requires-permission="suggestions.access" href="./trial-feedback.html">进入试用反馈系统</a>
           </div>
         </article>
 
@@ -1209,6 +1128,39 @@
           </span>
           <span class="badge">展开查看</span>
         </summary>
+
+        <div class="admin-utility-grid">
+          <a class="admin-utility-card" data-requires-permission="admin.access" href="./ai-capabilities.html">
+            <strong>AI管理中心</strong>
+            <span>查看 DeepSeek、课堂反馈 AI、短视频 AI，以及排课财务人事解释助手的启用边界。</span>
+          </a>
+          <a class="admin-utility-card" data-requires-permission="suggestions.access" href="./trial-feedback.html">
+            <strong>试用反馈整改</strong>
+            <span>查看历史反馈、待复核和整改闭环；日常入口已合并到“我的待处理”。</span>
+          </a>
+        </div>
+
+        <section class="admin-diagnostic-panel acceptance-panel" id="portalOperatingAcceptance" data-requires-permission-card="admin.access">
+          <div class="acceptance-head">
+            <div>
+              <p class="eyebrow">一体化验收</p>
+              <h2>经营协同验收台</h2>
+              <p>这里用于系统验收和排查，不占日常主页。需要看数据链路、投产清单、成熟度时再展开。</p>
+            </div>
+            <span class="badge" id="portalOperatingAcceptanceBadge">读取中</span>
+          </div>
+          <div class="acceptance-summary" id="portalOperatingAcceptanceSummary"></div>
+          <div class="acceptance-lane-grid" id="portalOperatingAcceptanceLanes"></div>
+          <div class="acceptance-flow" aria-label="教培经营主链路">
+            <div class="acceptance-flow-step"><strong>1. 招生线索</strong><span>线索、试听、报名、渠道和转介绍。</span></div>
+            <div class="acceptance-flow-step"><strong>2. 建档排课</strong><span>报名进入学生档案和正式课表。</span></div>
+            <div class="acceptance-flow-step"><strong>3. 点名课消</strong><span>每节课形成到课、缺勤、出门测和反馈。</span></div>
+            <div class="acceptance-flow-step"><strong>4. 财务月结</strong><span>课消、工资、成本、利润进入月结复核。</span></div>
+            <div class="acceptance-flow-step"><strong>5. 风险标签</strong><span>学生、家长、教学、财务风险沉淀到决策。</span></div>
+            <div class="acceptance-flow-step"><strong>6. 经营报表</strong><span>招生、课消、财务、质量、短视频统一复盘。</span></div>
+          </div>
+          <div class="acceptance-actions" id="portalOperatingAcceptanceActions"></div>
+        </section>
 
         <article class="card admin-diagnostic-card" id="portalLocalDataCard">
           <div class="card-head">

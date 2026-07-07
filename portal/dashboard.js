@@ -210,10 +210,10 @@
     const employee = currentEmployee();
     const role = employee?.role || "";
     if (isAdminLike()) {
-      return ["ai", "aiCapabilities", "paike", "admissions", "finance", "teachingQuality", "studentService", "hr", "suggestions", "knowledge", "curriculum", "campus"];
+      return ["ai", "paike", "admissions", "finance", "teachingQuality", "studentService", "hr", "suggestions", "knowledge", "curriculum", "campus"];
     }
     if (role === "学管") {
-      return ["ai", "admissions", "studentService", "aiCapabilities", "teachingQuality", "paike", "knowledge", "campus", "suggestions", "curriculum", "finance", "hr"];
+      return ["ai", "admissions", "studentService", "teachingQuality", "paike", "knowledge", "campus", "suggestions", "curriculum", "finance", "hr"];
     }
     if (role === "财务") {
       return ["ai", "finance", "paike", "suggestions", "admissions", "teachingQuality", "studentService", "hr", "knowledge", "curriculum", "campus"];
@@ -221,7 +221,7 @@
     if (role === "授课老师") {
       return ["ai", "paike", "campus", "teachingQuality", "studentService", "curriculum", "suggestions", "knowledge", "admissions", "finance", "hr"];
     }
-    return ["ai", "aiCapabilities", "paike", "knowledge", "suggestions", "finance", "admissions", "teachingQuality", "studentService", "curriculum", "hr", "campus"];
+    return ["ai", "paike", "knowledge", "suggestions", "finance", "admissions", "teachingQuality", "studentService", "curriculum", "hr", "campus"];
   }
 
   function reorderSystemCards() {
@@ -1318,6 +1318,65 @@
     listHolder.innerHTML = todoItem(level, title, detail, "./trial-feedback.html?filter=mine-review", needReview.length ? "去复核" : "进入台账");
   }
 
+  async function renderMyWorkItems() {
+    const holder = $("portalMyWorkList");
+    if (!holder) return;
+    const rows = hasPermission("suggestions.access") ? await readSuggestionTasks() : [];
+    const myOpenRows = rows.filter((item) => isOpenTask(item) && taskRelatedToCurrentUser(item));
+    const sortByUrgency = (left, right) => {
+      const levelRank = { "紧急": 0, "待办": 1, "提醒": 2, "关注": 3, "正常": 4 };
+      const levelDiff = (levelRank[taskDueLevel(left)] ?? 3) - (levelRank[taskDueLevel(right)] ?? 3);
+      if (levelDiff !== 0) return levelDiff;
+      return String(left.dueDate || "9999-12-31").localeCompare(String(right.dueDate || "9999-12-31"));
+    };
+    const humanTasks = myOpenRows.filter(isHumanSuggestionTask).sort(sortByUrgency);
+    const flowTasks = myOpenRows.filter(isOperationalFlowTask).sort(sortByUrgency);
+    const feedbackRows = await readSiteFeedbackRows();
+    const mine = feedbackRows.filter(feedbackRelatedToCurrentUser);
+    const needReview = mine.filter((row) => !siteFeedbackIsClosed(row) && siteFeedbackNeedsReview(row));
+    const reopened = mine.filter((row) => (row?.status || "") === "继续反馈" || siteFeedbackHasLaterReopen(row));
+    const items = [];
+
+    humanTasks.slice(0, 3).forEach((task) => {
+      const level = taskDueLevel(task);
+      const dueText = task.dueDate ? `截止 ${task.dueDate}` : "未设截止时间";
+      const title = `${level === "紧急" ? "逾期：" : ""}${task.title || "未命名任务"}`;
+      const href = task.moduleOwnerTask && task.moduleHref ? task.moduleHref : suggestionTaskHref(task);
+      const actionText = task.moduleOwnerTask ? "打开系统" : isFeedbackExecutionTask(task) ? "处理反馈任务" : "处理任务";
+      items.push(task.moduleOwnerTask
+        ? todoItemHtml(level, title, moduleTaskDetailHtml(task, dueText), href, actionText)
+        : todoItem(level, title, taskDetailText(task, dueText), href, actionText));
+    });
+
+    flowTasks.slice(0, 3).forEach((task) => {
+      const level = taskDueLevel(task);
+      const dueText = task.dueDate ? `截止 ${task.dueDate}` : "未设截止时间";
+      const title = `${level === "紧急" ? "逾期：" : ""}${task.title || "未命名流程提醒"}`;
+      items.push(todoItemHtml(level, title, systemFlowTaskDetailHtml(task, dueText), task.moduleHref || "./index.html", "去处理"));
+    });
+
+    if (needReview.length || reopened.length) {
+      const level = needReview.length ? "待办" : "关注";
+      const title = needReview.length
+        ? `${needReview.length} 条反馈等待你复核`
+        : `${reopened.length} 条反馈仍在继续处理`;
+      const detail = needReview.length
+        ? "管理员已处理你提交的问题，请重新测试；已解决就确认，仍有问题就补充说明。"
+        : "你提交的问题还没有完全闭环，可进入反馈台账查看进展。";
+      items.push(todoItem(level, title, detail, "./trial-feedback.html?filter=mine-review", needReview.length ? "去复核" : "看反馈"));
+    }
+
+    const total = humanTasks.length + flowTasks.length + needReview.length + reopened.length;
+    if ($("portalMyWorkBadge")) $("portalMyWorkBadge").textContent = total ? String(total) : "正常";
+    holder.innerHTML = items.length ? items.slice(0, 7).join("") : todoItem(
+      "正常",
+      "暂无必须处理的个人事项",
+      "建议任务、流程提醒和反馈复核已经合并。需要处理时会直接显示在这里，不再分散成多个看板。",
+      "./suggestions.html",
+      "进入任务系统"
+    );
+  }
+
   function setRoleCopy() {
     const tone = roleTone();
     if ($("portalTodayTitle")) $("portalTodayTitle").textContent = tone.title;
@@ -1333,11 +1392,11 @@
     if (isAdminLike()) {
       return [
         ["课堂反馈AI", "快速整理课堂反馈草稿", "./ai-assistant.html", "ai.access"],
-        ["反馈整改", "看待复核、仍有问题和本轮待处理", "./trial-feedback.html", "suggestions.access"],
+        ["排课系统", "处理课表、并网和待排课", "./paike.html", "paike.access"],
+        ["招生管理", "线索、试听、报名和风险池", "/jrcedu/advice-system/index.html", "admissions.access"],
         ["财务月结", "按老师工资单核对月结", "./finance.html", "finance.access"],
         ["学生服务", "点名、课消、反馈归档", "./student-service.html", "studentService.access"],
-        ["短视频系统", "自有账号复盘、视频诊断和选题建议", "./video-ops.html?v=20260705f", "videoOps.access"],
-        ["AI管理中心", "检测DeepSeek和AI启用状态", "./ai-capabilities.html", "admin.access"]
+        ["短视频系统", "自有账号复盘、视频诊断和选题建议", "./video-ops.html?v=20260705f", "videoOps.access"]
       ];
     }
     if (role.includes("财务")) {
@@ -1872,18 +1931,12 @@
       badge.textContent = issueCount ? `${issueCount} 项今日动作` : "今日正常";
     }
     if (cardsHolder) {
-      cardsHolder.innerHTML = [
+      const commandCards = [
         commandCardHtml({
           eyebrow: "今日优先",
           value: queue[0] ? (queue[0].owner || queue[0].level || "先处理") : primary ? (primary.owner || primary.level || "先处理") : "无紧急断点",
           note: queue[0] ? `${queue[0].title || ""}｜${queue[0].detail || ""}` : primary ? (primary.text || primary.flow || "按底层链路处理。") : "当前链路画像没有发现必须立刻处理的断点。",
           href: queue[0]?.href || primary?.href || "./suggestions.html"
-        }),
-        commandCardHtml({
-          eyebrow: "投产验收",
-          value: `${checklist.filter((item) => item.status === "ok").length}/${checklist.length || 8}`,
-          note: checklist.find((item) => item.status !== "ok")?.detail || "投产检查项已形成清单，后续按清单逐项验收。",
-          href: "./index.html#portalAdminDiagnostics"
         }),
         commandCardHtml({
           eyebrow: "排课课消",
@@ -1896,24 +1949,19 @@
           value: `${Number(counts.financePeriods || counts.workflowFinanceCandidates || 0)} 项`,
           note: `有效到课 ${Number(counts.attendanceEffective || 0)} 人次｜月结候选 ${Number(counts.workflowFinanceCandidates || 0)}。`,
           href: workflow?.monthlyFinanceCandidates?.[0]?.href || "./finance.html?workflow=monthly-candidate#attendanceFinanceSection"
-        }),
-        commandCardHtml({
-          eyebrow: "可信数据",
-          value: `${Number(trusted.high || 0)} / ${Number(trusted.usable || 0)} / ${Number(trusted.light || 0)}`,
-          note: "依次为高可信、可用、轻判断；轻判断只提醒，不直接拍板。",
-          href: "./index.html#portalDataFlowList"
         })
-      ].join("");
+      ];
+      cardsHolder.innerHTML = commandCards.join("");
     }
     if (ownersHolder) {
-      const ownerRows = queue.length ? queue.slice(0, 5).map((item) => ({
+      const ownerRows = queue.length ? queue.slice(0, 3).map((item) => ({
         level: item.level || "提醒",
         owner: item.owner || "负责人",
         flow: item.system || item.title || "投产动作",
         text: `${item.title || ""} ${item.detail || ""}${item.trust?.label ? `｜${item.trust.label}` : ""}`,
         href: item.href || "./suggestions.html",
         actionText: "去处理"
-      })) : issues.length ? issues.slice(0, 5) : [{
+      })) : issues.length ? issues.slice(0, 3) : [{
         level: "正常",
         owner: "管理员",
         flow: "业务链路",
@@ -2294,8 +2342,13 @@
 
     const holder = $("portalTodoList");
     if (holder) holder.innerHTML = todos.join("");
-    renderMyTasks();
-    renderMyFeedback();
+    renderMyWorkItems().catch((error) => {
+      console.warn("Failed to render personal work items", error);
+      const holder = $("portalMyWorkList");
+      if (holder) {
+        holder.innerHTML = todoItem("提醒", "个人待处理读取失败", "请刷新首页，或直接进入建议任务系统查看。", "./suggestions.html", "进入任务");
+      }
+    });
     renderOperatingCommand();
     renderOperatingAcceptance().then(() => {
       renderOperatingCommand();
