@@ -1107,6 +1107,27 @@
             snapshots: Array.isArray(source.snapshots) ? source.snapshots.length : (Array.isArray(source.videos) ? source.videos.length : 0)
           };
         }
+        function writeBootstrapVideoCache(payload) {
+          try {
+            localStorage.setItem(storeKey, JSON.stringify(payload));
+            return { ok: true };
+          } catch (error) {
+            const message = error?.message || String(error || "");
+            if (!/quota|exceeded|storage/i.test(message)) return { ok: false, error };
+            try {
+              const compact = {
+                ...payload,
+                accountAudits: (payload.accountAudits || payload.accountScans || []).slice(-80),
+                snapshots: (payload.snapshots || payload.videos || []).slice(-260),
+                warnings: (payload.warnings || []).slice(-30)
+              };
+              localStorage.setItem(storeKey, JSON.stringify(compact));
+              return { ok: true, compacted: true };
+            } catch (secondError) {
+              return { ok: false, quota: true, error: secondError };
+            }
+          }
+        }
         window.__jrcVideoManualSync = async function () {
           const button = node("refreshCloudButton");
           if (button) {
@@ -1138,13 +1159,15 @@
             }
             const payload = result.data.payload;
             const counts = payloadCounts(payload);
-            localStorage.setItem(storeKey, JSON.stringify(payload));
+            const cacheResult = writeBootstrapVideoCache(payload);
             if (node("metricAccounts")) node("metricAccounts").textContent = counts.accounts;
             if (node("metricVideos")) node("metricVideos").textContent = counts.snapshots;
             showBootstrapDiagnostic(counts.snapshots ? "success" : "warn", "最新数据已读取", [
               `当前读到 ${counts.snapshots} 条视频档案、${counts.accountAudits} 条账号体检。`,
+              cacheResult.compacted ? "本机缓存空间不足，已自动保留精简缓存；完整数据仍以云端为准。" : "",
+              cacheResult.quota ? "本机缓存已满，本次先直接使用云端数据，不影响云端保存。" : "",
               "页面会继续自动整理并显示排行和建议。"
-            ]);
+            ].filter(Boolean));
           } catch (error) {
             showBootstrapDiagnostic("failed", "自动读取异常", [error?.message || String(error || "未知错误")]);
           } finally {
@@ -1498,6 +1521,57 @@
           warnings: Array.isArray(source.warnings) ? source.warnings.map(normalizeText).filter(Boolean).slice(-40) : [],
           updatedAt: source.updatedAt || ""
         };
+      }
+
+      function isStorageQuotaError(error) {
+        const message = `${error?.name || ""} ${error?.message || error || ""}`;
+        return /quota|exceeded|storage/i.test(message);
+      }
+
+      function recentRows(rows, limit) {
+        return (Array.isArray(rows) ? rows : [])
+          .slice()
+          .sort((left, right) => {
+            const leftTime = Date.parse(left?.capturedAt || left?.updatedAt || left?.publishedAt || "") || 0;
+            const rightTime = Date.parse(right?.capturedAt || right?.updatedAt || right?.publishedAt || "") || 0;
+            return rightTime - leftTime;
+          })
+          .slice(0, limit);
+      }
+
+      function compactStateForLocalCache(value, level = 1) {
+        const normalized = normalizeState(value);
+        const snapshotLimit = level >= 2 ? 160 : 320;
+        const auditLimit = level >= 2 ? 40 : 80;
+        return normalizeState({
+          ...normalized,
+          accountAudits: recentRows(normalized.accountAudits, auditLimit),
+          snapshots: recentRows(normalized.snapshots, snapshotLimit),
+          warnings: (normalized.warnings || []).slice(-24),
+          aiReport: {
+            ...normalized.aiReport,
+            polishedText: String(normalized.aiReport?.polishedText || "").slice(0, level >= 2 ? 3000 : 8000)
+          }
+        });
+      }
+
+      function writeVideoLocalState(value = state) {
+        const attempts = [
+          { value: normalizeState(value), compacted: false },
+          { value: compactStateForLocalCache(value, 1), compacted: true },
+          { value: compactStateForLocalCache(value, 2), compacted: true, hard: true }
+        ];
+        let quotaError = null;
+        for (const attempt of attempts) {
+          try {
+            localStorage.setItem(STORE_KEY, JSON.stringify(attempt.value));
+            return { ok: true, compacted: attempt.compacted, hard: attempt.hard === true };
+          } catch (error) {
+            if (!isStorageQuotaError(error)) return { ok: false, error };
+            quotaError = error;
+          }
+        }
+        return { ok: false, quota: true, error: quotaError };
       }
       state = readLocalState();
       let analysisCacheToken = "";
@@ -1937,9 +2011,13 @@
 
       function saveState(message = "已保存。") {
         state.updatedAt = new Date().toISOString();
-        localStorage.setItem(STORE_KEY, JSON.stringify(state));
+        const cacheResult = writeVideoLocalState(state);
         renderAll();
-        byId("videoOpsMessage").textContent = message;
+        byId("videoOpsMessage").textContent = cacheResult.compacted
+          ? `${message} 本机缓存空间不足，已自动保留精简缓存；云端仍保存完整数据。`
+          : cacheResult.quota
+            ? `${message} 本机缓存已满，本次先不写入本机缓存；云端仍会继续保存。`
+            : message;
         if (window.JRC_CLOUD?.writeModuleData) {
           return window.JRC_CLOUD.writeModuleData(STORE_KEY, MODULE_KEY, state, { replaceMode: "replace" })
             .then(() => true)
@@ -2041,7 +2119,7 @@
             state = applyLocalVideoUserMarks(localBeforeCloud, state);
             state.dailySkip = chooseDailySkip(localDailySkip, state.dailySkip);
             writeLocalDailySkip(state.dailySkip);
-            localStorage.setItem(STORE_KEY, JSON.stringify(state));
+            const cacheResult = writeVideoLocalState(state);
             renderAll();
             const normalizedCounts = {
               accounts: state.accounts.length,
@@ -2050,7 +2128,11 @@
               latest: latestSnapshots().length
             };
             const updatedAt = result.data.updatedAt || rawCounts.updatedAt;
-            const message = `已自动更新：当前显示 ${normalizedCounts.latest} 条视频档案。`;
+            const message = cacheResult.compacted
+              ? `已自动更新：当前显示 ${normalizedCounts.latest} 条视频档案。本机缓存已自动瘦身，完整数据以云端为准。`
+              : cacheResult.quota
+                ? `已自动更新：当前显示 ${normalizedCounts.latest} 条视频档案。本机缓存已满，完整数据以云端为准。`
+                : `已自动更新：当前显示 ${normalizedCounts.latest} 条视频档案。`;
             byId("videoOpsMessage").textContent = message;
             showCloudSyncDiagnostic({
               level: normalizedCounts.latest ? "success" : "warn",
@@ -7230,6 +7312,15 @@
         }
       }
 
+      function rememberAutoAiReportSignature(signature) {
+        if (!signature) return;
+        try {
+          localStorage.setItem(AUTO_AI_REPORT_KEY, signature);
+        } catch {
+          // 只用于避免重复自动生成报告，写不进去也不能影响页面使用。
+        }
+      }
+
       async function generateAiExpertReport(options = {}) {
         const auto = Boolean(options.auto);
         const button = byId("generateAiReportButton");
@@ -7274,11 +7365,11 @@
             model: state.aiReport.model,
             message: auto ? "采集结果已自动分析完成。" : "AI 专家报告已重新生成。"
           });
-          if (auto && options.signature) localStorage.setItem(AUTO_AI_REPORT_KEY, options.signature);
+          if (auto && options.signature) rememberAutoAiReportSignature(options.signature);
           saveState(auto ? "采集完成，AI 短视频专家报告已自动生成。" : "AI 短视频专家报告已生成。");
           return true;
         } catch (error) {
-          if (auto && options.signature) localStorage.setItem(AUTO_AI_REPORT_KEY, options.signature);
+          if (auto && options.signature) rememberAutoAiReportSignature(options.signature);
           state.analysisStatus = normalizeAnalysisStatus({
             status: "failed",
             generatedAt: new Date().toISOString(),

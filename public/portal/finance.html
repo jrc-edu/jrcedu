@@ -133,7 +133,8 @@
         color: var(--muted);
         font-size: 13px;
       }
-      .period-panel input {
+      .period-panel input,
+      .period-panel select {
         width: 100%;
         min-height: 44px;
         border: 1px solid var(--line);
@@ -141,6 +142,24 @@
         padding: 0 12px;
         color: var(--ink);
         background: rgba(255,255,255,0.88);
+      }
+      .period-picker {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 10px;
+      }
+      .period-picker-actions {
+        display: grid;
+        gap: 8px;
+      }
+      .period-current {
+        padding: 10px 12px;
+        border: 1px solid rgba(13, 148, 136, 0.18);
+        border-radius: 14px;
+        background: rgba(13, 148, 136, 0.08);
+        color: var(--brand-dark);
+        font-size: 13px;
+        font-weight: 800;
       }
       .summary-grid {
         display: grid;
@@ -1255,6 +1274,7 @@
         .compare-grid,
         .form-grid,
         .my-settlement-grid,
+        .period-picker,
         .attendance-decision-grid,
         .attendance-filter-bar,
         .settlement-summary-grid {
@@ -1305,10 +1325,21 @@
         <aside class="card period-panel">
           <p class="eyebrow">月份</p>
           <h2>当前核算月份</h2>
-          <label>
-            选择月份
-            <input id="periodInput" type="month" value="2026-06">
-          </label>
+          <input id="periodInput" type="month" value="2026-06" hidden>
+          <div class="period-picker">
+            <label>
+              选择年份
+              <select id="periodYearSelect" aria-label="选择核算年份"></select>
+            </label>
+            <label>
+              选择月份
+              <select id="periodMonthSelect" aria-label="选择核算月份"></select>
+            </label>
+          </div>
+          <div class="period-picker-actions">
+            <button class="button" type="button" id="periodApplyButton">确定切换月份</button>
+            <div class="period-current" id="periodCurrentLabel">当前：2026年06月</div>
+          </div>
           <p>先切月份。五月已有小课产值总表；六月已有工资课次明细，产值总表等你后续补齐后会自动显示得更完整。</p>
         </aside>
       </section>
@@ -1954,6 +1985,86 @@
       };
       const DEPARTED_FINANCE_TEACHERS = new Set(["万盈盈", "何建军", "张艳"]);
 
+      function normalizePeriodName(value, fallback = "2026-06") {
+        const match = String(value || "").match(/(\d{4})-(\d{1,2})/);
+        if (!match) return fallback;
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return fallback;
+        return `${year}-${String(month).padStart(2, "0")}`;
+      }
+
+      function periodDisplayName(periodName = currentPeriod) {
+        const normalized = normalizePeriodName(periodName, currentPeriod);
+        const [year, month] = normalized.split("-");
+        return `${year}年${month}月`;
+      }
+
+      function availableFinanceYears() {
+        const years = new Set(["2026", String(new Date().getFullYear()), String(currentPeriod || "2026-06").slice(0, 4)]);
+        Object.keys(state.periods || {}).forEach((periodName) => {
+          const year = String(periodName || "").slice(0, 4);
+          if (/^\d{4}$/.test(year)) years.add(year);
+        });
+        try {
+          buildMonthStatusRows().forEach((row) => {
+            const year = String(row.period || "").slice(0, 4);
+            if (/^\d{4}$/.test(year)) years.add(year);
+          });
+        } catch {
+          // Month status depends on imported data; ignore until those helpers are ready.
+        }
+        return Array.from(years).filter(Boolean).sort();
+      }
+
+      function syncPeriodPickerFromCurrent() {
+        const normalized = normalizePeriodName(currentPeriod);
+        const [year, month] = normalized.split("-");
+        const yearSelect = byId("periodYearSelect");
+        const monthSelect = byId("periodMonthSelect");
+        if (yearSelect) {
+          const years = availableFinanceYears();
+          if (!years.includes(year)) years.push(year);
+          yearSelect.innerHTML = Array.from(new Set(years)).sort().map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}年</option>`).join("");
+          yearSelect.value = year;
+        }
+        if (monthSelect) {
+          monthSelect.innerHTML = Array.from({ length: 12 }, (_, index) => {
+            const value = String(index + 1).padStart(2, "0");
+            return `<option value="${value}">${value}月</option>`;
+          }).join("");
+          monthSelect.value = month;
+        }
+        const input = byId("periodInput");
+        if (input) input.value = normalized;
+        const label = byId("periodCurrentLabel");
+        if (label) label.textContent = `当前：${periodDisplayName(normalized)}`;
+      }
+
+      function selectedPeriodFromPicker() {
+        const year = byId("periodYearSelect")?.value || String(currentPeriod || "2026-06").slice(0, 4);
+        const month = byId("periodMonthSelect")?.value || String(currentPeriod || "2026-06").slice(5, 7);
+        return normalizePeriodName(`${year}-${month}`, currentPeriod);
+      }
+
+      function markPendingPeriodSelection() {
+        const selected = selectedPeriodFromPicker();
+        const label = byId("periodCurrentLabel");
+        if (!label) return;
+        label.textContent = selected === currentPeriod
+          ? `当前：${periodDisplayName(currentPeriod)}`
+          : `待切换：${periodDisplayName(selected)}，点确定后刷新`;
+      }
+
+      function applyFinancePeriod(periodName, options = {}) {
+        const normalized = normalizePeriodName(periodName, currentPeriod);
+        currentPeriod = normalized;
+        syncPeriodPickerFromCurrent();
+        getPeriod(currentPeriod);
+        syncFormFromPeriod();
+        if (options.message !== false) setFinanceMessage(`已切换到 ${periodDisplayName(currentPeriod)}，页面数据已刷新。`);
+      }
+
       function teacherNameOf(row) {
         return String(row?.teacherName || row?.teacher || row?.姓名 || "").trim();
       }
@@ -1977,11 +2088,7 @@
 
       function setFinancePeriod(periodName) {
         if (!periodName || !periodHasFinanceRows(periodName)) return false;
-        currentPeriod = periodName;
-        const input = byId("periodInput");
-        if (input) input.value = periodName;
-        getPeriod(currentPeriod);
-        syncFormFromPeriod();
+        applyFinancePeriod(periodName, { message: false });
         return true;
       }
 
@@ -2685,6 +2792,7 @@
 
       function syncFormFromPeriod() {
         const period = getPeriod();
+        syncPeriodPickerFromCurrent();
         const form = byId("monthlyForm");
         MONEY_FIELDS.forEach((field) => {
           if (form.elements[field]) form.elements[field].value = period[field] ?? "";
@@ -3149,9 +3257,7 @@
         }
         const periodName = row.period || currentPeriod;
         if (periodName !== currentPeriod) {
-          currentPeriod = periodName;
-          const input = byId("periodInput");
-          if (input) input.value = currentPeriod;
+          applyFinancePeriod(periodName, { message: false });
         }
         const period = getPeriod(periodName);
         const receipts = Array.isArray(period.admissionReceipts) ? period.admissionReceipts : [];
@@ -4023,9 +4129,8 @@
 
       function applyAttendanceDeepLinkFilters() {
         if (attendanceDeepLink.period) {
-          currentPeriod = attendanceDeepLink.period;
-          const periodInput = byId("periodInput");
-          if (periodInput) periodInput.value = currentPeriod;
+          currentPeriod = normalizePeriodName(attendanceDeepLink.period, currentPeriod);
+          syncPeriodPickerFromCurrent();
         }
         if (attendanceDeepLink.teacher) attendanceFinanceTeacherFilter = attendanceDeepLink.teacher;
         if (["all", "pending", "regular", "special", "review"].includes(attendanceDeepLink.view)) {
@@ -5375,6 +5480,9 @@
         document.querySelectorAll("main input, main select, main textarea, main button").forEach((node) => {
           const keepEnabled = [
             "periodInput",
+            "periodYearSelect",
+            "periodMonthSelect",
+            "periodApplyButton",
             "financeTeacherSelect",
             "financeTeacherKeyword",
             "financeStatementMode",
@@ -5500,10 +5608,13 @@
         }
       }
 
-      byId("periodInput").addEventListener("change", (event) => {
-        currentPeriod = event.target.value || "2026-06";
-        getPeriod(currentPeriod);
-        syncFormFromPeriod();
+      byId("periodInput")?.addEventListener("change", (event) => {
+        applyFinancePeriod(event.target.value || "2026-06");
+      });
+      byId("periodYearSelect")?.addEventListener("change", markPendingPeriodSelection);
+      byId("periodMonthSelect")?.addEventListener("change", markPendingPeriodSelection);
+      byId("periodApplyButton")?.addEventListener("click", () => {
+        applyFinancePeriod(selectedPeriodFromPicker());
       });
       ["financeTeacherSelect", "financeTeacherKeyword", "financeStatementMode"].forEach((id) => {
         byId(id)?.addEventListener("input", () => {
@@ -5625,10 +5736,8 @@
         const teacher = params.get("teacher") || "";
         const period = params.get("period") || "";
         const student = params.get("student") || "";
-        if (period && byId("periodInput")) {
-          byId("periodInput").value = period;
-          currentPeriod = period;
-          syncFormFromPeriod();
+        if (period) {
+          applyFinancePeriod(period, { message: false });
         }
         if (teacher) selectFinanceTeacher(teacher, { scroll: false });
         if (workflow === "monthly-candidate") {
