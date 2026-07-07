@@ -587,8 +587,8 @@
       mount("curriculum", ".hero", { after: true });
       return;
     }
-    if (/\/portal\/index\.html$|\/portal\/?$/.test(path)) {
-      mount("operations", ".workbench-grid", { after: true });
+    if (/ai-capabilities\.html/.test(path)) {
+      mount("operations", "#aiOperationsHelperAnchor");
     }
   }
 
