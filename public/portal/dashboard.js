@@ -1595,62 +1595,69 @@
   function workflowIssueActions(workflow) {
     const counts = workflow?.counts || {};
     const rows = [];
+    const trustText = (row) => row?.trust?.summary ? ` 数据可信度：${row.trust.summary}` : "";
     if (counts.studentProfileCandidates) {
+      const sample = workflow?.studentProfileCandidates?.[0];
       rows.push({
         level: "优先",
         title: `${counts.studentProfileCandidates} 名报名学生待建档`,
-        detail: "报名后应自动进入学生服务档案候选，避免学管重复录入或漏跟进。",
-        href: "./student-service.html",
+        detail: `报名后应自动进入学生服务档案候选，避免学管重复录入或漏跟进。${trustText(sample)}`,
+        href: sample?.href || "./student-service.html?workflow=student-profile#studentProfileSummarySection",
         action: "补学生档案",
         owner: "高芳燕"
       });
     }
     if (counts.paikeCandidates) {
+      const sample = workflow?.paikeCandidates?.[0];
       rows.push({
         level: "优先",
         title: `${counts.paikeCandidates} 名报名学生待排课`,
-        detail: "普通课程报名后应进入排课候选；程老师班课和科学班课继续按独立班课口径。",
-        href: "./paike.html",
+        detail: `普通课程报名后应进入排课候选；程老师班课和科学班课继续按独立班课口径。${trustText(sample)}`,
+        href: sample?.href || "./paike.html?workflow=paike-candidate#pendingSchedulePoolPanel",
         action: "处理排课候选",
         owner: "周珊"
       });
     }
     if (counts.attendanceExceptionRows) {
+      const sample = workflow?.attendanceExceptionRows?.[0];
       rows.push({
         level: "课消",
         title: `${counts.attendanceExceptionRows} 人次课消异常`,
-        detail: "未点名、缺勤、请假或待联系家长不直接进入财务正式结算。",
-        href: "./student-service.html#attendanceFollowupSection",
+        detail: `未点名、缺勤、请假或待联系家长不直接进入财务正式结算。${trustText(sample)}`,
+        href: sample?.href || "./student-service.html?workflow=attendance-exception#attendanceFollowupSection",
         action: "处理课消异常",
         owner: "高芳燕"
       });
     }
     if (counts.monthlyFinanceCandidates) {
+      const sample = workflow?.monthlyFinanceCandidates?.[0];
       rows.push({
         level: "财务",
         title: `${counts.monthlyFinanceCandidates} 个老师月份月结候选`,
-        detail: "系统已按点名课消形成财务月结候选，财务只处理关键异常和最终确认。",
-        href: "./finance.html",
+        detail: `系统已按点名课消形成财务月结候选，财务只处理关键异常和最终确认。${trustText(sample)}`,
+        href: sample?.href || "./finance.html?workflow=monthly-candidate#attendanceFinanceSection",
         action: "看月结候选",
         owner: "刘大君"
       });
     }
     if (counts.exitScoreWarnings) {
+      const sample = workflow?.exitScoreWarnings?.[0];
       rows.push({
         level: "预警",
         title: `${counts.exitScoreWarnings} 名学生出门测需关注`,
-        detail: "连续低分、明显下滑或低分学生应进入学管沟通候选，可用于和家长沟通。",
-        href: "./student-service.html#scoreAnalyticsPanel",
+        detail: `连续低分、明显下滑或低分学生应进入学管沟通候选，可用于和家长沟通。${trustText(sample)}`,
+        href: sample?.href || "./student-service.html?workflow=score-warning#scoreAnalyticsPanel",
         action: "看出门测趋势",
         owner: "高芳燕"
       });
     }
     if (counts.parentRiskGuards) {
+      const sample = workflow?.parentRiskGuards?.[0];
       rows.push({
         level: "风险",
         title: `${counts.parentRiskGuards} 条家长风险续报提醒`,
-        detail: "谨慎续报或逐步劝退标签会在续费、扩科、排课前提醒负责人。",
-        href: "/jrcedu/advice-system/index.html#parent-risk",
+        detail: `谨慎续报或逐步劝退标签会在续费、扩科、排课前提醒负责人。${trustText(sample)}`,
+        href: sample?.href || "/jrcedu/advice-system/index.html?workflow=parent-risk#parent-risk",
         action: "看风险池",
         owner: "颜雨涵"
       });
@@ -1660,12 +1667,37 @@
         level: "并网",
         title: `${counts.preimportHighIssues} 条Excel并网高优先差异`,
         detail: "排课和工资表之间的明显差异由系统收敛后交给排课/财务负责人处理。",
-        href: "./paike.html",
+        href: "./paike.html?workflow=preimport-issue#paikeExceptionDetails",
         action: "看并网差异",
         owner: "周珊"
       });
     }
     return rows;
+  }
+
+  function workflowProductionCards(workflow) {
+    const checklist = Array.isArray(workflow?.productionChecklist) ? workflow.productionChecklist : [];
+    const trust = workflow?.dataTrustSummary || {};
+    const queue = Array.isArray(workflow?.priorityActionQueue) ? workflow.priorityActionQueue : [];
+    return [
+      ...checklist.map((item) => `
+        <a class="data-state-card" href="${escapeHtml(item.href || "./index.html")}" style="text-decoration:none;">
+          <strong>${escapeHtml(item.title || "投产检查")}</strong>
+          <span class="badge ${item.status === "ok" ? "status-ok" : item.status === "danger" ? "status-danger" : "status-warn"}">${escapeHtml(item.status === "ok" ? "已就绪" : "待处理")}</span>
+          <p>${escapeHtml(item.owner || "负责人")}｜${escapeHtml(item.detail || "")}</p>
+        </a>
+      `),
+      `<div class="data-state-card">
+        <strong>数据可信度分层</strong>
+        <span class="badge ${Number(trust.light || 0) ? "status-warn" : "status-ok"}">高可信 ${Number(trust.high || 0)}｜可用 ${Number(trust.usable || 0)}｜轻判断 ${Number(trust.light || 0)}</span>
+        <p>${escapeHtml(trust.note || "系统会标记数据来源，轻判断只做提醒。")}</p>
+      </div>`,
+      `<div class="data-state-card">
+        <strong>关键问题收敛队列</strong>
+        <span class="badge ${queue.length ? "status-warn" : "status-ok"}">${queue.length ? `${queue.length} 条` : "暂无关键项"}</span>
+        <p>${queue.slice(0, 3).map((item) => `${item.owner || "-"}：${item.title || "-"}`).join("；") || "系统已先做模糊匹配和归类，不把长表推给老师。"}</p>
+      </div>`
+    ].join("");
   }
 
   function workflowRoleTodos(workflow) {
@@ -1699,7 +1731,7 @@
       counts.studentProfileCandidates,
       `${counts.studentProfileCandidates} 名报名学生待建档`,
       "系统按学生姓名和手机号自动匹配，报名后未形成学生服务档案的学生会进入这里。",
-      "./student-service.html",
+      workflow?.studentProfileCandidates?.[0]?.href || "./student-service.html?workflow=student-profile#studentProfileSummarySection",
       "补学生档案",
       "紧急"
     );
@@ -1708,7 +1740,7 @@
       counts.attendanceExceptionRows,
       `${counts.attendanceExceptionRows} 人次课消异常待处理`,
       "未点名、缺勤、请假或待联系家长会暂缓进入财务正式结算。",
-      "./student-service.html#attendanceFollowupSection",
+      workflow?.attendanceExceptionRows?.[0]?.href || "./student-service.html?workflow=attendance-exception#attendanceFollowupSection",
       "处理课消"
     );
     add(
@@ -1716,7 +1748,7 @@
       counts.exitScoreWarnings,
       `${counts.exitScoreWarnings} 名学生出门测需沟通`,
       "连续低分或明显下滑的学生会进入学管沟通候选，可截图趋势给家长。",
-      "./student-service.html#scoreAnalyticsPanel",
+      workflow?.exitScoreWarnings?.[0]?.href || "./student-service.html?workflow=score-warning#scoreAnalyticsPanel",
       "看趋势"
     );
     add(
@@ -1724,7 +1756,7 @@
       counts.paikeCandidates,
       `${counts.paikeCandidates} 名报名学生待排课`,
       "普通课程报名后应进入排课候选；程老师班课和科学班课走独立班课口径。",
-      "./paike.html",
+      workflow?.paikeCandidates?.[0]?.href || "./paike.html?workflow=paike-candidate#pendingSchedulePoolPanel",
       "处理排课",
       "紧急"
     );
@@ -1741,7 +1773,7 @@
       counts.monthlyFinanceCandidates,
       `${counts.monthlyFinanceCandidates} 个老师月份可生成月结候选`,
       "系统按点名课消形成月结候选，财务只做关键异常和最终确认。",
-      "./finance.html",
+      workflow?.monthlyFinanceCandidates?.[0]?.href || "./finance.html?workflow=monthly-candidate#attendanceFinanceSection",
       "看月结"
     );
     add(
@@ -1749,7 +1781,7 @@
       counts.parentRiskGuards,
       `${counts.parentRiskGuards} 条家长风险续报提醒`,
       "谨慎续报或逐步劝退标签会在续费、扩科、排课前提醒负责人。",
-      "/jrcedu/advice-system/index.html#parent-risk",
+      workflow?.parentRiskGuards?.[0]?.href || "/jrcedu/advice-system/index.html?workflow=parent-risk#parent-risk",
       "看风险池"
     );
     return rows.slice(0, 4);
@@ -1827,6 +1859,10 @@
     const counts = snapshot.counts || {};
     const checks = snapshot.checks || {};
     const issues = Array.isArray(snapshot.issues) ? snapshot.issues : [];
+    const workflow = readWorkflowAutopilot();
+    const queue = Array.isArray(workflow?.priorityActionQueue) ? workflow.priorityActionQueue : [];
+    const checklist = Array.isArray(workflow?.productionChecklist) ? workflow.productionChecklist : [];
+    const trusted = workflow?.dataTrustSummary || {};
     const primary = issues[0];
     const riskTotal = Number(counts.parentRisks || 0) + Number(counts.studentRisks || 0) + Number(counts.historicalRisks || 0);
     const unresolved = Number(counts.attendanceUnresolved || counts.attendanceUnresolvedCount || 0);
@@ -1839,38 +1875,45 @@
       cardsHolder.innerHTML = [
         commandCardHtml({
           eyebrow: "今日优先",
-          value: primary ? (primary.owner || primary.level || "先处理") : "无紧急断点",
-          note: primary ? (primary.text || primary.flow || "按底层链路处理。") : "当前链路画像没有发现必须立刻处理的断点。",
-          href: primary?.href || "./suggestions.html"
+          value: queue[0] ? (queue[0].owner || queue[0].level || "先处理") : primary ? (primary.owner || primary.level || "先处理") : "无紧急断点",
+          note: queue[0] ? `${queue[0].title || ""}｜${queue[0].detail || ""}` : primary ? (primary.text || primary.flow || "按底层链路处理。") : "当前链路画像没有发现必须立刻处理的断点。",
+          href: queue[0]?.href || primary?.href || "./suggestions.html"
         }),
         commandCardHtml({
-          eyebrow: "招生入学",
-          value: `${Number(counts.enrolled || 0)} 人`,
-          note: `未建档 ${Number(checks.unfiledEnrolled || counts.enrolledWithoutService || counts.workflowStudentProfileCandidates || 0)}｜未排课 ${Number(checks.unscheduledEnrolled || counts.workflowPaikeCandidates || 0)}。`,
-          href: "./student-service.html"
+          eyebrow: "投产验收",
+          value: `${checklist.filter((item) => item.status === "ok").length}/${checklist.length || 8}`,
+          note: checklist.find((item) => item.status !== "ok")?.detail || "投产检查项已形成清单，后续按清单逐项验收。",
+          href: "./index.html#portalAdminDiagnostics"
         }),
         commandCardHtml({
           eyebrow: "排课课消",
-          value: `${Number(counts.scheduleRows || 0)} 节`,
-          note: `点名 ${Number(counts.attendanceSessions || 0)} 节｜待追踪 ${unresolved} 人次。`,
-          href: "./student-service.html"
+          value: `${Number(workflow?.officialScheduleOverview?.teacherMonths?.length || counts.scheduleRows || 0)} 项`,
+          note: `点名 ${Number(counts.attendanceSessions || 0)} 节｜待追踪 ${unresolved} 人次｜正式课表按老师月份查看。`,
+          href: "./paike.html?workflow=official-schedule#teacherSheetTable"
         }),
         commandCardHtml({
           eyebrow: "财务月结",
           value: `${Number(counts.financePeriods || counts.workflowFinanceCandidates || 0)} 项`,
           note: `有效到课 ${Number(counts.attendanceEffective || 0)} 人次｜月结候选 ${Number(counts.workflowFinanceCandidates || 0)}。`,
-          href: "./finance.html"
+          href: workflow?.monthlyFinanceCandidates?.[0]?.href || "./finance.html?workflow=monthly-candidate#attendanceFinanceSection"
         }),
         commandCardHtml({
-          eyebrow: "风险任务",
-          value: `${riskTotal + Number(counts.openTasks || 0) + Number(counts.openFeedback || 0) + Number(counts.workflowExitScoreWarnings || 0)} 项`,
-          note: `风险 ${riskTotal}｜出门测 ${Number(counts.workflowExitScoreWarnings || 0)}｜反馈 ${Number(counts.openFeedback || 0)}。`,
-          href: "./suggestions.html"
+          eyebrow: "可信数据",
+          value: `${Number(trusted.high || 0)} / ${Number(trusted.usable || 0)} / ${Number(trusted.light || 0)}`,
+          note: "依次为高可信、可用、轻判断；轻判断只提醒，不直接拍板。",
+          href: "./index.html#portalDataFlowList"
         })
       ].join("");
     }
     if (ownersHolder) {
-      const ownerRows = issues.length ? issues.slice(0, 5) : [{
+      const ownerRows = queue.length ? queue.slice(0, 5).map((item) => ({
+        level: item.level || "提醒",
+        owner: item.owner || "负责人",
+        flow: item.system || item.title || "投产动作",
+        text: `${item.title || ""} ${item.detail || ""}${item.trust?.label ? `｜${item.trust.label}` : ""}`,
+        href: item.href || "./suggestions.html",
+        actionText: "去处理"
+      })) : issues.length ? issues.slice(0, 5) : [{
         level: "正常",
         owner: "管理员",
         flow: "业务链路",
@@ -1968,6 +2011,9 @@
     const workflow = readWorkflowAutopilot();
     const workflowCounts = workflow?.counts || {};
     const workflowActions = workflowIssueActions(workflow);
+    const workflowQueue = Array.isArray(workflow?.priorityActionQueue) ? workflow.priorityActionQueue : [];
+    const workflowChecklist = Array.isArray(workflow?.productionChecklist) ? workflow.productionChecklist : [];
+    const workflowTrust = workflow?.dataTrustSummary || {};
     const teacherCount = new Set(scheduleRows.map((row) => row.teacherName).filter(Boolean)).size;
     const periods = Array.from(new Set(scheduleRows.map((row) => String(row.date || "").slice(0, 7)).filter(Boolean))).sort();
     const scheduleIdentities = scheduleStudentIdentitySet(scheduleRows);
@@ -2042,6 +2088,14 @@
         note: `开放任务 ${openTasks.length}；反馈未闭环 ${openFeedback.length}。断点应进入任务闭环，不靠口头提醒。`,
         href: "./suggestions.html",
         action: "看任务"
+      },
+      {
+        eyebrow: "投产清单",
+        value: `${workflowChecklist.filter((item) => item.status === "ok").length}/${workflowChecklist.length || 8} 项`,
+        status: workflowChecklist.some((item) => item.status !== "ok") ? "warn" : "ok",
+        note: `已接入使用型首页、深链定位、正式排课、异常收敛、可信度、月结候选、学生画像和投产验收。`,
+        href: "./index.html#portalDataFlowList",
+        action: "看清单"
       }
     ];
     const okCount = lanes.filter((lane) => lane.status === "ok").length;
@@ -2058,6 +2112,7 @@
         <div class="acceptance-summary-card"><span>主链路数据</span><strong>${leads.length + scheduleRows.length + attendance.rows}</strong><p>线索 ${leads.length}｜排课 ${scheduleRows.length}｜点名人次 ${attendance.rows}</p></div>
         <div class="acceptance-summary-card"><span>业财基础</span><strong>${financePeriods || financeHistoryRows ? "已接入" : "待补"}</strong><p>月结 ${financePeriods} 个月｜历史工资 ${financeHistoryRows} 行</p></div>
         <div class="acceptance-summary-card"><span>风险与任务</span><strong>${parentRisks.length + studentRisks.length + historicalRisks + openTasks.length}</strong><p>风险标签和待办统一进入管理视图。</p></div>
+        <div class="acceptance-summary-card"><span>关键问题队列</span><strong>${workflowQueue.length}</strong><p>高可信 ${Number(workflowTrust.high || 0)}｜可用 ${Number(workflowTrust.usable || 0)}｜轻判断 ${Number(workflowTrust.light || 0)}</p></div>
       `;
     }
     if (lanesHolder) lanesHolder.innerHTML = lanes.map(laneCardHtml).join("");
@@ -2087,6 +2142,29 @@
       if (actions.some((action) => action.title === item.title)) return;
       actions.push(item);
     });
+    workflowQueue.slice(0, 6).forEach((item) => {
+      const title = item.title || item.system || "投产动作";
+      if (actions.some((action) => action.title === title)) return;
+      actions.push({
+        level: item.level || "提醒",
+        title,
+        detail: `${item.owner || "负责人"}｜${item.detail || ""}${item.trust?.summary ? `｜${item.trust.summary}` : ""}`,
+        href: item.href || "./suggestions.html",
+        action: "去处理",
+        owner: item.owner
+      });
+    });
+    workflowChecklist.filter((item) => item.status !== "ok").slice(0, 4).forEach((item) => {
+      if (actions.some((action) => action.title === item.title)) return;
+      actions.push({
+        level: "投产",
+        title: item.title,
+        detail: `${item.owner || "负责人"}｜${item.detail || ""}`,
+        href: item.href || "./index.html",
+        action: "看检查项",
+        owner: item.owner
+      });
+    });
     if (!actions.length) {
       actions.push({ level: "正常", title: "当前可继续试运行", detail: "继续让老师按真实业务使用，系统会用真实数据逐步提高判断质量。", href: "./suggestions.html", action: "看任务台账" });
     }
@@ -2115,7 +2193,10 @@
         workflowFinanceCandidates: Number(workflowCounts.monthlyFinanceCandidates || 0),
         workflowExitScoreWarnings: Number(workflowCounts.exitScoreWarnings || 0),
         workflowParentRiskGuards: Number(workflowCounts.parentRiskGuards || 0),
-        workflowPreimportHighIssues: Number(workflowCounts.preimportHighIssues || 0)
+        workflowPreimportHighIssues: Number(workflowCounts.preimportHighIssues || 0),
+        workflowPriorityActions: workflowQueue.length,
+        workflowStudentProfiles: Number(workflow?.studentProfiles?.length || 0),
+        workflowProductionReady: workflowChecklist.filter((item) => item.status === "ok").length
       },
       checks: {
         maturity: `${okCount}/${lanes.length}`,
@@ -2709,13 +2790,13 @@
         title: "7. 首页角色工作台",
         label: "已接入",
         className: "status-ok",
-        detail: "周珊看排课候选，学管看建档/课消/出门测，财务看月结候选，招生看风险续报提醒。"
+        detail: `周珊看排课候选，学管看建档/课消/出门测，财务看月结候选；当前关键队列 ${Number(workflow?.priorityActionQueue?.length || 0)} 条。`
       },
       {
         title: "8. 统一身份匹配规则",
         label: "已接入",
         className: "status-ok",
-        detail: "跨系统统一用学生姓名拆分、手机号后11位、课程口径和月份口径做模糊匹配，减少人工核对。"
+        detail: `跨系统统一用学生姓名拆分、手机号后11位、课程口径和月份口径做模糊匹配；学生画像 ${Number(workflow?.studentProfiles?.length || 0)} 个。`
       }
     ];
     const landingCards = landingItems.map((item) => `
@@ -2739,7 +2820,8 @@
         <p>${escapeHtml(row.financeBasis)}${row.commissionRate ? `；提成 ${escapeHtml(row.commissionRate)}` : ""}</p>
       </div>
     `).join("");
-    holder.innerHTML = countCards + landingCards + flowCards + (financePreview || `
+    const productionCards = workflowProductionCards(workflow);
+    holder.innerHTML = countCards + landingCards + productionCards + flowCards + (financePreview || `
       <div class="data-state-card">
         <strong>财务结算草表</strong>
         <span class="badge status-warn">待导入</span>
@@ -2926,6 +3008,17 @@
       if (priorityActions.some((row) => row.text === action.text || row.system === action.system)) return;
       priorityActions.push(action);
     });
+    (Array.isArray(workflow?.priorityActionQueue) ? workflow.priorityActionQueue : []).slice(0, 6).forEach((item) => {
+      const action = {
+        owner: item.owner || "负责人",
+        system: item.system || item.title || "投产动作",
+        text: `${item.title || ""} ${item.detail || ""}${item.trust?.label ? `｜${item.trust.label}` : ""}`,
+        href: item.href || "./suggestions.html",
+        actionText: "去处理"
+      };
+      if (priorityActions.some((row) => row.system === action.system && row.text === action.text)) return;
+      priorityActions.push(action);
+    });
 
     persistBusinessLinkSnapshot(buildBusinessLinkSnapshot({
       source: "link-health",
@@ -2953,7 +3046,10 @@
         workflowFinanceCandidates: Number(workflowCounts.monthlyFinanceCandidates || 0),
         workflowExitScoreWarnings: Number(workflowCounts.exitScoreWarnings || 0),
         workflowParentRiskGuards: Number(workflowCounts.parentRiskGuards || 0),
-        workflowPreimportHighIssues: Number(workflowCounts.preimportHighIssues || 0)
+        workflowPreimportHighIssues: Number(workflowCounts.preimportHighIssues || 0),
+        workflowPriorityActions: Number(workflow?.priorityActionQueue?.length || 0),
+        workflowStudentProfiles: Number(workflow?.studentProfiles?.length || 0),
+        workflowProductionReady: (Array.isArray(workflow?.productionChecklist) ? workflow.productionChecklist : []).filter((item) => item.status === "ok").length
       },
       checks: {
         passedChecks,

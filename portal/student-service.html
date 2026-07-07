@@ -544,7 +544,7 @@
         </div>
       </section>
 
-      <details class="card service-detail-panel phase-secondary-section">
+      <details class="card service-detail-panel phase-secondary-section" id="scoreAnalyticsPanel">
         <summary>出门测成绩分析</summary>
         <div class="section-head">
           <div>
@@ -569,7 +569,7 @@
         </div>
       </details>
 
-      <details class="card service-detail-panel phase-secondary-section">
+      <details class="card service-detail-panel phase-secondary-section" id="studentProfileSummarySection">
         <summary>学生服务总览</summary>
         <div class="section-head">
           <div>
@@ -687,7 +687,7 @@
     <script src="/jrcedu/portal/cloud-api.js?v=20260623b"></script>
 
     <script src="/jrcedu/portal/preimport-data.js?v=20260624b"></script>
-    <script src="/jrcedu/portal/auth.js?v=20260629a"></script>
+    <script src="/jrcedu/portal/auth.js?v=20260707prod"></script>
     <script src="/jrcedu/portal/business-modules.js?v=20260624a"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
@@ -2329,22 +2329,51 @@
         };
         const renderStudentProfileSummary = () => {
           if (!studentProfileSummaryBody) return;
-          const rows = deriveStudentProfileSummary();
+          const localRows = deriveStudentProfileSummary();
+          const workflowSnapshot = window.JRC_DATA_FOUNDATION?.deriveWorkflowAutopilot?.();
+          const workflowProfiles = Array.isArray(workflowSnapshot?.studentProfiles)
+            ? workflowSnapshot.studentProfiles
+            : [];
+          const map = new Map(localRows.map((row) => [compactText(row.studentName), row]));
+          workflowProfiles.forEach((profile) => {
+            const key = compactText(profile.studentName);
+            if (!key) return;
+            const existing = map.get(key) || {};
+            const merged = {
+              ...profile,
+              ...existing,
+              parentRisk: profile.parentRisk || existing.parentRisk || "",
+              scoreRisk: profile.scoreRisk || existing.scoreRisk || "",
+              feedbackCount: profile.feedbackCount ?? existing.feedbackCount ?? 0,
+              trust: profile.trust || existing.trust,
+              nextAction: profile.parentRisk || profile.scoreRisk || profile.unresolvedTotal ? profile.nextAction : (existing.nextAction || profile.nextAction)
+            };
+            map.set(key, merged);
+          });
+          const rows = [...map.values()].sort((a, b) => {
+            const riskWeight = (row) => Number(Boolean(row.parentRisk)) * 4 + Number(Boolean(row.scoreRisk)) * 3 + Number(row.unresolved || row.unresolvedTotal || 0);
+            return riskWeight(b) - riskWeight(a) || String(b.latestDate || "").localeCompare(String(a.latestDate || ""));
+          });
           if (!rows.length) {
             studentProfileSummaryBody.innerHTML = `<tr><td colspan="7">暂无学生汇总。保存点名后，这里会自动形成学生个人档案。</td></tr>`;
             return;
           }
           studentProfileSummaryBody.innerHTML = rows.slice(0, 40).map((row) => {
-            const statusClass = row.status === "正常" || row.status === "可正向反馈" ? "tag" : "tag warn";
+            const workflowStatus = row.parentRisk || row.scoreRisk || row.status;
+            const statusClass = workflowStatus === "正常" || workflowStatus === "可正向反馈" ? "tag" : "tag warn";
             const scoreText = row.latestScore == null ? "暂无出门测" : `最近 ${row.latestScore}；均分 ${row.averageScore ?? "-"}`;
+            const teacherText = row.latestTeacher || (row.teachers instanceof Set ? [...row.teachers].join("、") : "") || "-";
+            const presentLessons = Number(row.presentLessons || row.presentTotal || 0);
+            const totalLessons = Number(row.totalLessons || row.attendanceTotal || 0);
+            const attendanceRate = row.attendanceRate != null ? row.attendanceRate : totalLessons ? Math.round((presentLessons / totalLessons) * 100) : 0;
             return `
               <tr>
-                <td><strong>${escapeHtml(row.studentName)}</strong></td>
+                <td><strong>${escapeHtml(row.studentName)}</strong>${row.trust?.label ? `<br><span class="tag">${escapeHtml(row.trust.label)}</span>` : ""}</td>
                 <td>${escapeHtml(row.latestDate || "-")}<br>${escapeHtml(row.latestClass || "-")}</td>
-                <td>${escapeHtml(row.latestTeacher || [...row.teachers].join("、") || "-")}</td>
-                <td>${row.presentLessons}/${row.totalLessons} 次<br>到课率 ${row.attendanceRate}%</td>
+                <td>${escapeHtml(teacherText)}</td>
+                <td>${presentLessons}/${totalLessons} 次<br>到课率 ${attendanceRate}%</td>
                 <td>${escapeHtml(scoreText)}</td>
-                <td><span class="${statusClass}">${escapeHtml(row.status)}</span>${row.unresolved ? `<br>${row.unresolved} 次待处理` : ""}</td>
+                <td><span class="${statusClass}">${escapeHtml(workflowStatus || "正常")}</span>${row.unresolved || row.unresolvedTotal ? `<br>${Number(row.unresolved || row.unresolvedTotal || 0)} 次待处理` : ""}${row.feedbackCount ? `<br>反馈 ${Number(row.feedbackCount)} 条` : ""}</td>
                 <td>${escapeHtml(row.nextAction)}</td>
               </tr>
             `;
@@ -2978,6 +3007,60 @@
         });
         window.addEventListener("jrc-student-service-linked", hydrate);
         hydrate();
+      })();
+    </script>
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search);
+        const workflow = params.get("workflow") || "";
+        if (!workflow) return;
+        const focus = () => {
+          const targetId = workflow === "score-warning" ? "scoreAnalyticsPanel"
+            : workflow === "attendance-exception" ? "attendanceFollowupSection"
+              : "studentProfileSummarySection";
+          const target = document.getElementById(targetId);
+          if (target?.tagName === "DETAILS") target.open = true;
+          target?.scrollIntoView({ block: "start", behavior: "smooth" });
+          const student = params.get("student") || "";
+          const teacher = params.get("teacher") || "";
+          const keyword = [student, teacher].filter(Boolean).join(" ");
+          const studentFilter = document.getElementById("studentFilterInput");
+          const feedbackFilter = document.getElementById("studentFeedbackTimelineSearchInput");
+          if (studentFilter && keyword) {
+            studentFilter.value = keyword;
+            studentFilter.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          if (feedbackFilter && keyword) {
+            feedbackFilter.value = keyword;
+            feedbackFilter.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          if (workflow === "attendance-exception") {
+            const date = params.get("date") || "";
+            const teacherSelect = document.getElementById("followupTeacherSelect");
+            if (teacherSelect && teacher) {
+              Array.from(teacherSelect.options || []).some((option) => {
+                if (option.value === teacher || option.textContent.includes(teacher)) {
+                  teacherSelect.value = option.value;
+                  teacherSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                  return true;
+                }
+                return false;
+              });
+            }
+            const dateSelect = document.getElementById("followupDateSelect");
+            if (dateSelect && date) {
+              Array.from(dateSelect.options || []).some((option) => {
+                if (option.value === date || option.textContent.includes(date)) {
+                  dateSelect.value = option.value;
+                  dateSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                  return true;
+                }
+                return false;
+              });
+            }
+          }
+        };
+        window.addEventListener("load", () => setTimeout(focus, 500));
       })();
     </script>
     <script src="/jrcedu/portal/business-ai.js?v=20260705a"></script>

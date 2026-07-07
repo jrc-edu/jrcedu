@@ -1782,7 +1782,7 @@
 
     <script src="/jrcedu/portal/cloud-api.js?v=20260623b"></script>
     <script src="/jrcedu/portal/preimport-data.js?v=20260622a"></script>
-    <script src="/jrcedu/portal/auth.js?v=20260629a"></script>
+    <script src="/jrcedu/portal/auth.js?v=20260707prod"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
       const byId = (id) => document.getElementById(id);
@@ -5370,7 +5370,56 @@
         button.addEventListener("click", () => applyTeacherSheetQuick(button.getAttribute("data-teacher-sheet-quick") || ""));
       });
 
+      function applyPaikeWorkflowDeepLink() {
+        const params = new URLSearchParams(window.location.search);
+        const workflow = params.get("workflow") || "";
+        if (!workflow) return;
+        const student = params.get("student") || "";
+        const teacher = params.get("teacher") || "";
+        const period = params.get("period") || "";
+        const keyword = [student, teacher].filter(Boolean).join(" ");
+        if (period && byId("teacherSheetPeriod")) {
+          const select = byId("teacherSheetPeriod");
+          Array.from(select.options || []).some((option) => {
+            if (option.value === period || option.textContent.includes(period)) {
+              select.value = option.value;
+              select.dispatchEvent(new Event("change", { bubbles: true }));
+              return true;
+            }
+            return false;
+          });
+        }
+        if (teacher && byId("teacherSheetTeacher")) {
+          selectTeacherSheetTeacher(teacher, { scroll: false });
+        }
+        if (keyword && byId("teacherSheetKeyword")) {
+          byId("teacherSheetKeyword").value = keyword;
+          byId("teacherSheetKeyword").dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        if (workflow === "paike-candidate") {
+          byId("pendingSchedulePoolPanel")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          setTeacherSheetMessage(student ? `已定位待排课候选：${student}。先看目标老师空档，再看教室表。` : "已定位待排课池。");
+          return;
+        }
+        if (workflow === "official-schedule") {
+          if (byId("teacherSheetMode")) {
+            byId("teacherSheetMode").value = "month";
+            byId("teacherSheetMode").dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          setTeacherSheetMessage(teacher ? `已定位 ${teacher} ${period || ""} 正式课表。` : "已定位正式课表视图。");
+          return;
+        }
+        if (workflow === "preimport-issue") {
+          const details = byId("paikeExceptionDetails");
+          if (details) details.open = true;
+          byId("paikeConflictDetailList")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          setTeacherSheetMessage("已定位并网关键复核区。");
+        }
+      }
+
       initPaikeDashboard();
+      window.addEventListener("load", () => setTimeout(applyPaikeWorkflowDeepLink, 700));
     </script>
     <script src="/jrcedu/portal/mobile-unified.js?v=20260629a"></script>
   </body>

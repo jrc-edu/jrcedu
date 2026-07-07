@@ -241,67 +241,6 @@
       }
       .roster-edit-bar .field { flex: 1 1 220px; }
       .roster-edit-note { color: var(--muted); font-size: 13px; line-height: 1.6; }
-      .score-cell-grid { display: grid; grid-template-columns: minmax(82px, 1fr) minmax(82px, 1fr); gap: 8px; min-width: 178px; }
-      .score-cell-grid input {
-        width: 100%;
-        min-height: 38px;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 0 10px;
-      }
-      .score-student-button {
-        border: 0;
-        padding: 0;
-        background: transparent;
-        color: var(--brand-dark);
-        font: inherit;
-        font-weight: 800;
-        cursor: pointer;
-      }
-      .score-trend-modal {
-        position: fixed;
-        inset: 0;
-        z-index: 80;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 22px;
-        background: rgba(23,33,50,0.42);
-      }
-      .score-trend-modal.show { display: flex; }
-      .score-trend-dialog {
-        width: min(880px, calc(100vw - 32px));
-        max-height: calc(100vh - 44px);
-        overflow: auto;
-        border-radius: 22px;
-        border: 1px solid rgba(255,255,255,0.72);
-        background: #fff;
-        box-shadow: var(--shadow);
-        padding: 22px;
-      }
-      .score-trend-chart {
-        margin-top: 14px;
-        border: 1px solid var(--line);
-        border-radius: 18px;
-        background: #fbfefd;
-        overflow: hidden;
-      }
-      .score-trend-chart svg { display: block; width: 100%; height: auto; }
-      .score-trend-summary {
-        margin-top: 12px;
-        padding: 13px 14px;
-        border-radius: 16px;
-        background: var(--brand-soft);
-        color: var(--muted);
-        line-height: 1.7;
-      }
-      .score-trend-parent {
-        margin-top: 14px;
-        padding: 16px;
-        border: 1px solid rgba(13,148,136,0.18);
-        border-radius: 18px;
-        background: rgba(13,148,136,0.06);
-      }
       .span-3 { grid-column: 1 / -1; }
       @media (max-width: 980px) { .hero, .grid { grid-template-columns: 1fr; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       @media (max-width: 720px) {
@@ -470,7 +409,7 @@
           </div>
           <div class="form-grid">
             <label class="field span-3"><span>班级名称</span><input id="attendanceClass" placeholder="系统会自动带出；无匹配排课时可手动填写"></label>
-            <label class="field span-3"><span>粘贴学生名单 / 出门测成绩</span><textarea id="attendanceRosterInput" placeholder="每行一个学生；也可以直接从 Excel 复制“学生姓名、出门测成绩、出门测满分”等列粘贴。"></textarea></label>
+            <label class="field span-3"><span>粘贴学生名单 / 出门测成绩</span><textarea id="attendanceRosterInput" placeholder="每行一个学生；也可以直接从 Excel 复制“学生姓名、出门测成绩”等列粘贴。"></textarea></label>
           </div>
           <div class="actions">
             <button class="button secondary" id="attendanceLoadPreimportButton" type="button">带出所选班级名单</button>
@@ -515,7 +454,7 @@
         <div class="table-wrap" style="margin-top:16px;">
           <table>
             <thead>
-              <tr><th>学生</th><th>点名状态</th><th>出门测 / 满分</th><th>课销与课时规则</th><th>后续处理</th><th>系统判断</th><th>操作</th></tr>
+              <tr><th>学生</th><th>点名状态</th><th>出门测 / 小测</th><th>课销与课时规则</th><th>后续处理</th><th>系统判断</th><th>操作</th></tr>
             </thead>
             <tbody id="attendanceRosterBody"></tbody>
           </table>
@@ -605,7 +544,7 @@
         </div>
       </section>
 
-      <details class="card service-detail-panel" open>
+      <details class="card service-detail-panel phase-secondary-section" id="scoreAnalyticsPanel">
         <summary>出门测成绩分析</summary>
         <div class="section-head">
           <div>
@@ -616,17 +555,9 @@
         </div>
         <div class="metrics">
           <div class="metric"><span>已同步测评课次</span><strong id="scoreMetricLessons">0</strong><p>有出门测成绩的课程</p></div>
-          <div class="metric"><span>整体平均得分率</span><strong id="scoreMetricAverage">-</strong><p>按成绩 ÷ 满分计算</p></div>
+          <div class="metric"><span>整体平均分</span><strong id="scoreMetricAverage">-</strong><p>按已录成绩计算</p></div>
           <div class="metric"><span>缺测 / 待沟通</span><strong id="scoreMetricAlerts">0</strong><p>学管需要跟进</p></div>
           <div class="metric"><span>最新成绩记录</span><strong id="scoreMetricRecords">0</strong><p>学生个人成绩条数</p></div>
-        </div>
-        <div class="table-wrap" style="margin-top:16px;">
-          <table>
-            <thead>
-              <tr><th>学生</th><th>班级 / 老师</th><th>最近成绩</th><th>班级均分</th><th>预警原因</th><th>建议动作</th><th>状态</th></tr>
-            </thead>
-            <tbody id="scoreWarningBody"></tbody>
-          </table>
         </div>
         <div class="table-wrap" style="margin-top:16px;">
           <table>
@@ -638,26 +569,7 @@
         </div>
       </details>
 
-      <div class="score-trend-modal" id="scoreTrendModal" aria-hidden="true">
-        <div class="score-trend-dialog" role="dialog" aria-modal="true" aria-labelledby="scoreTrendTitle">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">出门测趋势</p>
-              <h2 id="scoreTrendTitle">学生出门测趋势</h2>
-              <p id="scoreTrendMeta">按最近 10 次出门测折算百分比展示。</p>
-            </div>
-            <div class="actions">
-              <button class="button secondary" id="scoreTrendParentButton" type="button">家长版截图</button>
-              <button class="button" id="scoreTrendCloseButton" type="button">关闭</button>
-            </div>
-          </div>
-          <div class="score-trend-chart" id="scoreTrendChart"></div>
-          <div class="score-trend-summary" id="scoreTrendSummary"></div>
-          <div class="score-trend-parent" id="scoreTrendParentPanel" hidden></div>
-        </div>
-      </div>
-
-      <details class="card service-detail-panel phase-secondary-section">
+      <details class="card service-detail-panel phase-secondary-section" id="studentProfileSummarySection">
         <summary>学生服务总览</summary>
         <div class="section-head">
           <div>
@@ -775,7 +687,7 @@
     <script src="/jrcedu/portal/cloud-api.js?v=20260623b"></script>
 
     <script src="/jrcedu/portal/preimport-data.js?v=20260624b"></script>
-    <script src="/jrcedu/portal/auth.js?v=20260629a"></script>
+    <script src="/jrcedu/portal/auth.js?v=20260707prod"></script>
     <script src="/jrcedu/portal/business-modules.js?v=20260624a"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
@@ -1005,19 +917,10 @@
         const attendanceMetricFinance = document.getElementById("attendanceMetricFinance");
         const attendanceMetricSpecial = document.getElementById("attendanceMetricSpecial");
         const scoreBody = document.getElementById("scoreAnalyticsBody");
-        const scoreWarningBody = document.getElementById("scoreWarningBody");
         const scoreMetricLessons = document.getElementById("scoreMetricLessons");
         const scoreMetricAverage = document.getElementById("scoreMetricAverage");
         const scoreMetricAlerts = document.getElementById("scoreMetricAlerts");
         const scoreMetricRecords = document.getElementById("scoreMetricRecords");
-        const scoreTrendModal = document.getElementById("scoreTrendModal");
-        const scoreTrendTitle = document.getElementById("scoreTrendTitle");
-        const scoreTrendMeta = document.getElementById("scoreTrendMeta");
-        const scoreTrendChart = document.getElementById("scoreTrendChart");
-        const scoreTrendSummary = document.getElementById("scoreTrendSummary");
-        const scoreTrendParentPanel = document.getElementById("scoreTrendParentPanel");
-        const scoreTrendParentButton = document.getElementById("scoreTrendParentButton");
-        const scoreTrendCloseButton = document.getElementById("scoreTrendCloseButton");
         const studentProfileSummaryBody = document.getElementById("studentProfileSummaryBody");
         const myServiceGrid = document.getElementById("myServiceGrid");
         const myServiceList = document.getElementById("myServiceList");
@@ -1412,7 +1315,6 @@
           const headers = table[0] || [];
           const studentIndex = findColumn(headers, ["学生姓名", "学生", "姓名", "学员姓名", "学员"]);
           const scoreIndex = findColumn(headers, ["出门测成绩", "出门测", "小测成绩", "成绩", "分数"]);
-          const fullScoreIndex = findColumn(headers, ["出门测满分", "小测满分", "满分", "总分"]);
           const dateIndex = findColumn(headers, ["日期", "上课日期", "课程日期"]);
           const teacherIndex = findColumn(headers, ["任课老师", "老师", "教师"]);
           const classIndex = findColumn(headers, ["班级/课程", "班级", "课程", "课程名称"]);
@@ -1424,8 +1326,7 @@
               const studentName = studentIndex >= 0 ? safeCell(row, studentIndex) : safeCell(row, 0);
               return {
                 studentName,
-                exitScore: safeCell(row, scoreIndex),
-                exitFullScore: safeCell(row, fullScoreIndex)
+                exitScore: safeCell(row, scoreIndex)
               };
             })
             .filter((row) => row.studentName && !["学生", "学生姓名", "姓名"].includes(row.studentName));
@@ -1466,17 +1367,15 @@
           if (parsed.teacher) ensureTeacherOption(parsed.teacher, { select: true });
           if (parsed.className && fields.className) fields.className.value = parsed.className;
           if (parsed.lessonType && fields.lessonType) fields.lessonType.value = parsed.lessonType;
-          const scoreRows = parsed.rows.filter((row) => String(row.exitScore || "").trim() || String(row.exitFullScore || "").trim());
+          const scoreRows = parsed.rows.filter((row) => String(row.exitScore || "").trim());
           if (draftRows.length && scoreRows.length) {
             const scoreByName = new Map(scoreRows.map((row) => [compactText(row.studentName), row.exitScore]));
-            const fullScoreByName = new Map(scoreRows.map((row) => [compactText(row.studentName), row.exitFullScore]));
             let matched = 0;
             draftRows = draftRows.map((row) => {
               const score = scoreByName.get(compactText(row.studentName));
-              const fullScore = fullScoreByName.get(compactText(row.studentName));
-              if (score == null && fullScore == null) return row;
+              if (score == null) return row;
               matched += 1;
-              return { ...row, exitScore: score ?? row.exitScore, exitFullScore: fullScore || row.exitFullScore };
+              return { ...row, exitScore: score };
             });
             renderRoster();
             renderAttendanceNextStep();
@@ -1491,12 +1390,11 @@
             serviceModule: activeServiceModule,
             status: UNMARKED_STATUS,
             exitScore: row.exitScore || "",
-            exitFullScore: row.exitFullScore || "",
             followup: defaultFollowup(UNMARKED_STATUS)
           }));
           renderRoster();
           renderAttendanceNextStep();
-          setMessage(`已从${sourceLabel}识别 ${draftRows.length} 名学生${draftRows.some((row) => row.exitScore || row.exitFullScore) ? "，并带入出门测成绩/满分。" : "。"}名单默认未点名，请逐个确认。`);
+          setMessage(`已从${sourceLabel}识别 ${draftRows.length} 名学生${draftRows.some((row) => row.exitScore) ? "，并带入出门测成绩。" : "。"}名单默认未点名，请逐个确认。`);
         };
         const readImportFile = async (file) => {
           const fileName = file.name || "";
@@ -1517,8 +1415,8 @@
           applyRosterImport(parseRosterRecords(text), `文件 ${fileName}`);
         };
         const downloadTemplate = () => {
-          const header = ["日期", "任课老师", "课程类型", "班级/课程", "学生姓名", "出门测成绩", "出门测满分", "备注"];
-          const example = [today(), getSelectedTeacher(), "正常课", "暑假数学提升班", "学生姓名", "", "30", "可空"];
+          const header = ["日期", "任课老师", "课程类型", "班级/课程", "学生姓名", "出门测成绩", "备注"];
+          const example = [today(), getSelectedTeacher(), "正常课", "暑假数学提升班", "学生姓名", "", "可空"];
           const csv = [header, example].map((row) => row.map(toCsvCell).join(",")).join("\n");
           const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
           const url = URL.createObjectURL(blob);
@@ -1543,11 +1441,11 @@
         };
         const syncRosterInputFromDraft = () => {
           if (!fields.rosterInput) return;
-          const hasScores = draftRows.some((row) => String(row.exitScore || "").trim() || String(row.exitFullScore || "").trim());
+          const hasScores = draftRows.some((row) => String(row.exitScore || "").trim());
           if (hasScores) {
             fields.rosterInput.value = [
-              "学生姓名\t出门测成绩\t出门测满分",
-              ...draftRows.map((row) => [row.studentName, row.exitScore || "", row.exitFullScore || ""].join("\t"))
+              "学生姓名\t出门测成绩",
+              ...draftRows.map((row) => [row.studentName, row.exitScore || ""].join("\t"))
             ].join("\n");
             return;
           }
@@ -1572,7 +1470,6 @@
             serviceModule: activeServiceModule,
             status: UNMARKED_STATUS,
             exitScore: "",
-            exitFullScore: "",
             followup: defaultFollowup(UNMARKED_STATUS),
             manualAdded: true
           });
@@ -1911,7 +1808,6 @@
             serviceModule: activeServiceModule,
             status: UNMARKED_STATUS,
             exitScore: "",
-            exitFullScore: "",
             followup: defaultFollowup(UNMARKED_STATUS)
           }));
           renderRoster();
@@ -1987,12 +1883,7 @@
                   `).join("")}
                 </div>
               </td>
-              <td>
-                <div class="score-cell-grid">
-                  <input data-exit-score="${index}" type="number" min="0" max="100" step="0.5" value="${escapeHtml(row.exitScore || "")}" placeholder="成绩">
-                  <input data-exit-full-score="${index}" type="number" min="1" max="150" step="0.5" value="${escapeHtml(row.exitFullScore || "")}" placeholder="满分">
-                </div>
-              </td>
+              <td><input data-exit-score="${index}" type="number" min="0" max="100" step="0.5" value="${escapeHtml(row.exitScore || "")}" style="width:92px; min-height:38px; border:1px solid var(--line); border-radius:10px; padding:0 10px;"></td>
               <td>${escapeHtml(settlementText(row))}</td>
               <td>
                 <select data-followup="${index}" style="min-height:38px; border:1px solid var(--line); border-radius:10px; padding:0 10px; background:#fff;">
@@ -2281,40 +2172,24 @@
           const number = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
           return Number.isFinite(number) ? number : null;
         };
-        const numericFullScore = (row) => {
-          const fullScore = numericScore(row?.exitFullScore ?? row?.fullScore);
-          return fullScore && fullScore > 0 ? fullScore : null;
-        };
-        const scoreRate = (score, fullScore) => score != null && fullScore ? Math.round((score / fullScore) * 1000) / 10 : null;
         const average = (values) => {
           const valid = values.filter((value) => Number.isFinite(value));
           return valid.length ? Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10 : null;
-        };
-        const formatRate = (value) => value == null ? "-" : `${Math.round(value * 10) / 10}%`;
-        const formatScoreWithFull = (row) => {
-          if (row.score == null) return "缺测";
-          return row.fullScore ? `${row.score} / ${row.fullScore}` : `${row.score} / 未填满分`;
-        };
-        const warningSuggestion = (reasons, row) => {
-          if (row.score == null && row.present) return "请任课老师补录成绩，或说明本次未测试原因。";
-          if (reasons.some((item) => item.includes("连续") || item.includes("下降"))) return "建议学管主动沟通学习状态，必要时把趋势截图发给家长并安排补强。";
-          if (reasons.some((item) => item.includes("低于"))) return "建议反馈本次薄弱点，安排针对性练习或下节课重点复查。";
-          return "继续常规观察。";
         };
         const scoreTip = (row) => {
           if (row.score == null) {
             if (row.present) return "到课但未录出门测成绩，需确认是否漏录、提前离开或未参加测试。";
             return "缺课且缺测，需确认视频课、录播、线下补课或是否不销课。";
           }
-          if (row.warningReasons?.length) return `${row.warningReasons.join("；")}。${row.suggestedAction}`;
-          if (row.fullScore == null) {
-            return "本次成绩未填满分，无法折算百分比趋势；建议补满分后再截图给家长。";
+          const diff = row.classAverage == null ? 0 : Math.round((row.score - row.classAverage) * 10) / 10;
+          if (row.previousScore != null && row.score <= row.previousScore - 10) {
+            return `本次较上次下降 ${Math.round((row.previousScore - row.score) * 10) / 10} 分，建议学管主动沟通学习状态。`;
           }
-          const diff = row.classAverageRate == null ? 0 : Math.round((row.scoreRate - row.classAverageRate) * 10) / 10;
-          if (row.previousRate != null && row.scoreRate >= row.previousRate + 10) {
-            return `本次较上次提升 ${Math.round((row.scoreRate - row.previousRate) * 10) / 10} 个百分点，可正向反馈给家长。`;
+          if (diff <= -10) return `低于班级平均分 ${Math.abs(diff)} 分，建议反馈薄弱点并安排补强。`;
+          if (row.previousScore != null && row.score >= row.previousScore + 10) {
+            return `本次较上次提升 ${Math.round((row.score - row.previousScore) * 10) / 10} 分，可正向反馈给家长。`;
           }
-          if (diff >= 10) return `高于班级平均 ${diff} 个百分点，可作为正向反馈。`;
+          if (diff >= 10) return `高于班级平均分 ${diff} 分，可作为正向反馈。`;
           return "成绩处于正常区间，可结合课堂表现做常规反馈。";
         };
         const deriveScoreAnalytics = () => {
@@ -2323,65 +2198,32 @@
           const result = [];
           sessions.slice().reverse().forEach((session) => {
             const scoredRows = session.rows
-              .map((row) => {
-                const score = numericScore(row.exitScore);
-                const fullScore = numericFullScore(row);
-                return { row, score, fullScore, scoreRate: scoreRate(score, fullScore) };
-              })
+              .map((row) => ({ row, score: numericScore(row.exitScore) }))
               .filter((item) => item.score != null);
             const classAverage = average(scoredRows.map((item) => item.score));
-            const classAverageRate = average(scoredRows.map((item) => item.scoreRate));
-            const sortedScores = [...scoredRows].sort((a, b) => (b.scoreRate ?? b.score) - (a.scoreRate ?? a.score));
+            const sortedScores = [...scoredRows].sort((a, b) => b.score - a.score);
             const rankByStudent = new Map();
             sortedScores.forEach((item, index) => {
               if (!rankByStudent.has(item.row.studentName)) rankByStudent.set(item.row.studentName, index + 1);
             });
             session.rows.forEach((row) => {
               const score = numericScore(row.exitScore);
-              const fullScore = numericFullScore(row);
-              const currentRate = scoreRate(score, fullScore);
               const history = studentHistory.get(row.studentName) || [];
-              const previousRecord = [...history].reverse().find((item) => item.score != null) || null;
-              const previousRateRecord = [...history].reverse().find((item) => item.scoreRate != null) || null;
-              const previousRateIndex = previousRateRecord ? history.lastIndexOf(previousRateRecord) : -1;
-              const twoBackRateRecord = previousRateIndex > 0 ? history.slice(0, previousRateIndex).reverse().find((item) => item.scoreRate != null) || null : null;
-              const previousScore = previousRecord?.score ?? null;
-              const previousRate = previousRateRecord?.scoreRate ?? null;
+              const previousScore = [...history].reverse().find((item) => item.score != null)?.score ?? null;
               const present = isEffectivePresent(row);
-              const warningReasons = [];
-              const belowAverage = currentRate != null && classAverageRate != null && currentRate < classAverageRate;
-              if (score == null && present) warningReasons.push("到课但未录成绩");
-              if (currentRate != null && classAverageRate != null && currentRate <= classAverageRate - 10) {
-                warningReasons.push(`本次低于班级平均 ${Math.round((classAverageRate - currentRate) * 10) / 10} 个百分点`);
-              }
-              if (belowAverage && previousRateRecord?.scoreRate != null && previousRateRecord.classAverageRate != null && previousRateRecord.scoreRate < previousRateRecord.classAverageRate) {
-                warningReasons.push("连续两次低于班级平均");
-              }
-              if (currentRate != null && previousRate != null && currentRate <= previousRate - 10) {
-                warningReasons.push(`本次比上次下降 ${Math.round((previousRate - currentRate) * 10) / 10} 个百分点`);
-              }
-              if (currentRate != null && previousRate != null && twoBackRateRecord?.scoreRate != null && currentRate < previousRate && previousRate < twoBackRateRecord.scoreRate) {
-                warningReasons.push("连续两次明显下滑");
-              }
               const record = {
                 studentName: row.studentName,
                 date: session.date,
                 className: session.className,
                 teacher: session.teacher,
                 score,
-                fullScore,
-                scoreRate: currentRate,
                 classAverage,
-                classAverageRate,
                 rank: rankByStudent.get(row.studentName) || null,
                 participantCount: scoredRows.length,
                 previousScore,
-                previousRate,
                 present,
                 status: row.status,
-                followup: row.followup,
-                warningReasons,
-                suggestedAction: warningSuggestion(warningReasons, { score, present })
+                followup: row.followup
               };
               result.push(record);
               history.push(record);
@@ -2390,151 +2232,41 @@
           });
           return result.reverse();
         };
-        const renderScoreWarnings = (warningRows) => {
-          if (!scoreWarningBody) return;
-          const rows = warningRows.slice(0, 20);
-          if (!rows.length) {
-            scoreWarningBody.innerHTML = `<tr><td colspan="7">当前没有出门测预警。到课未录成绩、连续低于班级平均、连续下滑、明显低分会自动进入这里。</td></tr>`;
-            return;
-          }
-          scoreWarningBody.innerHTML = rows.map((row) => `
-            <tr>
-              <td><button class="score-student-button" type="button" data-score-trend-student="${escapeHtml(row.studentName)}">${escapeHtml(row.studentName)}</button></td>
-              <td>${escapeHtml(row.className || "-")}<br>${escapeHtml(row.teacher || "-")}</td>
-              <td>${escapeHtml(formatScoreWithFull(row))}<br>${escapeHtml(formatRate(row.scoreRate))}</td>
-              <td>${escapeHtml(formatRate(row.classAverageRate))}</td>
-              <td>${escapeHtml(row.warningReasons.join("；"))}</td>
-              <td>${escapeHtml(row.suggestedAction)}</td>
-              <td><span class="tag warn">待沟通</span></td>
-            </tr>
-          `).join("");
-        };
         const renderScoreAnalytics = () => {
           if (!scoreBody) return;
           const rows = deriveScoreAnalytics();
           const scoredRows = rows.filter((row) => row.score != null);
           const lessonCount = new Set(scoredRows.map((row) => `${row.date}|${row.className}|${row.teacher}`)).size;
-          const latestWarningByStudent = [];
-          const warnedStudents = new Set();
-          rows.filter((row) => row.warningReasons?.length).forEach((row) => {
-            const key = compactText(row.studentName);
-            if (warnedStudents.has(key)) return;
-            warnedStudents.add(key);
-            latestWarningByStudent.push(row);
-          });
-          const warningRows = latestWarningByStudent;
-          const alertCount = warningRows.length;
+          const alertCount = rows.filter((row) => row.score == null || (row.classAverage != null && row.score <= row.classAverage - 10)).length;
           if (scoreMetricLessons) scoreMetricLessons.textContent = String(lessonCount);
-          if (scoreMetricAverage) scoreMetricAverage.textContent = scoredRows.length ? formatRate(average(scoredRows.map((row) => row.scoreRate))) : "-";
+          if (scoreMetricAverage) scoreMetricAverage.textContent = scoredRows.length ? String(average(scoredRows.map((row) => row.score))) : "-";
           if (scoreMetricAlerts) scoreMetricAlerts.textContent = String(alertCount);
           if (scoreMetricRecords) scoreMetricRecords.textContent = String(scoredRows.length);
           if (!rows.length) {
             scoreBody.innerHTML = `<tr><td colspan="7">暂无出门测成绩。保存带成绩的点名记录后，这里会自动生成学生成绩、班内位置、平均分和沟通提示。</td></tr>`;
-            if (scoreWarningBody) scoreWarningBody.innerHTML = `<tr><td colspan="7">暂无出门测预警。</td></tr>`;
             return;
           }
-          renderScoreWarnings(warningRows);
           scoreBody.innerHTML = rows.slice(0, 30).map((row) => {
             const trend = row.score == null
               ? "缺测"
-              : row.previousRate == null || row.scoreRate == null
+              : row.previousScore == null
                 ? "首次记录"
-                : `${row.scoreRate >= row.previousRate ? "上升" : "下降"} ${Math.abs(Math.round((row.scoreRate - row.previousRate) * 10) / 10)} 个百分点`;
+                : `${row.score >= row.previousScore ? "上升" : "下降"} ${Math.abs(Math.round((row.score - row.previousScore) * 10) / 10)} 分`;
             const classText = row.score == null
               ? "未参加本次统计"
-              : `均分 ${formatRate(row.classAverageRate)}；第 ${row.rank || "-"} / ${row.participantCount || "-"} 名`;
+              : `均分 ${row.classAverage ?? "-"}；第 ${row.rank || "-"} / ${row.participantCount || "-"} 名`;
             return `
               <tr>
-                <td><button class="score-student-button" type="button" data-score-trend-student="${escapeHtml(row.studentName)}">${escapeHtml(row.studentName)}</button></td>
+                <td><strong>${escapeHtml(row.studentName)}</strong></td>
                 <td>${escapeHtml(row.date || "-")}<br>${escapeHtml(row.className || "-")}</td>
                 <td>${escapeHtml(row.teacher || "-")}</td>
-                <td>${row.score == null ? "<span class=\"tag warn\">缺测</span>" : `${escapeHtml(formatScoreWithFull(row))}<br>${escapeHtml(formatRate(row.scoreRate))}`}</td>
+                <td>${row.score == null ? "<span class=\"tag warn\">缺测</span>" : escapeHtml(row.score)}</td>
                 <td>${escapeHtml(classText)}</td>
                 <td>${escapeHtml(trend)}</td>
                 <td>${escapeHtml(scoreTip(row))}</td>
               </tr>
             `;
           }).join("");
-        };
-        const deriveStudentScoreTrend = (studentName) => {
-          const key = compactText(studentName);
-          return deriveScoreAnalytics()
-            .filter((row) => compactText(row.studentName) === key && row.score != null)
-            .slice()
-            .reverse()
-            .filter((row) => row.scoreRate != null)
-            .slice(-10);
-        };
-        const buildTrendConclusion = (rows) => {
-          if (!rows.length) return "当前还没有可绘制的百分比趋势。请先在点名表中补充出门测满分。";
-          if (rows.length === 1) return `目前只有 1 次有效记录，得分率 ${formatRate(rows[0].scoreRate)}，建议继续观察后续变化。`;
-          const first = rows[0].scoreRate;
-          const last = rows[rows.length - 1].scoreRate;
-          const diff = Math.round((last - first) * 10) / 10;
-          if (diff >= 8) return `最近 ${rows.length} 次整体提升 ${diff} 个百分点，学习状态有明显进步。`;
-          if (diff <= -8) return `最近 ${rows.length} 次整体下降 ${Math.abs(diff)} 个百分点，建议尽快沟通学习状态并安排补强。`;
-          return `最近 ${rows.length} 次整体波动不大，建议结合课堂表现继续稳定推进。`;
-        };
-        const renderScoreTrendChart = (rows) => {
-          if (!scoreTrendChart) return;
-          if (!rows.length) {
-            scoreTrendChart.innerHTML = `<div style="padding:18px;color:var(--muted);">暂无可绘制趋势。请先给成绩补“满分”。</div>`;
-            return;
-          }
-          const width = 760;
-          const height = 300;
-          const pad = 44;
-          const plotWidth = width - pad * 2;
-          const plotHeight = height - pad * 2;
-          const x = (index) => rows.length === 1 ? width / 2 : pad + (plotWidth * index) / (rows.length - 1);
-          const y = (rate) => pad + plotHeight - (Math.max(0, Math.min(100, rate)) / 100) * plotHeight;
-          const points = rows.map((row, index) => `${x(index)},${y(row.scoreRate)}`).join(" ");
-          const labels = rows.map((row, index) => {
-            const px = x(index);
-            const py = y(row.scoreRate);
-            return `
-              <circle cx="${px}" cy="${py}" r="5" fill="#0d9488"></circle>
-              <text x="${px}" y="${Math.max(18, py - 12)}" text-anchor="middle" font-size="13" font-weight="700" fill="#172132">${escapeHtml(formatRate(row.scoreRate))}</text>
-              <text x="${px}" y="${height - 16}" text-anchor="middle" font-size="11" fill="#637083">${escapeHtml(String(row.date || "").slice(5) || "-")}</text>
-            `;
-          }).join("");
-          scoreTrendChart.innerHTML = `
-            <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="出门测得分率趋势">
-              <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="rgba(23,33,50,0.16)"></line>
-              <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="rgba(23,33,50,0.16)"></line>
-              <line x1="${pad}" y1="${y(60)}" x2="${width - pad}" y2="${y(60)}" stroke="rgba(180,83,9,0.20)" stroke-dasharray="6 6"></line>
-              <line x1="${pad}" y1="${y(80)}" x2="${width - pad}" y2="${y(80)}" stroke="rgba(13,148,136,0.20)" stroke-dasharray="6 6"></line>
-              <text x="10" y="${y(100) + 4}" font-size="11" fill="#637083">100%</text>
-              <text x="16" y="${y(80) + 4}" font-size="11" fill="#637083">80%</text>
-              <text x="16" y="${y(60) + 4}" font-size="11" fill="#637083">60%</text>
-              <polyline points="${points}" fill="none" stroke="#0d9488" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></polyline>
-              ${labels}
-            </svg>
-          `;
-        };
-        const renderParentTrendPanel = (studentName, rows) => {
-          if (!scoreTrendParentPanel) return;
-          const latest = rows[rows.length - 1];
-          scoreTrendParentPanel.innerHTML = `
-            <h3>${escapeHtml(studentName)} 出门测学习趋势</h3>
-            <p>${escapeHtml(buildTrendConclusion(rows))}</p>
-            <p>${latest ? `最近一次：${escapeHtml(latest.date || "-")}，${escapeHtml(formatScoreWithFull(latest))}，得分率 ${escapeHtml(formatRate(latest.scoreRate))}。` : "暂无可展示成绩。"}</p>
-          `;
-        };
-        const openScoreTrend = (studentName) => {
-          const rows = deriveStudentScoreTrend(studentName);
-          if (scoreTrendTitle) scoreTrendTitle.textContent = `${studentName} 出门测趋势`;
-          if (scoreTrendMeta) scoreTrendMeta.textContent = rows.length ? `最近 ${rows.length} 次出门测，按“成绩 ÷ 满分”折算得分率。` : "暂无可绘制趋势，请补充满分后再查看。";
-          renderScoreTrendChart(rows);
-          if (scoreTrendSummary) scoreTrendSummary.textContent = buildTrendConclusion(rows);
-          renderParentTrendPanel(studentName, rows);
-          if (scoreTrendParentPanel) scoreTrendParentPanel.hidden = true;
-          scoreTrendModal?.classList.add("show");
-          scoreTrendModal?.setAttribute("aria-hidden", "false");
-        };
-        const closeScoreTrend = () => {
-          scoreTrendModal?.classList.remove("show");
-          scoreTrendModal?.setAttribute("aria-hidden", "true");
         };
         const deriveStudentProfileSummary = () => {
           const profiles = new Map();
@@ -2597,22 +2329,51 @@
         };
         const renderStudentProfileSummary = () => {
           if (!studentProfileSummaryBody) return;
-          const rows = deriveStudentProfileSummary();
+          const localRows = deriveStudentProfileSummary();
+          const workflowSnapshot = window.JRC_DATA_FOUNDATION?.deriveWorkflowAutopilot?.();
+          const workflowProfiles = Array.isArray(workflowSnapshot?.studentProfiles)
+            ? workflowSnapshot.studentProfiles
+            : [];
+          const map = new Map(localRows.map((row) => [compactText(row.studentName), row]));
+          workflowProfiles.forEach((profile) => {
+            const key = compactText(profile.studentName);
+            if (!key) return;
+            const existing = map.get(key) || {};
+            const merged = {
+              ...profile,
+              ...existing,
+              parentRisk: profile.parentRisk || existing.parentRisk || "",
+              scoreRisk: profile.scoreRisk || existing.scoreRisk || "",
+              feedbackCount: profile.feedbackCount ?? existing.feedbackCount ?? 0,
+              trust: profile.trust || existing.trust,
+              nextAction: profile.parentRisk || profile.scoreRisk || profile.unresolvedTotal ? profile.nextAction : (existing.nextAction || profile.nextAction)
+            };
+            map.set(key, merged);
+          });
+          const rows = [...map.values()].sort((a, b) => {
+            const riskWeight = (row) => Number(Boolean(row.parentRisk)) * 4 + Number(Boolean(row.scoreRisk)) * 3 + Number(row.unresolved || row.unresolvedTotal || 0);
+            return riskWeight(b) - riskWeight(a) || String(b.latestDate || "").localeCompare(String(a.latestDate || ""));
+          });
           if (!rows.length) {
             studentProfileSummaryBody.innerHTML = `<tr><td colspan="7">暂无学生汇总。保存点名后，这里会自动形成学生个人档案。</td></tr>`;
             return;
           }
           studentProfileSummaryBody.innerHTML = rows.slice(0, 40).map((row) => {
-            const statusClass = row.status === "正常" || row.status === "可正向反馈" ? "tag" : "tag warn";
+            const workflowStatus = row.parentRisk || row.scoreRisk || row.status;
+            const statusClass = workflowStatus === "正常" || workflowStatus === "可正向反馈" ? "tag" : "tag warn";
             const scoreText = row.latestScore == null ? "暂无出门测" : `最近 ${row.latestScore}；均分 ${row.averageScore ?? "-"}`;
+            const teacherText = row.latestTeacher || (row.teachers instanceof Set ? [...row.teachers].join("、") : "") || "-";
+            const presentLessons = Number(row.presentLessons || row.presentTotal || 0);
+            const totalLessons = Number(row.totalLessons || row.attendanceTotal || 0);
+            const attendanceRate = row.attendanceRate != null ? row.attendanceRate : totalLessons ? Math.round((presentLessons / totalLessons) * 100) : 0;
             return `
               <tr>
-                <td><strong>${escapeHtml(row.studentName)}</strong></td>
+                <td><strong>${escapeHtml(row.studentName)}</strong>${row.trust?.label ? `<br><span class="tag">${escapeHtml(row.trust.label)}</span>` : ""}</td>
                 <td>${escapeHtml(row.latestDate || "-")}<br>${escapeHtml(row.latestClass || "-")}</td>
-                <td>${escapeHtml(row.latestTeacher || [...row.teachers].join("、") || "-")}</td>
-                <td>${row.presentLessons}/${row.totalLessons} 次<br>到课率 ${row.attendanceRate}%</td>
+                <td>${escapeHtml(teacherText)}</td>
+                <td>${presentLessons}/${totalLessons} 次<br>到课率 ${attendanceRate}%</td>
                 <td>${escapeHtml(scoreText)}</td>
-                <td><span class="${statusClass}">${escapeHtml(row.status)}</span>${row.unresolved ? `<br>${row.unresolved} 次待处理` : ""}</td>
+                <td><span class="${statusClass}">${escapeHtml(workflowStatus || "正常")}</span>${row.unresolved || row.unresolvedTotal ? `<br>${Number(row.unresolved || row.unresolvedTotal || 0)} 次待处理` : ""}${row.feedbackCount ? `<br>反馈 ${Number(row.feedbackCount)} 条` : ""}</td>
                 <td>${escapeHtml(row.nextAction)}</td>
               </tr>
             `;
@@ -2718,7 +2479,7 @@
             setMessage("当前没有可导出的点名记录。");
             return;
           }
-          const header = ["日期", "月份", "老师", "课程类型", "班级/课程", "学生", "点名状态", "出门测成绩", "出门测满分", "实到判断", "普通财务人次", "单独结算人次", "课时课销规则", "后续处理", "异常处理状态", "处理人", "处理时间", "复核状态", "操作人", "保存时间"];
+          const header = ["日期", "月份", "老师", "课程类型", "班级/课程", "学生", "点名状态", "出门测成绩", "实到判断", "普通财务人次", "单独结算人次", "课时课销规则", "后续处理", "异常处理状态", "处理人", "处理时间", "复核状态", "操作人", "保存时间"];
           const dataRows = sessions.flatMap((session) => session.rows.map((row) => [
             session.date,
             periodFromDate(session.date),
@@ -2728,7 +2489,6 @@
             row.studentName,
             row.status,
             row.exitScore,
-            row.exitFullScore,
             attendanceJudgement({ ...row, teacher: session.teacher }),
             countFinancePresent(row, session.teacher),
             countSpecialPresent(row, session.teacher),
@@ -2818,21 +2578,6 @@
             if (target?.tagName === "DETAILS") target.open = true;
           });
         });
-        const handleScoreTrendClick = (event) => {
-          const button = event.target.closest("[data-score-trend-student]");
-          if (!button) return;
-          openScoreTrend(button.getAttribute("data-score-trend-student") || "");
-        };
-        scoreBody?.addEventListener("click", handleScoreTrendClick);
-        scoreWarningBody?.addEventListener("click", handleScoreTrendClick);
-        scoreTrendCloseButton?.addEventListener("click", closeScoreTrend);
-        scoreTrendModal?.addEventListener("click", (event) => {
-          if (event.target === scoreTrendModal) closeScoreTrend();
-        });
-        scoreTrendParentButton?.addEventListener("click", () => {
-          if (!scoreTrendParentPanel) return;
-          scoreTrendParentPanel.hidden = !scoreTrendParentPanel.hidden;
-        });
         buildButton.addEventListener("click", () => {
           if (!canUseAttendance()) return;
           const parsed = parseRosterRecords(fields.rosterInput?.value || "");
@@ -2852,12 +2597,11 @@
             serviceModule: activeServiceModule,
             status: UNMARKED_STATUS,
             exitScore: row.exitScore || "",
-            exitFullScore: row.exitFullScore || "",
             followup: defaultFollowup(UNMARKED_STATUS)
           }));
           renderRoster();
           renderAttendanceNextStep();
-          setMessage(`已生成 ${draftRows.length} 人点名名单，当前全部未点名。可以在 iPad 上逐个点击状态${draftRows.some((row) => row.exitScore || row.exitFullScore) ? "，出门测成绩/满分也已带入。" : "。"}`);
+          setMessage(`已生成 ${draftRows.length} 人点名名单，当前全部未点名。可以在 iPad 上逐个点击状态${draftRows.some((row) => row.exitScore) ? "，出门测成绩也已带入。" : "。"}`);
         });
         saveButton.addEventListener("click", () => {
           if (!canUseAttendance()) return;
@@ -3024,18 +2768,10 @@
         });
         rosterBody.addEventListener("input", (event) => {
           const scoreInput = event.target.closest("[data-exit-score]");
-          const fullScoreInput = event.target.closest("[data-exit-full-score]");
-          if (scoreInput) {
-            const index = Number(scoreInput.getAttribute("data-exit-score"));
-            if (!draftRows[index]) return;
-            draftRows[index].exitScore = scoreInput.value.trim();
-            return;
-          }
-          if (fullScoreInput) {
-            const index = Number(fullScoreInput.getAttribute("data-exit-full-score"));
-            if (!draftRows[index]) return;
-            draftRows[index].exitFullScore = fullScoreInput.value.trim();
-          }
+          if (!scoreInput) return;
+          const index = Number(scoreInput.getAttribute("data-exit-score"));
+          if (!draftRows[index]) return;
+          draftRows[index].exitScore = scoreInput.value.trim();
         });
         rosterBody.addEventListener("change", (event) => {
           const scoreInput = event.target.closest("[data-exit-score]");
@@ -3043,14 +2779,6 @@
             const index = Number(scoreInput.getAttribute("data-exit-score"));
             if (!draftRows[index]) return;
             draftRows[index].exitScore = scoreInput.value.trim();
-            renderRoster();
-            return;
-          }
-          const fullScoreInput = event.target.closest("[data-exit-full-score]");
-          if (fullScoreInput) {
-            const index = Number(fullScoreInput.getAttribute("data-exit-full-score"));
-            if (!draftRows[index]) return;
-            draftRows[index].exitFullScore = fullScoreInput.value.trim();
             renderRoster();
             return;
           }
@@ -3279,6 +3007,60 @@
         });
         window.addEventListener("jrc-student-service-linked", hydrate);
         hydrate();
+      })();
+    </script>
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search);
+        const workflow = params.get("workflow") || "";
+        if (!workflow) return;
+        const focus = () => {
+          const targetId = workflow === "score-warning" ? "scoreAnalyticsPanel"
+            : workflow === "attendance-exception" ? "attendanceFollowupSection"
+              : "studentProfileSummarySection";
+          const target = document.getElementById(targetId);
+          if (target?.tagName === "DETAILS") target.open = true;
+          target?.scrollIntoView({ block: "start", behavior: "smooth" });
+          const student = params.get("student") || "";
+          const teacher = params.get("teacher") || "";
+          const keyword = [student, teacher].filter(Boolean).join(" ");
+          const studentFilter = document.getElementById("studentFilterInput");
+          const feedbackFilter = document.getElementById("studentFeedbackTimelineSearchInput");
+          if (studentFilter && keyword) {
+            studentFilter.value = keyword;
+            studentFilter.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          if (feedbackFilter && keyword) {
+            feedbackFilter.value = keyword;
+            feedbackFilter.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          if (workflow === "attendance-exception") {
+            const date = params.get("date") || "";
+            const teacherSelect = document.getElementById("followupTeacherSelect");
+            if (teacherSelect && teacher) {
+              Array.from(teacherSelect.options || []).some((option) => {
+                if (option.value === teacher || option.textContent.includes(teacher)) {
+                  teacherSelect.value = option.value;
+                  teacherSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                  return true;
+                }
+                return false;
+              });
+            }
+            const dateSelect = document.getElementById("followupDateSelect");
+            if (dateSelect && date) {
+              Array.from(dateSelect.options || []).some((option) => {
+                if (option.value === date || option.textContent.includes(date)) {
+                  dateSelect.value = option.value;
+                  dateSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                  return true;
+                }
+                return false;
+              });
+            }
+          }
+        };
+        window.addEventListener("load", () => setTimeout(focus, 500));
       })();
     </script>
     <script src="/jrcedu/portal/business-ai.js?v=20260705a"></script>

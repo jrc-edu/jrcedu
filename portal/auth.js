@@ -1214,6 +1214,171 @@ function jrcBuildExitScoreWarnings(attendanceRows) {
   return warnings.sort((left, right) => Math.abs(right.drop || 0) - Math.abs(left.drop || 0) || Number(left.latestScore) - Number(right.latestScore));
 }
 
+function jrcWorkflowDeepLink(path, params = {}, hash = "") {
+  const query = Object.entries(params)
+    .filter(([, value]) => String(value ?? "").trim() !== "")
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join("&");
+  return `${path}${query ? `?${query}` : ""}${hash || ""}`;
+}
+
+function jrcWorkflowTrust(source, fields = {}) {
+  const sourceText = String(source || "");
+  const present = Object.values(fields).filter((value) => String(value ?? "").trim() !== "").length;
+  const total = Math.max(1, Object.keys(fields).length);
+  let score = Math.round((present / total) * 100);
+  if (/Excel|点名|云端|正式|学生服务|招生/.test(sourceText)) score = Math.min(100, score + 12);
+  if (/AI推断|模糊/.test(sourceText)) score = Math.max(45, score - 20);
+  const label = score >= 85 ? "高可信" : score >= 65 ? "可用" : "轻判断";
+  return {
+    source: sourceText || "系统推断",
+    score,
+    label,
+    summary: `${label}：${sourceText || "系统推断"}，关键字段 ${present}/${total}`
+  };
+}
+
+function jrcBuildOfficialScheduleOverview(schedules) {
+  const monthMap = new Map();
+  const teacherMonthMap = new Map();
+  (Array.isArray(schedules) ? schedules : []).forEach((row) => {
+    const period = row.period || jrcMonthFromDate(row.date) || "待定月份";
+    const teacherName = row.teacherName || "未匹配老师";
+    if (!monthMap.has(period)) monthMap.set(period, { period, lessons: 0, teachers: new Set(), missingRooms: 0 });
+    const month = monthMap.get(period);
+    month.lessons += 1;
+    month.teachers.add(teacherName);
+    if (!String(row.roomName || "").trim()) month.missingRooms += 1;
+    const key = `${teacherName}|${period}`;
+    if (!teacherMonthMap.has(key)) {
+      teacherMonthMap.set(key, {
+        teacherName,
+        period,
+        lessons: 0,
+        hours: 0,
+        missingRooms: 0,
+        href: jrcWorkflowDeepLink("./paike.html", { workflow: "official-schedule", teacher: teacherName, period }, "#teacherSheetTable")
+      });
+    }
+    const item = teacherMonthMap.get(key);
+    item.lessons += 1;
+    item.hours = Math.round((item.hours + jrcToNumber(row.hours)) * 100) / 100;
+    if (!String(row.roomName || "").trim()) item.missingRooms += 1;
+  });
+  return {
+    periods: [...monthMap.values()].map((row) => ({
+      ...row,
+      teachers: row.teachers.size,
+      href: jrcWorkflowDeepLink("./paike.html", { workflow: "official-schedule", period: row.period }, "#teacherSheetTable")
+    })).sort((left, right) => String(right.period).localeCompare(String(left.period))),
+    teacherMonths: [...teacherMonthMap.values()].sort((left, right) => String(right.period).localeCompare(String(left.period)) || String(left.teacherName).localeCompare(String(right.teacherName), "zh-CN"))
+  };
+}
+
+function jrcBuildStudentProfiles(enrolled, attendanceRows, studentServiceRows, exitScoreWarnings, parentRiskGuards) {
+  const map = new Map();
+  function ensure(name) {
+    const studentName = jrcNormalizeStudentNameToken(name);
+    if (!studentName) return null;
+    if (!map.has(studentName)) {
+      map.set(studentName, {
+        studentName,
+        enrolled: false,
+        attendanceTotal: 0,
+        presentTotal: 0,
+        unresolvedTotal: 0,
+        latestDate: "",
+        latestTeacher: "",
+        latestClass: "",
+        scores: [],
+        feedbackCount: 0,
+        parentRisk: "",
+        scoreRisk: "",
+        nextAction: "持续跟踪学习状态。",
+        href: jrcWorkflowDeepLink("./student-service.html", { workflow: "student-profile", student: studentName }, "#studentProfileSummarySection")
+      });
+    }
+    return map.get(studentName);
+  }
+  (Array.isArray(enrolled) ? enrolled : []).forEach((lead) => {
+    const profile = ensure(lead.studentName);
+    if (!profile) return;
+    profile.enrolled = true;
+    profile.owner = lead.owner || profile.owner || "";
+    profile.grade = lead.grade || profile.grade || "";
+  });
+  (Array.isArray(attendanceRows) ? attendanceRows : []).forEach((row) => {
+    const profile = ensure(row.studentName);
+    if (!profile) return;
+    profile.attendanceTotal += 1;
+    if (jrcIsEffectiveAttendanceRow(row)) profile.presentTotal += 1;
+    if (jrcNeedsAttendanceResolution(row)) profile.unresolvedTotal += 1;
+    const score = jrcToNumber(row.exitScore);
+    if (String(row.exitScore ?? "").trim() && Number.isFinite(score)) profile.scores.push({ score, date: row.date || "" });
+    if (String(row.date || "").localeCompare(String(profile.latestDate || "")) >= 0) {
+      profile.latestDate = row.date || profile.latestDate;
+      profile.latestTeacher = row.teacherName || profile.latestTeacher;
+      profile.latestClass = row.className || profile.latestClass;
+    }
+  });
+  (Array.isArray(studentServiceRows) ? studentServiceRows : []).forEach((row) => {
+    const profile = ensure(row.student || row.studentName || row.name);
+    if (!profile) return;
+    if (row.sourceModule === "aiAssistant" || row.parentMessage || row.content) profile.feedbackCount += 1;
+  });
+  (Array.isArray(exitScoreWarnings) ? exitScoreWarnings : []).forEach((row) => {
+    const profile = ensure(row.studentName);
+    if (!profile) return;
+    profile.scoreRisk = row.risk || "出门测预警";
+  });
+  (Array.isArray(parentRiskGuards) ? parentRiskGuards : []).forEach((row) => {
+    const profile = ensure(row.studentName);
+    if (!profile) return;
+    profile.parentRisk = row.level || "家长风险";
+  });
+  return [...map.values()].map((profile) => {
+    const latestScore = profile.scores.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]?.score ?? "";
+    const avgScore = profile.scores.length ? Math.round((profile.scores.reduce((sum, row) => sum + row.score, 0) / profile.scores.length) * 10) / 10 : "";
+    const attendanceRate = profile.attendanceTotal ? Math.round((profile.presentTotal / profile.attendanceTotal) * 100) : 0;
+    const nextAction = profile.parentRisk
+      ? "续费、扩科、排课前先看家长风险。"
+      : profile.unresolvedTotal
+        ? `先处理 ${profile.unresolvedTotal} 次点名/课消异常。`
+        : profile.scoreRisk
+          ? "结合出门测趋势联系家长。"
+          : profile.feedbackCount ? "持续沉淀课堂反馈。" : profile.nextAction;
+    return {
+      ...profile,
+      latestScore,
+      avgScore,
+      attendanceRate,
+      nextAction,
+      trust: jrcWorkflowTrust("学生服务/点名/招生自动汇总", {
+        studentName: profile.studentName,
+        latestDate: profile.latestDate,
+        latestTeacher: profile.latestTeacher,
+        latestClass: profile.latestClass,
+        attendanceTotal: profile.attendanceTotal
+      })
+    };
+  }).sort((left, right) => Number(Boolean(right.parentRisk)) - Number(Boolean(left.parentRisk)) || right.unresolvedTotal - left.unresolvedTotal || Number(Boolean(right.scoreRisk)) - Number(Boolean(left.scoreRisk)));
+}
+
+function jrcBuildProductionChecklist(counts, scheduleOverview, studentProfiles) {
+  const currentScheduleRows = scheduleOverview.teacherMonths.length;
+  const studentProfilesReady = (Array.isArray(studentProfiles) ? studentProfiles : []).length;
+  return [
+    { title: "首页使用型工作台", status: "ok", owner: "程志豪", detail: "普通老师只看本人待办，复杂自检默认在管理员区。", href: "./index.html" },
+    { title: "候选项深链定位", status: "ok", owner: "系统", detail: "报名、排课、课消、出门测、风险和月结候选均带目标页面入口。", href: "./index.html" },
+    { title: "排课投产视图", status: currentScheduleRows ? "ok" : "warn", owner: "周珊", detail: `已生成 ${currentScheduleRows} 个老师月份正式课表视图。`, href: "./paike.html#teacherSheetTable" },
+    { title: "异常收敛", status: counts.attendanceExceptionRows || counts.preimportHighIssues ? "warn" : "ok", owner: "系统", detail: "系统先做模糊匹配和归类，只上收关键异常。", href: "./suggestions.html" },
+    { title: "数据可信度", status: "ok", owner: "系统", detail: "自动标记高可信、可用、轻判断，不把弱数据当结论。", href: "./index.html" },
+    { title: "财务月结候选", status: counts.monthlyFinanceCandidates ? "ok" : "warn", owner: "刘大君", detail: `当前 ${counts.monthlyFinanceCandidates || 0} 个老师月份可进入月结候选。`, href: "./finance.html#attendanceFinanceSection" },
+    { title: "学生个人页增强", status: studentProfilesReady ? "ok" : "warn", owner: "高芳燕", detail: `已形成 ${studentProfilesReady} 个学生综合画像。`, href: "./student-service.html#studentProfileSummarySection" },
+    { title: "投产验收清单", status: "ok", owner: "程志豪", detail: "排课、建档、课消、财务、风险、权限、备份、云端同步统一验收。", href: "./index.html" }
+  ];
+}
+
 function jrcWorkflowAutopilotFingerprint(workflow) {
   const compactRows = (rows, fields) => (Array.isArray(rows) ? rows : []).slice(0, 120).map((row) => {
     return fields.map((field) => String(row?.[field] ?? "").trim()).join("|");
@@ -1225,7 +1390,8 @@ function jrcWorkflowAutopilotFingerprint(workflow) {
     attendance: compactRows(workflow?.attendanceExceptionRows, ["date", "teacherName", "studentName", "status", "followup"]),
     finance: compactRows(workflow?.monthlyFinanceCandidates, ["period", "teacherName", "effectiveLessons", "unresolvedRows"]),
     scores: compactRows(workflow?.exitScoreWarnings, ["studentName", "date", "latestScore", "risk"]),
-    parentRisks: compactRows(workflow?.parentRiskGuards, ["studentName", "level", "reason"])
+    parentRisks: compactRows(workflow?.parentRiskGuards, ["studentName", "level", "reason"]),
+    checklist: compactRows(workflow?.productionChecklist, ["title", "status", "owner"])
   });
 }
 
@@ -1257,12 +1423,80 @@ function jrcBuildWorkflowAutopilot() {
   const scheduleIdentities = jrcIdentitySet(schedules, jrcScheduleIdentityKeys);
   const serviceIdentities = jrcIdentitySet(studentServiceRows, jrcStudentServiceIdentityKeys);
   const enrolled = admissions.filter(jrcIsEnrolledLead);
-  const studentProfileCandidates = enrolled.filter((lead) => !jrcRecordMatchesIdentitySet(lead, jrcLeadIdentityKeys, serviceIdentities));
-  const paikeCandidates = enrolled.filter((lead) => jrcLeadRequiresPaike(lead) && !jrcRecordMatchesIdentitySet(lead, jrcLeadIdentityKeys, scheduleIdentities));
-  const financeAttributionCandidates = enrolled.filter((lead) => jrcLeadRequiresFinance(lead) && jrcToNumber(lead.enrolledAmount) > 0);
+  const studentProfileCandidates = enrolled
+    .filter((lead) => !jrcRecordMatchesIdentitySet(lead, jrcLeadIdentityKeys, serviceIdentities))
+    .map((lead) => ({
+      ...lead,
+      owner: lead.owner || "高芳燕",
+      href: jrcWorkflowDeepLink("./student-service.html", { workflow: "student-profile", student: lead.studentName || "", phone: lead.parentPhone || "" }, "#studentProfileSummarySection"),
+      trust: jrcWorkflowTrust("招生报名 + 学生服务匹配", {
+        studentName: lead.studentName,
+        parentPhone: lead.parentPhone || lead.phone,
+        owner: lead.owner,
+        status: lead.status,
+        amount: lead.enrolledAmount
+      })
+    }));
+  const paikeCandidates = enrolled
+    .filter((lead) => jrcLeadRequiresPaike(lead) && !jrcRecordMatchesIdentitySet(lead, jrcLeadIdentityKeys, scheduleIdentities))
+    .map((lead) => ({
+      ...lead,
+      owner: "周珊",
+      href: jrcWorkflowDeepLink("./paike.html", { workflow: "paike-candidate", student: lead.studentName || "", grade: lead.grade || "", teacher: lead.trialTeacher || "" }, "#pendingSchedulePoolPanel"),
+      trust: jrcWorkflowTrust("招生报名 + 排课匹配", {
+        studentName: lead.studentName,
+        parentPhone: lead.parentPhone || lead.phone,
+        courseProduct: lead.courseProduct,
+        trialTeacher: lead.trialTeacher,
+        amount: lead.enrolledAmount
+      })
+    }));
+  const financeAttributionCandidates = enrolled
+    .filter((lead) => jrcLeadRequiresFinance(lead) && jrcToNumber(lead.enrolledAmount) > 0)
+    .map((lead) => ({
+      ...lead,
+      owner: "刘大君",
+      href: jrcWorkflowDeepLink("./finance.html", { workflow: "admission-finance", student: lead.studentName || "", period: lead.period || "" }, "#admissionsFinanceCandidateBody"),
+      trust: jrcWorkflowTrust("招生实收 + 财务归因", {
+        studentName: lead.studentName,
+        enrolledAmount: lead.enrolledAmount,
+        channel: lead.channel,
+        owner: lead.owner,
+        period: lead.period
+      })
+    }));
   const effectiveAttendanceRows = attendanceRows.filter(jrcIsEffectiveAttendanceRow);
-  const attendanceExceptionRows = attendanceRows.filter(jrcNeedsAttendanceResolution);
-  const exitScoreWarnings = jrcBuildExitScoreWarnings(attendanceRows);
+  const attendanceExceptionRows = attendanceRows
+    .filter(jrcNeedsAttendanceResolution)
+    .map((row) => ({
+      ...row,
+      owner: "高芳燕",
+      href: jrcWorkflowDeepLink("./student-service.html", {
+        workflow: "attendance-exception",
+        date: row.date || "",
+        teacher: row.teacherName || "",
+        student: row.studentName || ""
+      }, "#attendanceFollowupSection"),
+      trust: jrcWorkflowTrust("点名课消记录", {
+        date: row.date,
+        teacherName: row.teacherName,
+        studentName: row.studentName,
+        status: row.status,
+        followup: row.followup
+      })
+    }));
+  const exitScoreWarnings = jrcBuildExitScoreWarnings(attendanceRows).map((row) => ({
+    ...row,
+    owner: "高芳燕",
+    href: jrcWorkflowDeepLink("./student-service.html", { workflow: "score-warning", student: row.studentName || "" }, "#scoreAnalyticsPanel"),
+    trust: jrcWorkflowTrust("点名出门测趋势", {
+      studentName: row.studentName,
+      latestScore: row.latestScore,
+      previousScore: row.previousScore,
+      date: row.date,
+      teacherName: row.teacherName
+    })
+  }));
   const parentRiskGuards = enrolled.flatMap((lead) => parentRisks
     .filter((risk) => jrcParentRiskMatchesLead(risk, lead))
     .map((risk) => ({
@@ -1270,7 +1504,14 @@ function jrcBuildWorkflowAutopilot() {
       owner: lead.owner || "",
       level: risk.level || "建议谨慎续报",
       reason: risk.reason || risk.eventRecord || risk.note || "",
-      action: risk.level === "建议逐步劝退" ? "续费、扩科、排课前先由管理员复核，建议逐步劝退。" : "续报前提醒负责人谨慎判断。"
+      action: risk.level === "建议逐步劝退" ? "续费、扩科、排课前先由管理员复核，建议逐步劝退。" : "续报前提醒负责人谨慎判断。",
+      href: jrcWorkflowDeepLink("/jrcedu/advice-system/index.html", { workflow: "parent-risk", student: lead.studentName || risk.studentName || "" }, "#parent-risk"),
+      trust: jrcWorkflowTrust("家长风险池 + 招生匹配", {
+        studentName: lead.studentName || risk.studentName,
+        parentPhone: lead.parentPhone || lead.phone,
+        level: risk.level,
+        reason: risk.reason || risk.eventRecord || risk.note
+      })
     })));
   const monthMap = new Map();
   effectiveAttendanceRows.forEach((row) => {
@@ -1307,6 +1548,18 @@ function jrcBuildWorkflowAutopilot() {
   });
   const monthlyFinanceCandidates = [...monthMap.values()]
     .filter((row) => row.financeScope !== "单独核算")
+    .map((row) => ({
+      ...row,
+      owner: "刘大君",
+      href: jrcWorkflowDeepLink("./finance.html", { workflow: "monthly-candidate", teacher: row.teacherName || "", period: row.period || "" }, "#attendanceFinanceSection"),
+      trust: jrcWorkflowTrust("点名课消月度汇总", {
+        teacherName: row.teacherName,
+        period: row.period,
+        effectiveLessons: row.effectiveLessons,
+        unresolvedRows: row.unresolvedRows,
+        exitScoreRows: row.exitScoreRows
+      })
+    }))
     .sort((left, right) => String(right.period || "").localeCompare(String(left.period || "")) || String(left.teacherName || "").localeCompare(String(right.teacherName || ""), "zh-CN"));
   const preimportHighIssues = preimportFinance.teacherMonthPrecheck?.reduce((sum, row) => sum + jrcToNumber(row.highPriorityDifferences), 0) || 0;
   const counts = {
@@ -1334,6 +1587,74 @@ function jrcBuildWorkflowAutopilot() {
     finance: [`月结候选 ${monthlyFinanceCandidates.length}`, `课消候选 ${effectiveAttendanceRows.length}`, `财务归因 ${financeAttributionCandidates.length}`],
     admissions: [`风险续报提醒 ${parentRiskGuards.length}`, `报名进档候选 ${studentProfileCandidates.length}`]
   };
+  const officialScheduleOverview = jrcBuildOfficialScheduleOverview(schedules);
+  const studentProfiles = jrcBuildStudentProfiles(enrolled, attendanceRows, studentServiceRows, exitScoreWarnings, parentRiskGuards);
+  const priorityActionQueue = [
+    ...studentProfileCandidates.map((row) => ({
+      level: "优先",
+      owner: "高芳燕",
+      system: "学生服务",
+      title: `${row.studentName || "未命名学生"} 待建档`,
+      detail: "招生报名后未匹配到学生服务档案。",
+      href: row.href,
+      trust: row.trust
+    })),
+    ...paikeCandidates.map((row) => ({
+      level: "优先",
+      owner: "周珊",
+      system: "排课系统",
+      title: `${row.studentName || "未命名学生"} 待排课`,
+      detail: `${row.courseProduct || "普通课程"} 报名后未匹配到正式排课。`,
+      href: row.href,
+      trust: row.trust
+    })),
+    ...attendanceExceptionRows.map((row) => ({
+      level: "课消",
+      owner: "高芳燕",
+      system: "学生服务",
+      title: `${row.studentName || "未命名学生"} 课消异常`,
+      detail: `${row.date || "-"} ${row.teacherName || "-"} ${row.status || "待处理"}`,
+      href: row.href,
+      trust: row.trust
+    })),
+    ...exitScoreWarnings.map((row) => ({
+      level: "预警",
+      owner: "高芳燕",
+      system: "学生服务",
+      title: `${row.studentName || "未命名学生"} 出门测${row.risk || "预警"}`,
+      detail: `最新 ${row.latestScore || "-"}，近期均分 ${row.averageRecentScore || "-"}。`,
+      href: row.href,
+      trust: row.trust
+    })),
+    ...parentRiskGuards.map((row) => ({
+      level: "风险",
+      owner: row.owner || "颜雨涵",
+      system: "招生管理",
+      title: `${row.studentName || "未命名学生"} ${row.level || "家长风险"}`,
+      detail: row.reason || row.action,
+      href: row.href,
+      trust: row.trust
+    })),
+    ...monthlyFinanceCandidates.filter((row) => row.unresolvedRows || row.effectiveLessons).map((row) => ({
+      level: row.unresolvedRows ? "暂缓" : "财务",
+      owner: "刘大君",
+      system: "财务系统",
+      title: `${row.teacherName || "未匹配老师"} ${row.period || ""} 月结候选`,
+      detail: `有效 ${row.effectiveLessons}，待追踪 ${row.unresolvedRows}。`,
+      href: row.href,
+      trust: row.trust
+    }))
+  ].sort((left, right) => {
+    const weight = { 优先: 5, 风险: 4, 课消: 3, 预警: 2, 暂缓: 2, 财务: 1 };
+    return (weight[right.level] || 0) - (weight[left.level] || 0);
+  }).slice(0, 30);
+  const productionChecklist = jrcBuildProductionChecklist(counts, officialScheduleOverview, studentProfiles);
+  const dataTrustSummary = {
+    high: priorityActionQueue.filter((row) => row.trust?.label === "高可信").length,
+    usable: priorityActionQueue.filter((row) => row.trust?.label === "可用").length,
+    light: priorityActionQueue.filter((row) => row.trust?.label === "轻判断").length,
+    note: "高可信优先执行；轻判断只做提醒，不直接作为财务、人事和排课最终依据。"
+  };
   const workflow = {
     generatedAt: new Date().toISOString(),
     key: JRC_WORKFLOW_AUTOPILOT_KEY,
@@ -1346,6 +1667,11 @@ function jrcBuildWorkflowAutopilot() {
     financeAttributionCandidates,
     exitScoreWarnings: exitScoreWarnings.slice(0, 80),
     parentRiskGuards: parentRiskGuards.slice(0, 80),
+    officialScheduleOverview,
+    studentProfiles: studentProfiles.slice(0, 120),
+    priorityActionQueue,
+    productionChecklist,
+    dataTrustSummary,
     roleWorkbenches,
     principles: [
       "系统自动生成候选，不直接替老师确认高风险结果。",

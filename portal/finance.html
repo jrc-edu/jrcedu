@@ -1607,6 +1607,7 @@
           <div class="settlement-summary-card"><span>待追踪</span><strong id="attendanceFinanceFollowup">0</strong></div>
         </div>
         <div class="attendance-decision-grid" id="attendanceDecisionGrid"></div>
+        <div class="finance-command-grid" id="financeMonthlyCandidatePanel"></div>
         <div class="attendance-group-grid" id="attendanceFinanceGroupGrid"></div>
         <div class="attendance-filter-bar">
           <label>筛选老师<select id="attendanceFinanceTeacherFilter"><option value="">全部老师</option></select></label>
@@ -1675,7 +1676,7 @@
     <script src="/jrcedu/portal/cloud-api.js?v=20260623b"></script>
 
     <script src="/jrcedu/portal/preimport-data.js?v=20260624b"></script>
-    <script src="/jrcedu/portal/auth.js?v=20260629a"></script>
+    <script src="/jrcedu/portal/auth.js?v=20260707prod"></script>
     <script src="/jrcedu/portal/business-modules.js?v=20260626f"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
@@ -4964,6 +4965,29 @@
         renderFinanceTeacherDetail();
       }
 
+      function renderWorkflowMonthlyCandidates() {
+        const holder = byId("financeMonthlyCandidatePanel");
+        if (!holder) return;
+        const workflow = window.JRC_DATA_FOUNDATION?.deriveWorkflowAutopilot?.();
+        const candidates = Array.isArray(workflow?.monthlyFinanceCandidates) ? workflow.monthlyFinanceCandidates : [];
+        const rows = candidates
+          .filter((row) => !currentPeriod || row.period === currentPeriod)
+          .slice(0, 8);
+        holder.innerHTML = rows.length ? rows.map((row) => `
+          <button class="finance-command-card ${row.unresolvedRows ? "warn" : "primary"}" type="button" data-monthly-candidate-teacher="${escapeHtml(row.teacherName || "")}">
+            <span>${escapeHtml(row.period || currentPeriod)}｜${escapeHtml(row.teacherName || "未匹配老师")}</span>
+            <strong>${Number(row.effectiveLessons || 0)} 有效 / ${Number(row.unresolvedRows || 0)} 待追踪</strong>
+            <em>${escapeHtml(row.trust?.summary || "点名课消月度汇总")}</em>
+          </button>
+        `).join("") : `
+          <div class="finance-command-card">
+            <span>月结候选</span>
+            <strong>暂无候选</strong>
+            <em>老师保存点名并处理课消后，这里会自动形成每位老师每月候选。</em>
+          </div>
+        `;
+      }
+
       function render() {
         const period = getPeriod();
         const reviewNode = byId("periodReviewStatus");
@@ -4991,6 +5015,7 @@
         renderAttendanceSettlementPreview();
         renderAttendanceDetailPreview();
         renderAttendanceFlowStatus();
+        renderWorkflowMonthlyCandidates();
       }
 
       window.addEventListener("storage", (event) => {
@@ -5576,11 +5601,59 @@
         }
         target?.scrollIntoView({ block: "start", behavior: "smooth" });
       });
+      byId("financeMonthlyCandidatePanel")?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-monthly-candidate-teacher]");
+        if (!button) return;
+        const teacher = button.getAttribute("data-monthly-candidate-teacher") || "";
+        if (teacher) selectFinanceTeacher(teacher, { scroll: false });
+        attendanceFinanceTeacherFilter = teacher;
+        if (byId("attendanceFinanceTeacherFilter")) byId("attendanceFinanceTeacherFilter").value = teacher;
+        renderAttendanceSettlementPreview();
+        renderAttendanceDetailPreview();
+        setFinanceMessage(teacher ? `已筛选 ${teacher} 的月结候选。` : "已打开月结候选。");
+      });
       byId("expenseTableBody").addEventListener("click", (event) => {
         const button = event.target.closest("[data-delete-expense]");
         if (!button) return;
         deleteExpense(button.getAttribute("data-delete-expense"));
       });
+
+      function applyFinanceWorkflowDeepLink() {
+        const params = new URLSearchParams(window.location.search);
+        const workflow = params.get("workflow") || "";
+        if (!workflow) return;
+        const teacher = params.get("teacher") || "";
+        const period = params.get("period") || "";
+        const student = params.get("student") || "";
+        if (period && byId("periodInput")) {
+          byId("periodInput").value = period;
+          currentPeriod = period;
+          syncFormFromPeriod();
+        }
+        if (teacher) selectFinanceTeacher(teacher, { scroll: false });
+        if (workflow === "monthly-candidate") {
+          attendanceFinanceTeacherFilter = teacher || "";
+          attendanceFinanceViewFilter = "all";
+          if (byId("attendanceFinanceTeacherFilter")) byId("attendanceFinanceTeacherFilter").value = teacher || "";
+          if (byId("attendanceFinanceViewFilter")) byId("attendanceFinanceViewFilter").value = "all";
+          renderAttendanceSettlementPreview();
+          renderAttendanceDetailPreview();
+          setFinanceMessage(teacher ? `已定位 ${teacher} ${period || currentPeriod} 月结候选。` : "已定位月结候选。");
+          byId("attendanceFinanceSection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        if (workflow === "admission-finance") {
+          const details = byId("financeAdminDetails");
+          if (details) details.open = true;
+          setFinanceMessage(student ? `已定位招生财务归因候选：${student}。` : "已定位招生财务归因候选。");
+          byId("admissionsFinanceCandidateBody")?.scrollIntoView({ block: "start", behavior: "smooth" });
+          return;
+        }
+        if (workflow === "teacher-wage") {
+          setFinanceMessage(teacher ? `已定位 ${teacher} 工资单。` : "已定位工资单。");
+          byId("financeTeacherDetailSection")?.scrollIntoView({ block: "start", behavior: "smooth" });
+        }
+      }
 
       applyAttendanceDeepLinkFilters();
       getPeriod(currentPeriod);
@@ -5590,6 +5663,7 @@
       hydrateCloudPreimport();
       hydrateFinanceLinkedStores();
       applyEditPermission();
+      window.addEventListener("load", () => setTimeout(applyFinanceWorkflowDeepLink, 900));
     </script>
     <script src="/jrcedu/portal/mobile-unified.js?v=20260629a"></script>
   </body>
