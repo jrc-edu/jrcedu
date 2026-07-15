@@ -241,9 +241,9 @@
       </section>
     </main>
 
-    <script src="/jrcedu/portal/cloud-api.js?v=20260623b"></script>
-    <script src="/jrcedu/portal/auth.js?v=20260623h"></script>
-    <script src="/jrcedu/portal/business-modules.js?v=20260626e"></script>
+    <script src="/jrcedu/portal/cloud-api.js?v=20260716core"></script>
+    <script src="/jrcedu/portal/auth.js?v=20260716core"></script>
+    <script src="/jrcedu/portal/business-modules.js?v=20260716core"></script>
     <script>
       const DRAFT_KEY = "jrc-ai-assistant-drafts-v1";
       const DRAFT_DELETED_KEY = "jrc-ai-assistant-deleted-drafts-v1";
@@ -1452,7 +1452,7 @@
         try {
           const response = await window.JRC_CLOUD?.aiAssistant?.(sharedPayload);
           if (!response?.ok || !response.data?.result) {
-            const errorMessage = response?.data?.message || response?.data?.error || "DeepSeek 没有成功返回同课多学生课堂反馈。";
+            const errorMessage = aiRequestFailureMessage(response, "DeepSeek 没有成功返回同课多学生课堂反馈。");
             const error = new Error(errorMessage);
             error.response = response;
             throw error;
@@ -1533,6 +1533,18 @@
         `;
       }
 
+      function aiRequestFailureMessage(response, fallback = "DeepSeek 没有调用成功。") {
+        const data = response?.data;
+        if (data && typeof data === "object") {
+          const message = String(data.message || data.error || "").trim();
+          if (message) return message;
+        }
+        if (typeof data === "string" && data.trim()) return data.trim();
+        if (response?.error) return String(response.error);
+        if (response?.status) return `请求未成功（HTTP ${response.status}）。`;
+        return fallback;
+      }
+
       async function runAi() {
         const text = byId("aiInputText").value.trim();
         if (!text) {
@@ -1572,7 +1584,7 @@
             byId("aiMessage").textContent = "整理完成，请检查后保存。";
             return;
           }
-          const errorMessage = result?.data?.message || result?.data?.error || "DeepSeek 没有调用成功。";
+          const errorMessage = aiRequestFailureMessage(result);
           if (payload.mode === "classFeedback") {
             renderAiFailure(errorMessage);
             byId("aiConfigNotice").textContent = "课堂反馈必须调用 DeepSeek；当前未成功。";
@@ -2710,6 +2722,6 @@
         byId("aiConfigNotice").textContent = "AI 页面已就绪；DeepSeek Key 配好后会自动调用模型。";
       });
     </script>
-    <script src="/jrcedu/portal/mobile-unified.js?v=20260628g"></script>
+    <script src="/jrcedu/portal/mobile-unified.js?v=20260716core"></script>
   </body>
 </html>

@@ -126,7 +126,15 @@
       });
 
       const text = await response.text();
-      const data = text ? safeJsonParse(text, text) : null;
+      let data = text ? safeJsonParse(text, text) : null;
+      if (response.status === 401) {
+        const message = "登录状态已失效，请退出工作台后重新登录。";
+        data = data && typeof data === "object" ? { ...data, message } : { message };
+        window.dispatchEvent(new CustomEvent("jrc-cloud-auth-expired", { detail: { path, status: response.status } }));
+      } else if (response.status === 403) {
+        const message = "当前账号没有该功能的数据访问权限，请联系管理员开通权限。";
+        data = data && typeof data === "object" ? { ...data, message } : { message };
+      }
       return {
         ok: response.ok,
         status: response.status,
@@ -356,6 +364,8 @@
   async function aiAssistant(payload = {}) {
     return request("/ai-assistant", {
       method: "POST",
+      // The server may retry DeepSeek after a transient timeout. Do not abort the browser request first.
+      timeoutMs: 150000,
       body: payload
     });
   }
