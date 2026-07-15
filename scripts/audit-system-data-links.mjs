@@ -213,7 +213,7 @@ const checks = [
   },
   {
     title: "AI课堂反馈归档学生服务",
-    pass: /writeModuleData\?\.\(STUDENT_SERVICE_KEY, "studentService", nextRows\)/.test(files.ai) && /jrc-student-service-linked/.test(files.ai),
+    pass: /writeStudentServiceRows\(nextRows\)/.test(files.ai) && /writeModuleData\(STUDENT_SERVICE_KEY, "studentService", nextRows\)/.test(files.ai) && /jrc-student-service-linked/.test(files.ai),
     detail: "老师确认后归档到学生服务，而不是 AI 自动直接发给家长。"
   },
   {

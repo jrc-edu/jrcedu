@@ -247,6 +247,8 @@
     <script>
       const DRAFT_KEY = "jrc-ai-assistant-drafts-v1";
       const DRAFT_DELETED_KEY = "jrc-ai-assistant-deleted-drafts-v1";
+      const AI_HISTORY_SYNC_KEY = "jrc-ai-assistant-history-sync-v1";
+      const AI_HISTORY_LIMIT = 500;
       const SUGGESTION_KEY = "jrc-suggestion-management-v2";
       const STUDENT_SERVICE_KEY = "jrc-student-service-v2";
       const ADMISSIONS_STORE_KEY = "advice-system-stage-prototype";
@@ -569,11 +571,27 @@
         return [...map.values()].sort((left, right) => String(right.createdAt || right.updatedAt || "").localeCompare(String(left.createdAt || left.updatedAt || "")));
       }
 
+      function readAiHistorySyncState() {
+        const state = safeParse(localStorage.getItem(AI_HISTORY_SYNC_KEY), {});
+        return state && typeof state === "object" ? state : {};
+      }
+
+      function updateAiHistorySyncState(kind, patch) {
+        const state = readAiHistorySyncState();
+        state[kind] = { ...(state[kind] || {}), ...patch, updatedAt: new Date().toISOString() };
+        localStorage.setItem(AI_HISTORY_SYNC_KEY, JSON.stringify(state));
+      }
+
+      function isAiHistorySyncPending(kind) {
+        return Boolean(readAiHistorySyncState()?.[kind]?.pending);
+      }
+
       async function writeDrafts(rows, context = {}) {
         const shouldReplace = context.replaceMode === "replace";
-        const localRows = mergeDraftRows(rows).slice(0, 120);
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(localRows.slice(0, 80)));
+        const localRows = mergeDraftRows(rows).slice(0, AI_HISTORY_LIMIT);
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(localRows));
         if (!window.JRC_CLOUD?.writeModuleData) {
+          updateAiHistorySyncState("drafts", { pending: true, error: "当前未连接云端" });
           return { ok: true, cloudOk: false, message: "已先保存在当前设备；当前未连接云端。" };
         }
         let nextRows = localRows;
@@ -581,15 +599,18 @@
           if (!shouldReplace) {
             const remote = await window.JRC_CLOUD?.readModuleData?.(DRAFT_KEY);
             if (remote?.ok && remote.data?.found && Array.isArray(remote.data.payload)) {
-              nextRows = mergeDraftRows([...remote.data.payload, ...localRows]).slice(0, 120);
-              localStorage.setItem(DRAFT_KEY, JSON.stringify(nextRows.slice(0, 80)));
+              nextRows = mergeDraftRows([...remote.data.payload, ...localRows]).slice(0, AI_HISTORY_LIMIT);
+              localStorage.setItem(DRAFT_KEY, JSON.stringify(nextRows));
             }
           }
           const result = await window.JRC_CLOUD.writeModuleData(DRAFT_KEY, "ai", nextRows, shouldReplace ? { replaceMode: "replace" } : {});
           if (!result?.ok) throw new Error(result?.message || "云端保存失败");
+          updateAiHistorySyncState("drafts", { pending: false, error: "", lastCloudSavedAt: new Date().toISOString() });
           return { ok: true, cloudOk: true, message: "已保存到云端，换设备登录同一账号也能看到。" };
         } catch (error) {
-          return { ok: true, cloudOk: false, message: `已先保存在当前设备；云端同步失败：${error?.message || "请稍后重试"}` };
+          const message = error?.message || "请稍后重试";
+          updateAiHistorySyncState("drafts", { pending: true, error: message });
+          return { ok: true, cloudOk: false, message: `已先保存在当前设备；云端同步失败：${message}。页面会自动补同步。` };
         }
       }
 
@@ -989,15 +1010,29 @@
 
       async function hydrateDrafts() {
         renderDrafts();
+        const localRows = safeParse(localStorage.getItem(DRAFT_KEY), []);
         try {
           const remote = await window.JRC_CLOUD?.readModuleData?.(DRAFT_KEY);
           if (remote?.ok && remote.data?.found && Array.isArray(remote.data.payload)) {
-            const localRows = safeParse(localStorage.getItem(DRAFT_KEY), []);
             const mergedRows = mergeDraftRows([...remote.data.payload, ...(Array.isArray(localRows) ? localRows : [])]);
-            localStorage.setItem(DRAFT_KEY, JSON.stringify(mergedRows.slice(0, 120)));
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(mergedRows.slice(0, AI_HISTORY_LIMIT)));
             renderDrafts(mergedRows);
+            const remoteIds = new Set(remote.data.payload.map(draftRowId).filter(Boolean));
+            const localHasUnsentRows = (Array.isArray(localRows) ? localRows : []).some((row) => {
+              const id = draftRowId(row);
+              return id && !remoteIds.has(id);
+            });
+            if (localHasUnsentRows || isAiHistorySyncPending("drafts")) {
+              await writeDrafts(mergedRows);
+            }
+          } else if (Array.isArray(localRows) && localRows.length) {
+            await writeDrafts(localRows);
           }
-        } catch (_) {}
+        } catch (error) {
+          if (Array.isArray(localRows) && localRows.length) {
+            updateAiHistorySyncState("drafts", { pending: true, error: error?.message || "读取云端草稿失败" });
+          }
+        }
       }
 
       function findDraftById(id) {
@@ -1076,15 +1111,39 @@
 
       async function hydrateArchivedFeedbacks() {
         renderArchivedFeedbacks();
+        const localRows = safeParse(localStorage.getItem(STUDENT_SERVICE_KEY), []);
         try {
           const remote = await window.JRC_CLOUD?.readModuleData?.(STUDENT_SERVICE_KEY);
           if (remote?.ok && remote.data?.found && Array.isArray(remote.data.payload)) {
-            const localRows = safeParse(localStorage.getItem(STUDENT_SERVICE_KEY), []);
             const mergedRows = mergeRowsById([...remote.data.payload, ...(Array.isArray(localRows) ? localRows : [])]);
             localStorage.setItem(STUDENT_SERVICE_KEY, JSON.stringify(mergedRows));
             renderArchivedFeedbacks(archivedFeedbackRowsFrom(mergedRows));
+            const remoteIds = new Set(remote.data.payload.map((row) => String(row?.id || row?.rowId || "").trim()).filter(Boolean));
+            const localHasUnsentRows = (Array.isArray(localRows) ? localRows : []).some((row) => {
+              const id = String(row?.id || row?.rowId || "").trim();
+              return id && !remoteIds.has(id);
+            });
+            if (localHasUnsentRows || isAiHistorySyncPending("archives")) {
+              await writeStudentServiceRows(mergedRows);
+            }
+          } else if (Array.isArray(localRows) && localRows.length) {
+            await writeStudentServiceRows(localRows);
           }
-        } catch (_) {}
+        } catch (error) {
+          if (Array.isArray(localRows) && localRows.length) {
+            updateAiHistorySyncState("archives", { pending: true, error: error?.message || "读取云端归档失败" });
+          }
+        }
+      }
+
+      async function retryPendingAiHistorySync() {
+        if (isAiHistorySyncPending("drafts")) {
+          await writeDrafts(readDrafts());
+        }
+        if (isAiHistorySyncPending("archives")) {
+          const rows = safeParse(localStorage.getItem(STUDENT_SERVICE_KEY), []);
+          if (Array.isArray(rows) && rows.length) await writeStudentServiceRows(rows);
+        }
       }
 
       function findArchivedFeedbackById(id) {
@@ -1756,6 +1815,31 @@
         return [...map.values()].sort((left, right) => String(right.createdAt || right.updatedAt || "").localeCompare(String(left.createdAt || left.updatedAt || "")));
       }
 
+      async function writeStudentServiceRows(rows) {
+        const localRows = mergeRowsById(rows);
+        localStorage.setItem(STUDENT_SERVICE_KEY, JSON.stringify(localRows));
+        if (!window.JRC_CLOUD?.writeModuleData) {
+          updateAiHistorySyncState("archives", { pending: true, error: "当前未连接云端" });
+          return { ok: true, cloudOk: false, rows: localRows, message: "当前未连接云端" };
+        }
+        let nextRows = localRows;
+        try {
+          const remote = await window.JRC_CLOUD.readModuleData?.(STUDENT_SERVICE_KEY);
+          if (remote?.ok && remote.data?.found && Array.isArray(remote.data.payload)) {
+            nextRows = mergeRowsById([...remote.data.payload, ...localRows]);
+            localStorage.setItem(STUDENT_SERVICE_KEY, JSON.stringify(nextRows));
+          }
+          const result = await window.JRC_CLOUD.writeModuleData(STUDENT_SERVICE_KEY, "studentService", nextRows);
+          if (!result?.ok) throw new Error(result?.message || result?.error || "云端同步暂未成功");
+          updateAiHistorySyncState("archives", { pending: false, error: "", lastCloudSavedAt: new Date().toISOString() });
+          return { ok: true, cloudOk: true, rows: nextRows, message: "已保存到云端" };
+        } catch (error) {
+          const message = String(error?.message || error || "云端同步暂未成功");
+          updateAiHistorySyncState("archives", { pending: true, error: message });
+          return { ok: true, cloudOk: false, rows: nextRows, message };
+        }
+      }
+
       function mergeBundleRows(rows) {
         return mergeRowsById(rows).map((row) => {
           const { id, ...rest } = row;
@@ -1858,7 +1942,8 @@
             createdBy: currentName,
             createdByUsername: currentUsername
           };
-          serviceRow.archiveKey = feedbackArchiveKey(serviceRow);
+          // A direct archive is a new feedback. Only re-archiving the same saved draft updates its old record.
+          serviceRow.archiveKey = editingDraftId ? feedbackArchiveKey(serviceRow) : `entry:${serviceRow.id}`;
           let rows = safeParse(localStorage.getItem(STUDENT_SERVICE_KEY), []);
           try {
             const remote = await window.JRC_CLOUD?.readModuleData?.(STUDENT_SERVICE_KEY);
@@ -1886,16 +1971,9 @@
           const nextRows = updatedExisting
             ? mergeRowsById(rows)
             : mergeRowsById([serviceRow, ...(Array.isArray(rows) ? rows : [])]);
-          localStorage.setItem(STUDENT_SERVICE_KEY, JSON.stringify(nextRows));
-          let cloudResult = { ok: false, skipped: true };
-          let cloudError = "";
-          try {
-            cloudResult = await window.JRC_CLOUD?.writeModuleData?.(STUDENT_SERVICE_KEY, "studentService", nextRows) || { ok: false, skipped: true };
-            if (!cloudResult?.ok) cloudError = cloudResult?.data?.message || cloudResult?.data?.error || cloudResult?.error || "云端同步暂未成功";
-          } catch (error) {
-            cloudError = String(error?.message || error || "云端同步暂未成功");
-            cloudResult = { ok: false, error: cloudError };
-          }
+          const archiveSaveResult = await writeStudentServiceRows(nextRows);
+          const cloudResult = { ok: archiveSaveResult.cloudOk };
+          const cloudError = archiveSaveResult.cloudOk ? "" : archiveSaveResult.message;
           try {
             await markEditingDraftArchived(serviceRow);
           } catch (_) {}
@@ -2621,6 +2699,9 @@
       updateActionButtons();
       hydrateDrafts();
       hydrateArchivedFeedbacks();
+      window.addEventListener("online", () => retryPendingAiHistorySync());
+      window.setInterval(retryPendingAiHistorySync, 60000);
+      window.setTimeout(retryPendingAiHistorySync, 3000);
       window.JRC_CLOUD?.aiAssistant?.({ mode: "health", text: "ping" }).then((result) => {
         byId("aiConfigNotice").textContent = result?.ok && result.data?.provider === "deepseek"
           ? "AI 接口已接入 DeepSeek。"
