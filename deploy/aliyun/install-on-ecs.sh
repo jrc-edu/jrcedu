@@ -128,6 +128,7 @@ fi
 
 JRC_DB_PASSWORD="${JRC_DB_PASSWORD:-$(openssl rand -base64 32 | tr -d '\n')}"
 JRC_API_TOKEN="${JRC_API_TOKEN:-$(openssl rand -hex 24)}"
+JRC_INITIAL_EMPLOYEE_PASSWORD="${JRC_INITIAL_EMPLOYEE_PASSWORD:-$(openssl rand -base64 18 | tr -d '=+/\n' | cut -c1-16)}"
 
 cat > "${ENV_FILE}" <<EOF
 PORT=3000
@@ -178,7 +179,8 @@ fi
 
 echo "==> Loading schema and seed data"
 sudo -u postgres psql -d jrcedu -f "${APP_DIR}/database/cloud-schema-v1.sql"
-sudo -u postgres psql -d jrcedu -f "${APP_DIR}/deploy/aliyun/seed-employees.sql"
+sudo -u postgres psql -v jrc_initial_password="${JRC_INITIAL_EMPLOYEE_PASSWORD}" -d jrcedu -f "${APP_DIR}/deploy/aliyun/seed-employees.sql"
+echo "==> New installs use a one-time employee password. Keep it offline and require each employee to change it after first login."
 sudo -u postgres psql -d jrcedu <<SQL
 grant usage on schema public to jrcedu_app;
 grant select, insert, update, delete on all tables in schema public to jrcedu_app;

@@ -3,7 +3,6 @@ const JRC_EMPLOYEE_DIRECTORY_STORAGE_KEY = "jrc-employee-directory-extra";
 const JRC_DATA_FOUNDATION_RESET_KEY = "jrc-data-foundation-reset-20260622a";
 const JRC_WORKFLOW_AUTOPILOT_KEY = "jrc-workflow-autopilot-v1";
 const JRC_TEMP_AUTO_LOGIN_USERNAME = "";
-const JRC_INITIAL_PASSWORD = "10281028";
 function jrcBeijingDateParts(date = new Date()) {
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
@@ -275,7 +274,6 @@ const JRC_EMPLOYEES = [
   {
     name: "周珊",
     username: "zhoushan",
-    password: "10281028",
     role: "学管",
     phone: "15212968215",
     wechat: "Azs-20210113",
@@ -287,7 +285,6 @@ const JRC_EMPLOYEES = [
   {
     name: "高芳燕",
     username: "gaofangyan",
-    password: "10281028",
     role: "学管",
     phone: "17879352353",
     wechat: "jiujiujiujiumii",
@@ -299,7 +296,6 @@ const JRC_EMPLOYEES = [
   {
     name: "颜雨涵",
     username: "yanyuhan",
-    password: "10281028",
     role: "学管",
     phone: "18892619946",
     wechat: "18892619946",
@@ -311,7 +307,6 @@ const JRC_EMPLOYEES = [
   {
     name: "徐嘉丽",
     username: "xujiali",
-    password: "10281028",
     role: "学管",
     phone: "18379947202",
     wechat: "Pluto--Sco-20L",
@@ -323,7 +318,6 @@ const JRC_EMPLOYEES = [
   {
     name: "程志豪",
     username: "chengzhihao",
-    password: "10281028",
     role: "管理员",
     phone: "15888003051",
     wechat: "jrc-math",
@@ -336,7 +330,6 @@ const JRC_EMPLOYEES = [
   {
     name: "陈雨晴",
     username: "chenyuqing",
-    password: "10281028",
     role: "财务",
     phone: "15259085997",
     wechat: "YQZH5208598",
@@ -348,7 +341,6 @@ const JRC_EMPLOYEES = [
   {
     name: "海滢滢",
     username: "haiyingying",
-    password: "10281028",
     role: "授课老师",
     phone: "18758400721",
     wechat: "cathy125805",
@@ -361,7 +353,6 @@ const JRC_EMPLOYEES = [
   {
     name: "姚老师",
     username: "yaolaoshi",
-    password: "10281028",
     role: "授课老师",
     phone: "",
     wechat: "",
@@ -374,7 +365,6 @@ const JRC_EMPLOYEES = [
   {
     name: "叶源泽",
     username: "yeyuanze",
-    password: "10281028",
     role: "授课老师",
     phone: "13738807822",
     wechat: "YYZ-May-19",
@@ -387,7 +377,6 @@ const JRC_EMPLOYEES = [
   {
     name: "李舒",
     username: "lishu",
-    password: "10281028",
     role: "授课老师",
     phone: "19155389323",
     wechat: "19155389323",
@@ -400,7 +389,6 @@ const JRC_EMPLOYEES = [
   {
     name: "刘大君",
     username: "liudajun",
-    password: "10281028",
     role: "授课老师",
     phone: "15639466839",
     wechat: "15639466839",
@@ -413,7 +401,6 @@ const JRC_EMPLOYEES = [
   {
     name: "吴水琴",
     username: "wushuiqin",
-    password: "10281028",
     role: "授课老师",
     phone: "18056627068",
     wechat: "fmkkii555",
@@ -426,7 +413,6 @@ const JRC_EMPLOYEES = [
   {
     name: "朱永乐",
     username: "zhuyongle",
-    password: "10281028",
     role: "授课老师",
     phone: "15205843546",
     wechat: "L2577593964",
@@ -439,7 +425,6 @@ const JRC_EMPLOYEES = [
   {
     name: "郑嘉艺",
     username: "zhengjiayi",
-    password: "10281028",
     role: "授课老师",
     phone: "15968088762",
     wechat: "Joyee-yiyi",
@@ -452,7 +437,6 @@ const JRC_EMPLOYEES = [
   {
     name: "赵萱",
     username: "zhaoxuan",
-    password: "10281028",
     role: "授课老师",
     phone: "15938462313",
     wechat: "zx15938462313",
@@ -465,7 +449,6 @@ const JRC_EMPLOYEES = [
   {
     name: "曹德顺",
     username: "caodeshun",
-    password: "10281028",
     role: "授课老师",
     phone: "18003276656",
     wechat: "cds030418",
@@ -478,7 +461,6 @@ const JRC_EMPLOYEES = [
   {
     name: "潘云贵",
     username: "panyungui",
-    password: "10281028",
     role: "授课老师",
     phone: "13114114478",
     wechat: "UNomnipotentyouth",
@@ -491,7 +473,6 @@ const JRC_EMPLOYEES = [
   {
     name: "吴建勇",
     username: "wujianyong",
-    password: "10281028",
     role: "授课老师",
     phone: "17816636255",
     wechat: "-Woey1228",
@@ -658,7 +639,8 @@ function jrcReadCustomEmployees() {
 }
 
 function jrcWriteCustomEmployees(employees) {
-  jrcSafeStorageSet(JRC_EMPLOYEE_DIRECTORY_STORAGE_KEY, JSON.stringify(employees));
+  const sanitized = (Array.isArray(employees) ? employees : []).map(({ password, ...employee }) => employee);
+  jrcSafeStorageSet(JRC_EMPLOYEE_DIRECTORY_STORAGE_KEY, JSON.stringify(sanitized));
 }
 
 function jrcGetAllEmployees() {
@@ -667,12 +649,12 @@ function jrcGetAllEmployees() {
     if (!employee || typeof employee !== "object") return;
     const username = String(employee.username || "").trim().toLowerCase();
     if (!username) return;
+    const { password, ...safeEmployee } = employee;
     const existing = byUsername.get(username) || {};
     byUsername.set(username, {
       ...existing,
-      ...employee,
-      username,
-      password: employee.password || existing.password || JRC_INITIAL_PASSWORD
+      ...safeEmployee,
+      username
     });
   };
   JRC_EMPLOYEES.forEach(putEmployee);
@@ -1831,17 +1813,13 @@ async function jrcVerifyCurrentPassword(password, subject = jrcResolveCurrentEmp
   const text = String(password || "").trim();
   const username = jrcNormalizeUsername(subject?.username);
   if (!text || !username) return false;
-  if (window.JRC_CLOUD?.login) {
-    try {
-      const result = await window.JRC_CLOUD.login(username, text);
-      if (result?.ok && result.data?.employee) return true;
-      if (result && result.ok === false) return false;
-    } catch {
-      // Local fallback below keeps high-risk checks usable if the cloud login check is temporarily unavailable.
-    }
+  if (!window.JRC_CLOUD?.login) return false;
+  try {
+    const result = await window.JRC_CLOUD.login(username, text);
+    return Boolean(result?.ok && result.data?.employee);
+  } catch {
+    return false;
   }
-  const employee = jrcFindEmployeeByUsername(username);
-  return Boolean(employee && employee.password === text);
 }
 
 function jrcResolveCurrentEmployee() {
@@ -2301,7 +2279,7 @@ function jrcRenderEmployeeDirectory(currentEmployee = jrcResolveCurrentEmployee(
         </div>
         <div class="jrc-employee-form__actions">
           <button type="submit" class="jrc-employee-form__submit" data-employee-form-submit>保存新增员工</button>
-          <span data-employee-form-message>保存后自动使用统一初始密码 10281028。</span>
+          <span data-employee-form-message>保存后自动使用一次性初始密码。</span>
         </div>
       </form>
     ` : ""}
@@ -2361,7 +2339,7 @@ function jrcBindEmployeeAddForm(currentEmployee = jrcResolveCurrentEmployee()) {
     form.removeAttribute("hidden");
     toggle.textContent = "收起员工表单";
     if (submitButton) submitButton.textContent = editing ? "保存员工资料" : "保存新增员工";
-    message.textContent = editing ? `正在编辑 ${employee.name || employee.username}，保存后会按用户名覆盖补全资料。` : "保存后自动使用统一初始密码 10281028。";
+    message.textContent = editing ? `正在编辑 ${employee.name || employee.username}，保存后会按用户名覆盖补全资料。` : "保存后自动使用一次性初始密码。";
     if (!editing) {
       form.reset();
       form.querySelector("[name='username']")?.removeAttribute("readonly");
@@ -2426,7 +2404,6 @@ function jrcBindEmployeeAddForm(currentEmployee = jrcResolveCurrentEmployee()) {
       ...existing,
       name,
       username,
-      password: existing.password || JRC_INITIAL_PASSWORD,
       role: String(formData.get("role") || "授课老师").trim(),
       phone: String(formData.get("phone") || "").trim(),
       wechat: String(formData.get("wechat") || "").trim(),
@@ -2445,11 +2422,11 @@ function jrcBindEmployeeAddForm(currentEmployee = jrcResolveCurrentEmployee()) {
     const cloudResult = await jrcSyncEmployeeAccountToCloud(row, { resetPassword: !editingUsername });
     window.JRC_EMPLOYEES = jrcGetAllEmployees();
     const cloudMessage = cloudResult?.ok
-      ? "云端登录账号已同步。"
+      ? `云端登录账号已同步。${cloudResult.data?.temporaryPassword ? `一次性初始密码：${cloudResult.data.temporaryPassword}，请仅转给本人并要求首次登录后修改。` : ""}`
       : cloudResult?.skipped
         ? "云端账号接口未启用，已先保存到员工名单。"
         : "员工名单已保存，但云端登录账号同步失败，请稍后再保存一次。";
-    message.textContent = editingUsername ? `已保存 ${name} 的员工资料。${cloudMessage}` : `已新增 ${name}，初始密码 10281028。${cloudMessage}`;
+    message.textContent = editingUsername ? `已保存 ${name} 的员工资料。${cloudMessage}` : `已新增 ${name}。${cloudMessage}`;
     form.reset();
     form.dataset.editingUsername = "";
     jrcEnsureEmployeeSummary();
@@ -2529,7 +2506,6 @@ async function jrcUpsertEmployeeFromHr(row = {}, options = {}) {
     ...existing,
     name,
     username,
-    password: existing.password || JRC_INITIAL_PASSWORD,
     role,
     phone,
     wechat: String(row.wechat || existing.wechat || "").trim(),
@@ -2560,7 +2536,9 @@ async function jrcUpsertEmployeeFromHr(row = {}, options = {}) {
     ok: true,
     employee: payload,
     cloudResult,
-    message: `${name} 已加入全员名单，登录账号 ${username}，初始密码 ${JRC_INITIAL_PASSWORD}。`
+    message: cloudResult?.ok
+      ? `${name} 已加入全员名单，登录账号 ${username}。${cloudResult.data?.temporaryPassword ? `一次性初始密码：${cloudResult.data.temporaryPassword}` : ""}`
+      : `${name} 已加入全员名单，登录账号 ${username}；云端账号尚未同步。`
   };
 }
 
@@ -3269,10 +3247,8 @@ function jrcShowLoginOverlay() {
     lines.push(`浏览器保存登录状态：${storageOk || cookieOk ? "正常" : "受限"}`);
     lines.push(`云接口脚本：${window.JRC_CLOUD?.login ? "已加载" : "未加载"}`);
     try {
-      const result = window.JRC_CLOUD?.login
-        ? await window.JRC_CLOUD.login("chengzhihao", "10281028")
-        : { ok: false, error: "云接口脚本未加载" };
-      lines.push(`云端登录接口：${result.ok ? "正常" : `异常 ${result.status || result.error || ""}`}`);
+      const config = window.JRC_CLOUD?.readConfig?.();
+      lines.push(`云端认证服务：${config?.enabled ? "已配置" : "未配置"}`);
     } catch (error) {
       lines.push(`云端登录接口：异常 ${String(error?.message || error)}`);
     }
@@ -3314,7 +3290,7 @@ function jrcShowLoginOverlay() {
         jrcWriteSession(localEmployee || cloudResult.data.employee, {
           cloudApiToken: cloudResult.data.token,
           cloudTokenExpiresAt: cloudResult.data.expiresAt || null,
-          mustChangePassword: Boolean(cloudResult.data.mustChangePassword ?? (password === JRC_INITIAL_PASSWORD))
+          mustChangePassword: Boolean(cloudResult.data.mustChangePassword)
         });
         document.body.classList.remove("jrc-auth-required");
         window.location.href = "/jrcedu/portal/index.html?login=ok";
@@ -3327,21 +3303,7 @@ function jrcShowLoginOverlay() {
         return false;
       }
 
-      const employee = jrcFindEmployeeByUsername(username);
-      if (!employee || employee.password !== password) {
-        if (errorBox) errorBox.textContent = cloudResult?.status === 401
-          ? "用户名或密码不正确，请用员工姓名拼音登录。"
-          : "用户名或密码不正确，或云端登录当前不可用。";
-        return false;
-      }
-
-      if (errorBox) {
-        errorBox.textContent = "登录成功，正在进入工作台...";
-        errorBox.classList.add("jrc-login-error--success");
-      }
-      jrcWriteSession(employee, { mustChangePassword: password === JRC_INITIAL_PASSWORD });
-      document.body.classList.remove("jrc-auth-required");
-      window.location.href = "/jrcedu/portal/index.html?login=ok";
+      if (errorBox) errorBox.textContent = "云端认证服务暂时不可用，请稍后重试。";
       return false;
     } catch (error) {
       console.error(error);

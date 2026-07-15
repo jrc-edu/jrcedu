@@ -4,7 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/sync-portal-to-public.mjs",
     "audit:data-links": "node scripts/audit-system-data-links.mjs",
+    "audit:portal": "node scripts/sync-portal-to-public.mjs --check",
+    "deploy:check": "bash scripts/deploy-production.sh --check",
+    "deploy:production": "bash scripts/deploy-production.sh",
     "video:init": "node scripts/video-ops-agent.mjs init",
     "video:login": "node scripts/video-ops-agent.mjs login",
     "video:collect": "node scripts/video-ops-agent.mjs collect",
@@ -26,6 +30,22 @@
     "iphone:check": "node scripts/iphone-agent.mjs check",
     "iphone:screenshot": "node scripts/iphone-agent.mjs screenshot",
     "iphone:doctor": "node scripts/iphone-agent.mjs doctor",
+    "iphone:appium-check": "node scripts/iphone-appium-agent.mjs check",
+    "iphone:apps": "node scripts/iphone-appium-agent.mjs apps",
+    "iphone:collect": "node scripts/iphone-appium-agent.mjs collect",
+    "iphone:collect:wechat": "node scripts/iphone-appium-agent.mjs collect wechat",
+    "iphone:collect:douyin": "node scripts/iphone-appium-agent.mjs collect douyin",
+    "iphone:douyin-search": "node scripts/iphone-appium-agent.mjs douyin-search",
+    "iphone:douyin-math-research": "node scripts/iphone-appium-agent.mjs douyin-math-research",
+    "iphone:douyin-video-deep-dive": "node scripts/iphone-appium-agent.mjs douyin-video-deep-dive",
+    "iphone:douyin-video-report-refresh": "node scripts/iphone-appium-agent.mjs douyin-video-report-refresh",
+    "iphone:douyin-link-copy": "node scripts/iphone-appium-agent.mjs douyin-link-copy",
+    "iphone:open": "node scripts/iphone-appium-agent.mjs open",
+    "iphone:tap": "node scripts/iphone-appium-agent.mjs tap",
+    "iphone:type": "node scripts/iphone-appium-agent.mjs type",
+    "iphone:swipe": "node scripts/iphone-appium-agent.mjs swipe",
+    "iphone:home": "node scripts/iphone-appium-agent.mjs home",
+    "iphone:smoke": "node scripts/iphone-appium-smoke.mjs",
     "build": "next build",
     "start": "next start"
   },
@@ -33,6 +53,10 @@
     "next": "14.2.0",
     "playwright": "^1.61.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "webdriverio": "^9.29.1"
   }
 }

@@ -4,6 +4,8 @@
 
 begin;
 
+select set_config('app.jrc_initial_password', :'jrc_initial_password', false);
+
 insert into permission_catalog (permission_key, module_key, action_key, display_name, description)
 values
   ('ai.access', 'ai', 'access', '课堂反馈AI助手进入', '系统权限'),
@@ -145,27 +147,27 @@ on conflict (role, permission_key) do nothing;
 
 insert into employees (name, username, password_hash, role, phone, wechat, subject, scope, hire_date, regular_date, commission_rate, status, metadata)
 values
-  ('周珊', 'zhoushan', crypt('10281028', gen_salt('bf')), '学管', '15212968215', 'Azs-20210113', null, '1-9', '2025-09-01'::date, '2025-10-01'::date, null, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('高芳燕', 'gaofangyan', crypt('10281028', gen_salt('bf')), '学管', '17879352353', 'jiujiujiujiumii', null, '小课1-9', '2025-09-11'::date, '2025-10-11'::date, null, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('颜雨涵', 'yanyuhan', crypt('10281028', gen_salt('bf')), '学管', '18892619946', '18892619946', null, '1-4年级', '2023-07-14'::date, '2023-07-14'::date, null, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('徐嘉丽', 'xujiali', crypt('10281028', gen_salt('bf')), '学管', '18379947202', 'Pluto--Sco-20L', null, '5-6年级', '2026-03-16'::date, '2026-04-16'::date, null, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('程志豪', 'chengzhihao', crypt('10281028', gen_salt('bf')), '管理员', '15888003051', 'jrc-math', '数学', '1-9年级', '2016-06-20'::date, '2016-07-20'::date, 100, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('陈雨晴', 'chenyuqing', crypt('10281028', gen_salt('bf')), '财务', '15259085997', 'YQZH5208598', null, '1-9', '2020-10-02'::date, '2020-11-02'::date, null, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('海滢滢', 'haiyingying', crypt('10281028', gen_salt('bf')), '授课老师', '18758400721', 'cathy125805', '科学', '3-8年级', '2021-03-20'::date, '2021-04-20'::date, 50, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('姚老师', 'yaolaoshi', crypt('10281028', gen_salt('bf')), '授课老师', null, null, '数学', '外聘老师', null, null, null, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js', 'settlementRule', '单独按实到人数结算')),
-  ('叶源泽', 'yeyuanze', crypt('10281028', gen_salt('bf')), '授课老师', '13738807822', 'YYZ-May-19', '数学', '初一（七年级）', '2025-05-09'::date, '2025-06-09'::date, 23, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('李舒', 'lishu', crypt('10281028', gen_salt('bf')), '授课老师', '19155389323', '19155389323', '数学', '一年级、二年级、三年级', '2025-07-05'::date, '2025-08-05'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('刘大君', 'liudajun', crypt('10281028', gen_salt('bf')), '授课老师', '15639466839', '15639466839', '数学', '初中部教研主任（初一至初三）', '2024-01-20'::date, '2024-01-20'::date, 33.33, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('吴水琴', 'wushuiqin', crypt('10281028', gen_salt('bf')), '授课老师', '18056627068', 'fmkkii555', '数学', '四年级', '2026-05-16'::date, '2026-06-16'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('朱永乐', 'zhuyongle', crypt('10281028', gen_salt('bf')), '授课老师', '15205843546', 'L2577593964', '科学', '初一科学（七年级）', '2025-12-12'::date, '2026-06-12'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('郑嘉艺', 'zhengjiayi', crypt('10281028', gen_salt('bf')), '授课老师', '15968088762', 'Joyee-yiyi', '数学', '初二（八年级）', '2025-12-22'::date, '2026-01-22'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('赵萱', 'zhaoxuan', crypt('10281028', gen_salt('bf')), '授课老师', '15938462313', 'zx15938462313', '数学', '小学部教研主任（一至六年级）', '2025-09-08'::date, '2025-10-08'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('曹德顺', 'caodeshun', crypt('10281028', gen_salt('bf')), '授课老师', '18003276656', 'cds030418', '数学', '初二（八年级）', '2026-04-23'::date, '2026-05-23'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('潘云贵', 'panyungui', crypt('10281028', gen_salt('bf')), '授课老师', '13114114478', 'UNomnipotentyouth', '数学', '五年级', '2026-04-22'::date, '2026-05-22'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js')),
-  ('吴建勇', 'wujianyong', crypt('10281028', gen_salt('bf')), '授课老师', '17816636255', '-Woey1228', '数学', '初一（七年级）', '2026-05-20'::date, '2026-06-20'::date, 20, 'active', jsonb_build_object('initialPasswordPolicy', '10281028', 'source', 'portal/auth.js'))
+  ('周珊', 'zhoushan', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '学管', '15212968215', 'Azs-20210113', null, '1-9', '2025-09-01'::date, '2025-10-01'::date, null, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('高芳燕', 'gaofangyan', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '学管', '17879352353', 'jiujiujiujiumii', null, '小课1-9', '2025-09-11'::date, '2025-10-11'::date, null, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('颜雨涵', 'yanyuhan', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '学管', '18892619946', '18892619946', null, '1-4年级', '2023-07-14'::date, '2023-07-14'::date, null, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('徐嘉丽', 'xujiali', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '学管', '18379947202', 'Pluto--Sco-20L', null, '5-6年级', '2026-03-16'::date, '2026-04-16'::date, null, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('程志豪', 'chengzhihao', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '管理员', '15888003051', 'jrc-math', '数学', '1-9年级', '2016-06-20'::date, '2016-07-20'::date, 100, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('陈雨晴', 'chenyuqing', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '财务', '15259085997', 'YQZH5208598', null, '1-9', '2020-10-02'::date, '2020-11-02'::date, null, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('海滢滢', 'haiyingying', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '18758400721', 'cathy125805', '科学', '3-8年级', '2021-03-20'::date, '2021-04-20'::date, 50, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('姚老师', 'yaolaoshi', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', null, null, '数学', '外聘老师', null, null, null, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql', 'settlementRule', '单独按实到人数结算')),
+  ('叶源泽', 'yeyuanze', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '13738807822', 'YYZ-May-19', '数学', '初一（七年级）', '2025-05-09'::date, '2025-06-09'::date, 23, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('李舒', 'lishu', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '19155389323', '19155389323', '数学', '一年级、二年级、三年级', '2025-07-05'::date, '2025-08-05'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('刘大君', 'liudajun', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '15639466839', '15639466839', '数学', '初中部教研主任（初一至初三）', '2024-01-20'::date, '2024-01-20'::date, 33.33, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('吴水琴', 'wushuiqin', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '18056627068', 'fmkkii555', '数学', '四年级', '2026-05-16'::date, '2026-06-16'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('朱永乐', 'zhuyongle', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '15205843546', 'L2577593964', '科学', '初一科学（七年级）', '2025-12-12'::date, '2026-06-12'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('郑嘉艺', 'zhengjiayi', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '15968088762', 'Joyee-yiyi', '数学', '初二（八年级）', '2025-12-22'::date, '2026-01-22'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('赵萱', 'zhaoxuan', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '15938462313', 'zx15938462313', '数学', '小学部教研主任（一至六年级）', '2025-09-08'::date, '2025-10-08'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('曹德顺', 'caodeshun', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '18003276656', 'cds030418', '数学', '初二（八年级）', '2026-04-23'::date, '2026-05-23'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('潘云贵', 'panyungui', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '13114114478', 'UNomnipotentyouth', '数学', '五年级', '2026-04-22'::date, '2026-05-22'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql')),
+  ('吴建勇', 'wujianyong', crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), '授课老师', '17816636255', '-Woey1228', '数学', '初一（七年级）', '2026-05-20'::date, '2026-06-20'::date, 20, 'active', jsonb_build_object('needsPasswordChange', true, 'source', 'seed-employees.sql'))
 on conflict (username) do update set
   name = excluded.name,
-  password_hash = excluded.password_hash,
+  password_hash = case when employees.password_hash is null then excluded.password_hash else employees.password_hash end,
   role = excluded.role,
   phone = excluded.phone,
   wechat = excluded.wechat,
@@ -175,7 +177,11 @@ on conflict (username) do update set
   regular_date = excluded.regular_date,
   commission_rate = excluded.commission_rate,
   status = excluded.status,
-  metadata = employees.metadata || excluded.metadata,
+  metadata = (coalesce(employees.metadata, '{}'::jsonb) - 'initialPasswordPolicy') || case
+    when employees.password_hash is null then excluded.metadata
+    when coalesce(employees.metadata, '{}'::jsonb) ? 'initialPasswordPolicy' then jsonb_build_object('needsPasswordChange', true)
+    else '{}'::jsonb
+  end,
   updated_at = now();
 
 delete from employee_permissions;
@@ -505,11 +511,8 @@ join (values
   ('zhaoxuan', 'campus.access'),
   ('zhaoxuan', 'curriculum.access'),
   ('zhaoxuan', 'curriculum.create'),
-  ('zhaoxuan', 'curriculum.delete'),
-  ('zhaoxuan', 'curriculum.edit'),
   ('zhaoxuan', 'curriculum.export'),
   ('zhaoxuan', 'curriculum.import'),
-  ('zhaoxuan', 'curriculum.reset'),
   ('zhaoxuan', 'curriculum.update'),
   ('zhaoxuan', 'paike.access'),
   ('zhaoxuan', 'portal.access'),

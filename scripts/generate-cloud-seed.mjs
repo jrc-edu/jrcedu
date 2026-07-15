@@ -45,10 +45,10 @@ function numberFromPercent(value) {
 
 function metadataSql(employee) {
   const pairs = [
-    "'initialPasswordPolicy'",
-    sql(employee.password || "10281028"),
+    "'needsPasswordChange'",
+    "true",
     "'source'",
-    sql("portal/auth.js")
+    sql("seed-employees.sql")
   ];
   if (employee.commissionRate && numberFromPercent(employee.commissionRate) === null) {
     pairs.push("'settlementRule'", sql(employee.commissionRate));
@@ -207,6 +207,8 @@ lines.push("-- 执行前请先执行 database/cloud-schema-v1.sql。");
 lines.push("");
 lines.push("begin;");
 lines.push("");
+lines.push("select set_config('app.jrc_initial_password', :'jrc_initial_password', false);");
+lines.push("");
 lines.push("insert into permission_catalog (permission_key, module_key, action_key, display_name, description)");
 lines.push("values");
 lines.push(Array.from(allPermissionKeys.entries()).map(([key, label]) => {
@@ -237,11 +239,11 @@ lines.push("insert into employees (name, username, password_hash, role, phone, w
 lines.push("values");
 lines.push(seed.employees.map((employee) => {
   const commission = numberFromPercent(employee.commissionRate);
-  return `  (${sql(employee.name)}, ${sql(employee.username)}, crypt(${sql(employee.password || "10281028")}, gen_salt('bf')), ${sql(employee.role)}, ${sql(employee.phone)}, ${sql(employee.wechat)}, ${sql(employee.subject)}, ${sql(employee.scope)}, ${sqlDate(employee.hireDate)}, ${sqlDate(employee.regularDate)}, ${commission === null ? "null" : commission}, 'active', ${metadataSql(employee)})`;
+  return `  (${sql(employee.name)}, ${sql(employee.username)}, crypt(current_setting('app.jrc_initial_password'), gen_salt('bf')), ${sql(employee.role)}, ${sql(employee.phone)}, ${sql(employee.wechat)}, ${sql(employee.subject)}, ${sql(employee.scope)}, ${sqlDate(employee.hireDate)}, ${sqlDate(employee.regularDate)}, ${commission === null ? "null" : commission}, 'active', ${metadataSql(employee)})`;
 }).join(",\n"));
 lines.push("on conflict (username) do update set");
 lines.push("  name = excluded.name,");
-lines.push("  password_hash = excluded.password_hash,");
+lines.push("  password_hash = case when employees.password_hash is null then excluded.password_hash else employees.password_hash end,");
 lines.push("  role = excluded.role,");
 lines.push("  phone = excluded.phone,");
 lines.push("  wechat = excluded.wechat,");
@@ -251,7 +253,11 @@ lines.push("  hire_date = excluded.hire_date,");
 lines.push("  regular_date = excluded.regular_date,");
 lines.push("  commission_rate = excluded.commission_rate,");
 lines.push("  status = excluded.status,");
-lines.push("  metadata = employees.metadata || excluded.metadata,");
+lines.push("  metadata = (coalesce(employees.metadata, '{}'::jsonb) - 'initialPasswordPolicy') || case");
+lines.push("    when employees.password_hash is null then excluded.metadata");
+lines.push("    when coalesce(employees.metadata, '{}'::jsonb) ? 'initialPasswordPolicy' then jsonb_build_object('needsPasswordChange', true)");
+lines.push("    else '{}'::jsonb");
+lines.push("  end,");
 lines.push("  updated_at = now();");
 lines.push("");
 

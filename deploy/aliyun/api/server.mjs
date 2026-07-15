@@ -137,6 +137,77 @@ const roleDefaultPermissions = {
     "campus.access"
   ]
 };
+const modulePermissionAliases = {
+  ai: "ai",
+  aiassistant: "ai",
+  admissions: "admissions",
+  businesslinksnapshot: "portal",
+  campus: "campus",
+  curriculum: "curriculum",
+  employeedirectory: "hr",
+  finance: "finance",
+  financepreimport: "finance",
+  hr: "hr",
+  knowledge: "knowledge",
+  paike: "paike",
+  paikelegacy: "paike",
+  portal: "portal",
+  studentservice: "studentService",
+  suggestions: "suggestions",
+  sitefeedback: "suggestions",
+  systemlinks: "portal",
+  teachingquality: "teachingQuality",
+  usageguides: "portal",
+  videoops: "videoOps",
+  workflowautopilot: "portal"
+};
+
+function resolveModulePermission(storeKey = "", moduleKey = "") {
+  const normalizedModule = String(moduleKey || "").replace(/[^a-z]/gi, "").toLowerCase();
+  if (modulePermissionAliases[normalizedModule]) return modulePermissionAliases[normalizedModule];
+  const key = String(storeKey || "").toLowerCase();
+  if (/^(advice-system|jrc-admissions)/.test(key)) return "admissions";
+  if (/suggestion|site-feedback|trial-feedback/.test(key)) return "suggestions";
+  if (/ai-assistant/.test(key)) return "ai";
+  if (/paike|schedule/.test(key)) return "paike";
+  if (/finance/.test(key)) return "finance";
+  if (/teaching-quality/.test(key)) return "teachingQuality";
+  if (/student-service|student-homework|class-attendance/.test(key)) return "studentService";
+  if (/curriculum/.test(key)) return "curriculum";
+  if (/employee|hr-/.test(key)) return "hr";
+  if (/campus/.test(key)) return "campus";
+  if (/video/.test(key)) return "videoOps";
+  if (/knowledge/.test(key)) return "knowledge";
+  if (/business-link|system-link|usage-guide|workflow-autopilot/.test(key)) return "portal";
+  if (/audit/.test(key)) return "admin";
+  return "";
+}
+
+async function canUseModule(authorization, storeKey, moduleKey, operation = "read") {
+  if (authorization?.kind === "api-token") return true;
+  const username = normalizeUsername(authorization?.payload?.sub);
+  if (!username) return false;
+  const employee = await employeeWithPermissions(username);
+  if (!employee) return false;
+  const permissions = new Set(employee.permissions || []);
+  if (permissions.has("admin.access")) return true;
+  const module = resolveModulePermission(storeKey, moduleKey);
+  if (!module) return false;
+  if (operation === "read") return permissions.has(`${module}.access`);
+  if (["ai", "portal", "studentService", "suggestions"].includes(module)) return permissions.has(`${module}.access`);
+  return ["edit", "create", "update", "import", "reset"]
+    .some((action) => permissions.has(`${module}.${action}`));
+}
+
+async function requireModuleAccess(res, headers, authorization, storeKey, moduleKey, operation = "read") {
+  if (await canUseModule(authorization, storeKey, moduleKey, operation)) return true;
+  send(res, 403, {
+    ok: false,
+    error: "forbidden",
+    message: "当前账号没有该模块的数据访问权限。"
+  }, headers);
+  return false;
+}
 const allowedOrigins = (process.env.JRC_ALLOWED_ORIGINS || "https://jrc-edu.github.io,http://localhost:3000,http://127.0.0.1:3000")
   .split(",")
   .map((origin) => origin.trim())
@@ -891,6 +962,7 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
   (moduleOwnerPermissionNameRules[name] || []).forEach((permissionKey) => permissionSet.add(permissionKey));
   const commissionRate = numberFromPercent(body.commissionRate);
   const resetPassword = body.resetPassword !== false;
+  const temporaryPassword = String(body.password || crypto.randomBytes(9).toString("base64url"));
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -909,7 +981,7 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
       values (
         $1, $2, crypt($11, gen_salt('bf')), $3, $4, $5, $6, $7,
         nullif($8, '')::date, nullif($9, '')::date, $10, 'active',
-        jsonb_build_object('source', 'portal employee form', 'initialPasswordPolicy', $11),
+        jsonb_build_object('source', 'portal employee form', 'needsPasswordChange', true),
         now()
       )
       on conflict (username) do update set
@@ -924,7 +996,10 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
         regular_date = excluded.regular_date,
         commission_rate = excluded.commission_rate,
         status = 'active',
-        metadata = employees.metadata || excluded.metadata,
+        metadata = (coalesce(employees.metadata, '{}'::jsonb) - 'initialPasswordPolicy') || case
+          when $12::boolean or not $13::boolean then excluded.metadata
+          else '{}'::jsonb
+        end,
         updated_at = now()
       returning id
     `, [
@@ -938,7 +1013,7 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
       String(body.hireDate || "").trim(),
       String(body.regularDate || "").trim(),
       commissionRate,
-      String(body.password || "10281028"),
+      temporaryPassword,
       resetPassword,
       hasExistingPassword
     ]);
@@ -973,7 +1048,11 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
     ]);
     await client.query("commit");
     const employee = await employeeWithPermissions(username);
-    send(res, 200, { ok: true, employee }, headers);
+    send(res, 200, {
+      ok: true,
+      employee,
+      temporaryPassword: resetPassword || !hasExistingPassword ? temporaryPassword : ""
+    }, headers);
   } catch (error) {
     await client.query("rollback").catch(() => {});
     throw error;
@@ -1017,7 +1096,7 @@ async function handleLogin(req, res, headers) {
     return;
   }
   const result = await pool.query(`
-    select username
+    select username, metadata
     from employees
     where username = $1
       and status = 'active'
@@ -1037,7 +1116,14 @@ async function handleLogin(req, res, headers) {
     role: employee.role,
     exp: expiresAt
   });
-  send(res, 200, { ok: true, siteId, employee, token, expiresAt, mustChangePassword: password === "10281028" }, headers);
+  send(res, 200, {
+    ok: true,
+    siteId,
+    employee,
+    token,
+    expiresAt,
+    mustChangePassword: Boolean(result.rows[0].metadata?.needsPasswordChange || result.rows[0].metadata?.initialPasswordPolicy === password)
+  }, headers);
 }
 
 async function handleChangePassword(req, res, headers, authorization) {
@@ -1082,7 +1168,7 @@ async function handleChangePassword(req, res, headers, authorization) {
     update employees
     set
       password_hash = crypt($2, gen_salt('bf')),
-      metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('passwordChangedAt', now()),
+      metadata = (coalesce(metadata, '{}'::jsonb) - 'initialPasswordPolicy') || jsonb_build_object('passwordChangedAt', now(), 'needsPasswordChange', false),
       updated_at = now()
     where id = $1
   `, [row.id, newPassword]);
@@ -1106,12 +1192,13 @@ async function handleChangePassword(req, res, headers, authorization) {
   send(res, 200, { ok: true, siteId, employee: refreshedEmployee, token, expiresAt }, headers);
 }
 
-async function handleGetModuleData(url, res, headers) {
+async function handleGetModuleData(url, res, headers, authorization) {
   const storeKey = String(url.searchParams.get("storeKey") || "").trim();
   if (!storeKey) {
     send(res, 400, { ok: false, error: "missing storeKey" }, headers);
     return;
   }
+  if (!await requireModuleAccess(res, headers, authorization, storeKey, "", "read")) return;
   const result = await pool.query(`
     select store_key, module_key, payload, version, updated_by_name, updated_by_username, updated_at
     from module_data_store
@@ -1136,7 +1223,7 @@ async function handleGetModuleData(url, res, headers) {
   }, headers);
 }
 
-async function handlePutModuleData(req, res, headers) {
+async function handlePutModuleData(req, res, headers, authorization) {
   const body = await readJson(req);
   const storeKey = String(body.storeKey || "").trim();
   const moduleKey = String(body.moduleKey || "unknown").trim() || "unknown";
@@ -1144,9 +1231,10 @@ async function handlePutModuleData(req, res, headers) {
     send(res, 400, { ok: false, error: "missing storeKey" }, headers);
     return;
   }
+  if (!await requireModuleAccess(res, headers, authorization, storeKey, moduleKey, "write")) return;
   const payload = body.payload === undefined ? null : body.payload;
-  const operatorName = body.operatorName || body.operator?.name || "-";
-  const operatorUsername = body.operatorUsername || body.operator?.username || "-";
+  const operatorName = authorization?.payload?.name || body.operatorName || body.operator?.name || "-";
+  const operatorUsername = authorization?.payload?.sub || body.operatorUsername || body.operator?.username || "-";
   const replaceMode = body.replaceMode === "replace";
   const existing = await pool.query(`
     select payload, version
@@ -1213,7 +1301,8 @@ async function handlePutModuleData(req, res, headers) {
   }, headers);
 }
 
-async function handlePaikeFormalImport(req, res, headers) {
+async function handlePaikeFormalImport(req, res, headers, authorization) {
+  if (!await requireModuleAccess(res, headers, authorization, paikeStoreKey, "paike", "write")) return;
   const body = await readJson(req, jsonMaxBytes);
   const entries = Array.isArray(body.entries) ? body.entries.filter((entry) => entry && typeof entry === "object" && !Array.isArray(entry)) : [];
   if (!entries.length) {
@@ -1312,6 +1401,7 @@ async function handlePaikeFormalImport(req, res, headers) {
 }
 
 async function handleImportJuneRegularCsv(req, res, headers, authorization) {
+  if (!await requireModuleAccess(res, headers, authorization, paikeStoreKey, "paike", "write")) return;
   const body = await readJson(req);
   const records = parseCsvRecords(body.csv_text || "");
   const entries = records.map(normalizeRegularEntry).filter(Boolean);
@@ -1407,6 +1497,7 @@ async function handleImportJuneRegularXlsx(res, headers) {
 }
 
 async function handleUploadCurriculumFile(req, res, headers, authorization) {
+  if (!await requireModuleAccess(res, headers, authorization, "jrc-curriculum-files", "curriculum", "write")) return;
   const bodyMaxBytes = Math.ceil(uploadMaxBytes * 1.45) + 1024 * 1024;
   const body = await readJson(req, bodyMaxBytes);
   const originalFileName = sanitizeOriginalFileName(body.fileName);
@@ -1517,7 +1608,8 @@ async function handleUploadCurriculumFile(req, res, headers, authorization) {
   }, headers);
 }
 
-async function handleDownloadCurriculumFile(url, res, headers) {
+async function handleDownloadCurriculumFile(url, res, headers, authorization) {
+  if (!await requireModuleAccess(res, headers, authorization, "jrc-curriculum-files", "curriculum", "read")) return;
   const prefix = "/curriculum-files/";
   const storageKey = decodeURIComponent(url.pathname.slice(prefix.length));
   const absolutePath = resolveUploadPath(storageKey);
@@ -1551,7 +1643,7 @@ async function handleDownloadCurriculumFile(url, res, headers) {
   }
 }
 
-async function handleAuditLog(req, res, headers) {
+async function handleAuditLog(req, res, headers, authorization) {
   const body = await readJson(req);
   const result = await pool.query(`
     insert into audit_logs (
@@ -1566,16 +1658,16 @@ async function handleAuditLog(req, res, headers) {
     body.targetType || null,
     body.targetId || null,
     body.summary || "-",
-    body.operatorName || "-",
-    body.operatorUsername || "-",
-    body.operatorRole || "-",
+    authorization?.payload?.name || body.operatorName || "-",
+    authorization?.payload?.sub || body.operatorUsername || "-",
+    authorization?.payload?.role || body.operatorRole || "-",
     body.userAgent || req.headers["user-agent"] || "",
     body.clientCreatedAt || null
   ]);
   send(res, 200, { ok: true, id: result.rows[0].id }, headers);
 }
 
-async function handleBackupExport(req, res, headers) {
+async function handleBackupExport(req, res, headers, authorization) {
   const body = await readJson(req);
   const result = await pool.query(`
     insert into backup_exports (
@@ -1587,7 +1679,7 @@ async function handleBackupExport(req, res, headers) {
     body.backupVersion || "unknown",
     body.sourceUrl || "",
     Number(body.entryCount || 0),
-    body.exportedByName || body.exportedByUsername || "-",
+    authorization?.payload?.name || authorization?.payload?.sub || body.exportedByName || body.exportedByUsername || "-",
     body.exportedAt || null,
     Array.isArray(body.storeKeys) ? `stores: ${body.storeKeys.join(", ")}` : ""
   ]);
@@ -2282,6 +2374,7 @@ async function callAiChat(body) {
 }
 
 async function handleAiAssistant(req, res, headers, authorization) {
+  if (!await requireModuleAccess(res, headers, authorization, "jrc-ai-assistant", "ai", "read")) return;
   const body = await readJson(req, 2 * 1024 * 1024);
   const text = String(body.text || "").trim();
   const fallback = localAiDraft(body);
@@ -2389,9 +2482,9 @@ async function route(req, res) {
     if (req.method === "GET" && url.pathname === "/permissions") return await handlePermissions(res, headers);
     if (req.method === "POST" && url.pathname === "/change-password") return await handleChangePassword(req, res, headers, authorization);
     if (req.method === "POST" && url.pathname === "/ai-assistant") return await handleAiAssistant(req, res, headers, authorization);
-    if (req.method === "GET" && url.pathname === "/module-data") return await handleGetModuleData(url, res, headers);
-    if (req.method === "PUT" && url.pathname === "/module-data") return await handlePutModuleData(req, res, headers);
-    if (req.method === "POST" && url.pathname === "/paike/formal-import") return await handlePaikeFormalImport(req, res, headers);
+    if (req.method === "GET" && url.pathname === "/module-data") return await handleGetModuleData(url, res, headers, authorization);
+    if (req.method === "PUT" && url.pathname === "/module-data") return await handlePutModuleData(req, res, headers, authorization);
+    if (req.method === "POST" && url.pathname === "/paike/formal-import") return await handlePaikeFormalImport(req, res, headers, authorization);
     if (req.method === "POST" && url.pathname === "/import/june-regular-csv") {
       return await handleImportJuneRegularCsv(req, res, headers, authorization);
     }
@@ -2402,10 +2495,10 @@ async function route(req, res) {
       return await handleUploadCurriculumFile(req, res, headers, authorization);
     }
     if (req.method === "GET" && url.pathname.startsWith("/curriculum-files/")) {
-      return await handleDownloadCurriculumFile(url, res, headers);
+      return await handleDownloadCurriculumFile(url, res, headers, authorization);
     }
-    if (req.method === "POST" && url.pathname === "/audit-logs") return await handleAuditLog(req, res, headers);
-    if (req.method === "POST" && url.pathname === "/backup-exports") return await handleBackupExport(req, res, headers);
+    if (req.method === "POST" && url.pathname === "/audit-logs") return await handleAuditLog(req, res, headers, authorization);
+    if (req.method === "POST" && url.pathname === "/backup-exports") return await handleBackupExport(req, res, headers, authorization);
     send(res, 404, { ok: false, error: "not found" }, headers);
   } catch (error) {
     console.error(error);
