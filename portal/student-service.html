@@ -955,7 +955,8 @@
           teacher: String(deepLinkParams.get("teacher") || "").trim(),
           time: String(deepLinkParams.get("time") || "").trim(),
           className: String(deepLinkParams.get("className") || "").trim(),
-          sourceScheduleKey: String(deepLinkParams.get("sourceScheduleKey") || "").trim()
+          sourceScheduleKey: String(deepLinkParams.get("sourceScheduleKey") || "").trim(),
+          sourceCourseId: String(deepLinkParams.get("sourceCourseId") || "").trim()
         };
         let attendanceDeepLinkApplied = false;
 
@@ -1518,6 +1519,7 @@
           row.startTime,
           row.endTime,
           row.className,
+          row.courseId,
           row.sourceId
         ].map((value) => String(value || "").trim()).join("|");
         const scheduleTimeLabel = (row) => {
@@ -1565,6 +1567,7 @@
                 teacherName: session.teacherName,
                 className: session.lessonTypeRaw || session.className || "排课课程",
                 sourceId: session.sourceId,
+                courseId: session.courseId || "",
                 startTime: session.startTime || "",
                 endTime: session.endTime || "",
                 classroomName: session.classroomName || session.roomName || "",
@@ -1601,6 +1604,7 @@
               teacherName,
               className,
               sourceId: entry.id || `paike-${index}`,
+              courseId: entry.courseId || "",
               startTime: entry.startTime || "",
               endTime: entry.endTime || "",
               classroomName: entry.classroomName || entry.roomName || "",
@@ -1747,6 +1751,7 @@
                 endTime: row.endTime || "",
                 classroomName: row.classroomName || "",
                 sourceType: row.sourceType || "排课",
+                sourceCourseId: row.courseId || "",
                 students: []
               });
             }
@@ -2415,7 +2420,7 @@
           const rows = Array.isArray(session.rows) ? session.rows : [];
           const unresolved = rows.filter(needsFollowup).length;
           const present = rows.filter(isEffectivePresent).length;
-          const sourceText = session.sourceScheduleKey ? "已绑定排课来源，排课和财务可追溯。" : "本节课为手动点名，后续按老师、日期、班级做核对。";
+          const sourceText = session.sourceCourseId ? "已绑定固定课程编号，调课后仍可追溯到排课和财务。" : session.sourceScheduleKey ? "已绑定排课来源，排课和财务可追溯。" : "本节课为手动点名，后续按老师、日期、班级做核对。";
           if (attendanceFinanceLink) {
             const params = new URLSearchParams();
             if (session.date) params.set("period", String(session.date).slice(0, 7));
@@ -2644,8 +2649,9 @@
             startTime: sessionStartTime,
             endTime: sessionEndTime,
             classroomName: selectedClass?.classroomName || "",
-            sourceType: selectedClass?.sourceType || (attendanceDeepLink.sourceScheduleKey ? "排课链接" : "手动点名"),
+            sourceType: selectedClass?.sourceType || (attendanceDeepLink.sourceScheduleKey || attendanceDeepLink.sourceCourseId ? "排课链接" : "手动点名"),
             sourceScheduleKey: sessionSourceKey.replace(/\|/g, "").trim() ? sessionSourceKey : "",
+            sourceCourseId: selectedClass?.sourceCourseId || attendanceDeepLink.sourceCourseId || "",
             serviceModule: activeServiceModule,
             operatorName: currentEmployee()?.name || "未登录",
             reviewStatus: "待复核",

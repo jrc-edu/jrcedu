@@ -1809,6 +1809,7 @@
       let paikeAttendanceRows = [];
       let paikeAdmissionState = {};
       let paikeHistoricalActivation = {};
+      let paikeFormalState = {};
       let activePaikeView = "week";
       let activePendingScheduleId = "";
       let activeEditingScheduleId = "";
@@ -2420,6 +2421,9 @@
           "id",
           "rowId",
           "sourceId",
+          "courseId",
+          "canonicalTeacherKey",
+          "canonicalParticipantKey",
           "teacher",
           "teacherName",
           "student",
@@ -3002,6 +3006,7 @@
             startTime: session.startTime || row.startTime,
             endTime: session.endTime || row.endTime,
             sourceScheduleKey: session.sourceScheduleKey || row.sourceScheduleKey,
+            sourceCourseId: session.sourceCourseId || row.sourceCourseId,
             sessionReviewStatus: session.reviewStatus || "",
             attendanceStatus: row.status || row.attendanceStatus
           }));
@@ -3102,6 +3107,7 @@
         const date = dateKey(row.date);
         const classText = String(row.student || "").trim();
         const scheduleKey = scheduleSourceKey(row);
+        const courseId = String(row.courseId || "").trim();
         const rowTime = timeSlotLabel(row);
         return paikeAttendanceRows.filter((item) => {
           const itemDate = dateKey(item.date || item.courseDate || item.attendanceDate);
@@ -3111,6 +3117,7 @@
           const itemTime = item.startTime || item.endTime
             ? `${item.startTime || ""}${item.endTime ? `-${item.endTime}` : ""}`
             : "";
+          if (courseId && item.sourceCourseId && item.sourceCourseId === courseId) return true;
           if (scheduleKey && item.sourceScheduleKey && item.sourceScheduleKey === scheduleKey) return true;
           return (!date || !itemDate || itemDate === date) &&
             (!teacher || !itemTeacher || itemTeacher === teacher) &&
@@ -3154,6 +3161,9 @@
           sourceSheet: row.sourceSheet || row.sheet || "",
           sourceWeekdayHeader: row.sourceWeekdayHeader || "",
           cell: row.cell || "",
+          courseId: row.courseId || "",
+          canonicalTeacherKey: row.canonicalTeacherKey || "",
+          canonicalParticipantKey: row.canonicalParticipantKey || "",
           status: row.status || "已读取"
         }));
         const preimportRows = scheduleSessions.map((row) => ({
@@ -3341,6 +3351,7 @@
         if (row.student || row.lessonType) params.set("className", row.student || row.lessonType);
         const sourceKey = scheduleSourceKey(row);
         if (sourceKey.replace(/\|/g, "").trim()) params.set("sourceScheduleKey", sourceKey);
+        if (row.courseId) params.set("sourceCourseId", row.courseId);
         return `/jrcedu/portal/student-service.html?${params.toString()}#attendanceSection`;
       }
 
@@ -4545,6 +4556,7 @@
         const weekRows = paikeRows.filter((row) => isInRange(row, "week"));
         const issueRows = paikeRows.filter((row) => /待|缺勤|异常|核对|未/.test(scheduleStatus(row).label + row.status));
         const teacherCount = new Set(paikeRows.map((row) => row.teacher).filter(Boolean)).size;
+        const lockedMonthCount = Object.values(paikeFormalState?.monthClosures || {}).filter((item) => item?.status === "locked").length;
         const cards = [
           {
             action: "today",
@@ -4571,12 +4583,12 @@
             detail: "优先看待点名、缺勤待处理、导入待确认和影响财务的课程。"
           },
           {
-            action: "data",
-            tone: paikeRows.length ? "" : "warn",
-            label: "数据",
-            value: teacherCount,
-            title: "确认数据来源",
-            detail: paikeRows.length ? `已读到 ${paikeRows.length} 条排课，涉及 ${teacherCount} 位老师。` : "未读到排课，先去上传总表或检查旧版入口。"
+            action: "month",
+            tone: lockedMonthCount ? "" : "warn",
+            label: "第四步",
+            value: lockedMonthCount,
+            title: "查看月结状态",
+            detail: lockedMonthCount ? `已有 ${lockedMonthCount} 个月份月结锁定，历史数据不会被普通上传覆盖。` : "本月仍可修改；结算完成后再确认月结。"
           }
         ];
         holder.innerHTML = cards.map((card) => `
@@ -4678,6 +4690,32 @@
         return Math.round(number).toLocaleString("zh-CN");
       }
 
+      function monthClosureFor(period) {
+        const closures = paikeFormalState?.monthClosures;
+        return closures && typeof closures === "object" ? closures[period] || {} : {};
+      }
+
+      function isMonthLocked(period) {
+        return monthClosureFor(period).status === "locked";
+      }
+
+      async function updateMonthClosure(period, action) {
+        if (!period || !window.JRC_CLOUD?.updatePaikeMonthClosure) {
+          setTeacherSheetMessage("当前无法连接月结服务，请检查登录和网络。");
+          return;
+        }
+        const locked = action === "lock";
+        const wording = locked ? "确认月结锁定" : "恢复为可修改";
+        if (!window.confirm(`${wording} ${period} 吗？${locked ? "锁定后，普通 Excel 上传和手工排课都不能修改这个月；如需修正，可由管理员恢复修改后再操作。" : "恢复后，后续上传和调课仍会保留版本记录。"}`)) return;
+        const result = await window.JRC_CLOUD.updatePaikeMonthClosure({ period, action });
+        if (!result?.ok) {
+          const detail = result?.data?.message || result?.data?.error || result?.error || "服务未返回";
+          throw new Error(`月结操作失败：${detail}`);
+        }
+        setTeacherSheetMessage(`${period} 已${locked ? "月结锁定" : "恢复为可修改"}。`);
+        await initPaikeDashboard();
+      }
+
       function activationDetailCount(name) {
         const stores = Array.isArray(paikeHistoricalActivation?.detailStores) ? paikeHistoricalActivation.detailStores : [];
         return stores
@@ -4756,7 +4794,11 @@
         const financeDetailCount = Number(paikeHistoricalActivation?.summary?.financeDetailRowCount || activationDetailCount("financeDetailRows") || 0);
         const reconciliationCount = Number(paikeHistoricalActivation?.summary?.reconciliationStudentMatchCount || activationDetailCount("reconciliationStudentMatches") || 0);
         const riskCount = Number(paikeHistoricalActivation?.summary?.riskCount || (Array.isArray(paikeHistoricalActivation?.risks) ? paikeHistoricalActivation.risks.length : 0));
-        const matrix = summarizeTeacherMonthRows(paikeRows);
+        const formalMatrix = summarizeTeacherMonthRows(regularEntries.map((row) => ({
+          period: row.period || String(row.date || row.courseDate || "").slice(0, 7),
+          teacher: row.teacherName || row.teacher || ""
+        })));
+        const dataQuality = paikeFormalState?.lastImportDataQuality || {};
         const blockingCount = currentConflicts.length + pendingCount;
         holder.innerHTML = `
           <div class="production-head-card">
@@ -4791,16 +4833,20 @@
             <div class="production-principle"><strong>4. 少量问题上收</strong><span>只有冲突、结算大差异、误传删除这类关键点进入管理员复核池。</span></div>
           </div>
           <details class="launch-detail-toggle">
-            <summary>按月份查看已导入课表覆盖</summary>
+            <summary>按月份查看课表版本与月结</summary>
             <div class="month-teacher-matrix">
-              ${matrix.length ? matrix.map((item) => `
+              ${formalMatrix.length ? formalMatrix.map((item) => `
                 <div class="month-teacher-cell">
                   <span>${escapeHtml(item.period)}</span>
                   <strong>${numberText(item.count)} 节</strong>
-                  <span>${numberText(item.teachers)} 位老师</span>
+                  <span>${numberText(item.teachers)} 位老师｜${isMonthLocked(item.period) ? `已月结 v${numberText(monthClosureFor(item.period).version || 1)}` : "可修改"}</span>
+                  <div class="launch-mini-actions" style="margin-top:8px;">
+                    <button class="button secondary" type="button" data-month-closure-action="${isMonthLocked(item.period) ? "reopen" : "lock"}" data-month-closure-period="${escapeHtml(item.period)}">${isMonthLocked(item.period) ? "恢复修改" : "确认月结"}</button>
+                  </div>
                 </div>
-              `).join("") : `<div class="empty">暂无月份覆盖数据。</div>`}
+              `).join("") : `<div class="empty">暂无正式课表月份。上传并网后，系统会在这里生成该月版本和月结入口。</div>`}
             </div>
+            <div class="launch-warning" style="margin:0 14px 14px;">最近一次导入已自动规范 ${numberText(dataQuality.autoNormalized || 0)} 节课程；缺教室 ${numberText(dataQuality.missingRoom || 0)}，缺结束时间 ${numberText(dataQuality.missingEndTime || 0)}，重复课程 ${numberText(dataQuality.duplicateRows || 0)}，老师别名 ${numberText(dataQuality.teacherAliasCount || 0)}，学生/班级别名 ${numberText(dataQuality.participantAliasCount || 0)}。低风险格式问题由系统自动处理，不要求老师逐条核对。</div>
           </details>
         `;
       }
@@ -5191,6 +5237,9 @@
           : `manual-${courseDate}-${teacherName}-${startTime}-${className}-${Date.now()}`.replace(/\s+/g, "");
         return {
           id: entryId,
+          courseId: `course-${entryId}`,
+          canonicalTeacherKey: scheduleComparisonText(teacherName),
+          canonicalParticipantKey: scheduleComparisonText(className),
           teacherName,
           teacher: teacherName,
           className,
@@ -5243,6 +5292,10 @@
         }
         try {
           const entry = buildManualScheduleEntry();
+          if (isMonthLocked(entry.period)) {
+            setTeacherSheetMessage(`${entry.period} 已月结锁定。需要修正时，请由管理员在“月结与版本”中先恢复为可修改。`);
+            return;
+          }
           const conflicts = buildCandidateConflicts(entry);
           const override = byId("scheduleEntryOverride")?.checked;
           if (conflicts.length && !override) {
@@ -5265,7 +5318,7 @@
       }
 
       async function initPaikeDashboard() {
-        const [reviewRows, regularData, preimportData, attendanceData, admissionsData, historicalActivationData] = await Promise.all([
+        let [reviewRows, regularData, preimportData, attendanceData, admissionsData, historicalActivationData] = await Promise.all([
           readCloud(stores.importReview, []),
           readCloud(stores.regular, {}),
           readCloud(stores.preimport, window.JRC_PREIMPORT_SUMMARY || {}),
@@ -5274,12 +5327,27 @@
           readCloud(stores.historicalActivation, {})
         ]);
         const safeReviewRows = Array.isArray(reviewRows) ? reviewRows : [];
-        const regularEntries = scheduleEntriesFromRegular(regularData);
+        let regularEntries = scheduleEntriesFromRegular(regularData);
+        const canMigrateCourseIds = Boolean(window.JRC_CLOUD?.migratePaikeCourseIds) && Boolean(
+          window.jrcHasPermission?.("paike.edit") || window.jrcHasPermission?.("admin.access")
+        );
+        if (canMigrateCourseIds && regularEntries.some((entry) => !String(entry?.courseId || "").trim())) {
+          try {
+            const migration = await window.JRC_CLOUD.migratePaikeCourseIds();
+            if (migration?.ok && Number(migration.data?.updatedCount || 0) > 0) {
+              regularData = await readCloud(stores.regular, regularData);
+              regularEntries = scheduleEntriesFromRegular(regularData);
+            }
+          } catch (error) {
+            console.warn("历史课程编号自动补齐失败，暂按旧来源键继续使用", error);
+          }
+        }
         const scheduleSessions = scheduleSessionsFromPreimport(preimportData);
         paikeReviewRows = safeReviewRows;
         paikeAttendanceRows = attendanceRowsFromData(attendanceData);
         paikeAdmissionState = admissionsData && typeof admissionsData === "object" ? admissionsData : {};
         paikeHistoricalActivation = historicalActivationData && typeof historicalActivationData === "object" ? historicalActivationData : {};
+        paikeFormalState = normalizeRegularState(regularData);
         paikeRows = normalizedScheduleRows({ regularEntries, scheduleSessions });
         setupTeacherSheetFilters();
         renderTeacherSheet();
@@ -5318,9 +5386,21 @@
         if (action === "today") activatePaikeView("week", { range: "today", clearFilters: true });
         if (action === "week") activatePaikeView("week", { range: "week", clearFilters: true });
         if (action === "issues") activatePaikeView("issues", { range: "all", clearFilters: true });
-        if (action === "data") byId(paikeRows.length ? "paikeStatusGrid" : "paikePreviewBody")?.scrollIntoView({ block: "start", behavior: "smooth" });
+        if (action === "month") byId("paikeProductionOverview")?.scrollIntoView({ block: "start", behavior: "smooth" });
       });
       byId("paikeProductionOverview")?.addEventListener("click", (event) => {
+        const closureButton = event.target.closest("[data-month-closure-action]");
+        if (closureButton) {
+          const period = closureButton.getAttribute("data-month-closure-period") || "";
+          const action = closureButton.getAttribute("data-month-closure-action") || "";
+          closureButton.disabled = true;
+          updateMonthClosure(period, action).catch((error) => {
+            setTeacherSheetMessage(error.message || String(error));
+          }).finally(() => {
+            closureButton.disabled = false;
+          });
+          return;
+        }
         const button = event.target.closest("[data-production-action]");
         if (!button) return;
         handleProductionAction(button.getAttribute("data-production-action") || "");

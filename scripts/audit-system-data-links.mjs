@@ -84,6 +84,15 @@ const checks = [
     detail: "上传 Excel 后会先识别新增、调整、取消和不变课程；已有点名关联的旧课保留追溯，并将服务器复算结果写入导入记录。"
   },
   {
+    title: "排课固定课程编号与月结保护",
+    pass: /assignPaikeCourseIds/.test(files.api)
+      && /month-closure/.test(files.api)
+      && /sourceCourseId/.test(files.paike)
+      && /sourceCourseId/.test(files.student)
+      && /sourceCourseId/.test(files.finance),
+    detail: "正式课导入会生成稳定课程编号，点名和财务携带该编号追溯；已月结月份会拦截普通 Excel 修改，并支持管理员恢复修改后留痕修正。"
+  },
+  {
     title: "排课与财务老师工作台入口",
     pass: /teacherWorkbenchPanel/.test(files.paike)
       && /renderTeacherWorkbench/.test(files.paike)

@@ -891,6 +891,112 @@ function buildPaikeImportDiff(previousEntries, incomingEntries, attendancePayloa
   };
 }
 
+function paikeCourseIdForRow(row, suffix = "") {
+  const seed = `${paikeComparisonAnchor(row)}|${paikeComparisonKey(row)}|${suffix}`;
+  return `course-${crypto.createHash("sha1").update(seed).digest("hex").slice(0, 16)}`;
+}
+
+function assignPaikeCourseIds(previousEntries, incomingEntries) {
+  const previous = Array.isArray(previousEntries) ? previousEntries : [];
+  const incoming = (Array.isArray(incomingEntries) ? incomingEntries : []).map((row) => ({ ...row }));
+  const previousByExact = new Map();
+  previous.forEach((row) => {
+    const key = paikeComparisonKey(row);
+    previousByExact.set(key, [...(previousByExact.get(key) || []), row]);
+  });
+  const consumedPrevious = new Set();
+  incoming.forEach((row) => {
+    const candidates = previousByExact.get(paikeComparisonKey(row)) || [];
+    const match = candidates.find((candidate) => !consumedPrevious.has(candidate));
+    if (!match) return;
+    consumedPrevious.add(match);
+    row.courseId = String(row.courseId || match.courseId || paikeCourseIdForRow(match)).trim();
+  });
+  const previousByAnchor = new Map();
+  previous.filter((row) => !consumedPrevious.has(row)).forEach((row) => {
+    const key = paikeComparisonAnchor(row);
+    previousByAnchor.set(key, [...(previousByAnchor.get(key) || []), row]);
+  });
+  const usedIds = new Set(previous.map((row) => String(row?.courseId || "").trim()).filter(Boolean));
+  incoming.forEach((row, index) => {
+    if (row.courseId) {
+      usedIds.add(String(row.courseId));
+      return;
+    }
+    const anchor = paikeComparisonAnchor(row);
+    const candidates = paikeSortForComparison(previousByAnchor.get(anchor) || []);
+    const match = candidates.find((candidate) => !consumedPrevious.has(candidate));
+    if (match) {
+      consumedPrevious.add(match);
+      row.courseId = String(match.courseId || paikeCourseIdForRow(match)).trim();
+      usedIds.add(row.courseId);
+      return;
+    }
+    let courseId = paikeCourseIdForRow(row);
+    let duplicateIndex = 1;
+    while (usedIds.has(courseId)) {
+      courseId = paikeCourseIdForRow(row, duplicateIndex);
+      duplicateIndex += 1;
+    }
+    row.courseId = courseId;
+    usedIds.add(courseId);
+  });
+  return incoming;
+}
+
+function buildPaikeDirectory(entries) {
+  const rows = Array.isArray(entries) ? entries : [];
+  const buildGroup = (getKey, getName) => {
+    const groups = new Map();
+    rows.forEach((row) => {
+      const key = getKey(row);
+      const name = String(getName(row) || "").trim();
+      if (!key || !name) return;
+      const current = groups.get(key) || { key, displayName: name, aliases: [] };
+      if (!current.aliases.includes(name)) current.aliases.push(name);
+      if (name.length < current.displayName.length) current.displayName = name;
+      groups.set(key, current);
+    });
+    return [...groups.values()].map((item) => ({ ...item, aliases: item.aliases.sort((left, right) => left.localeCompare(right, "zh-CN")) }));
+  };
+  return {
+    teachers: buildGroup((row) => paikeTeacherKey(row?.teacherName || row?.teacher), (row) => row?.teacherName || row?.teacher),
+    participants: buildGroup(paikeComparableParticipant, (row) => row?.studentName || row?.student || row?.className),
+    generatedAt: new Date().toISOString()
+  };
+}
+
+function buildPaikeDataQualitySummary(entries, directory = {}) {
+  const rows = Array.isArray(entries) ? entries : [];
+  const missingRoom = rows.filter((row) => !String(row?.classroomName || row?.roomName || "").trim()).length;
+  const missingEndTime = rows.filter((row) => !String(row?.endTime || "").trim()).length;
+  const missingParticipant = rows.filter((row) => !paikeComparableParticipant(row)).length;
+  const duplicateBusinessKeys = new Set();
+  const duplicateRows = rows.filter((row) => {
+    const key = paikeComparisonKey(row);
+    if (duplicateBusinessKeys.has(key)) return true;
+    duplicateBusinessKeys.add(key);
+    return false;
+  }).length;
+  const teacherAliasCount = (Array.isArray(directory.teachers) ? directory.teachers : []).filter((item) => item.aliases.length > 1).length;
+  const participantAliasCount = (Array.isArray(directory.participants) ? directory.participants : []).filter((item) => item.aliases.length > 1).length;
+  return {
+    missingRoom,
+    missingEndTime,
+    missingParticipant,
+    duplicateRows,
+    teacherAliasCount,
+    participantAliasCount,
+    autoNormalized: rows.length,
+    generatedAt: new Date().toISOString()
+  };
+}
+
+function paikeMonthClosures(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value.monthClosures : {};
+  return source && typeof source === "object" && !Array.isArray(source) ? source : {};
+}
+
 function normalizePaikeState(value) {
   const objectValue = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return {
@@ -1570,12 +1676,26 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
   `, [paikeStoreKey]);
   const previousRow = existing.rows[0] || null;
   const previousPayload = normalizePaikeState(previousRow?.payload || {});
+  const monthClosures = paikeMonthClosures(previousPayload);
+  const lockedPeriods = Array.from(new Set([...replaceScopes]
+    .map((scope) => scope.split("|")[0])
+    .filter((period) => monthClosures[period]?.status === "locked")));
+  if (lockedPeriods.length) {
+    send(res, 409, {
+      ok: false,
+      error: "paike_month_locked",
+      message: `月份 ${lockedPeriods.join("、")} 已月结锁定。请先由管理员在排课系统“月结与版本”中恢复为可修改，再上传修正表。`,
+      lockedPeriods
+    }, headers);
+    return;
+  }
   const currentEntries = mergePaikeRows("formal", previousPayload.scheduleEntries || []);
+  const incomingAnchors = new Set(entries.map(paikeComparisonAnchor));
   const replacedExcelEntries = currentEntries.filter((row) => {
     if (!isPaikeExcelImportedRow(row)) return false;
     const rowTeacher = paikeTeacherKey(row.teacherName || row.teacher);
     const rowPeriod = String(row.period || String(row.date || row.courseDate || "").slice(0, 7) || "").trim();
-    return replaceScopes.has(`${rowPeriod}|${rowTeacher}`);
+    return replaceScopes.has(`${rowPeriod}|${rowTeacher}`) || incomingAnchors.has(paikeComparisonAnchor(row));
   });
   let attendancePayload = [];
   try {
@@ -1584,17 +1704,17 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
     console.warn("排课并网未能读取点名追溯数据，仍继续安全并网", error?.message || error);
   }
   const changeSummary = buildPaikeImportDiff(replacedExcelEntries, entries, attendancePayload);
-  const preservedEntries = currentEntries.filter((row) => {
-    if (!isPaikeExcelImportedRow(row)) return true;
-    const rowTeacher = paikeTeacherKey(row.teacherName || row.teacher);
-    const rowPeriod = String(row.period || String(row.date || row.courseDate || "").slice(0, 7) || "").trim();
-    return !replaceScopes.has(`${rowPeriod}|${rowTeacher}`);
-  });
-  const importedEntries = entries.map((entry) => ({
+  const replacedEntrySet = new Set(replacedExcelEntries);
+  const preservedEntries = currentEntries.filter((row) => !replacedEntrySet.has(row));
+  const importedEntries = assignPaikeCourseIds(replacedExcelEntries, entries).map((entry) => ({
     ...entry,
+    canonicalTeacherKey: paikeTeacherKey(entry.teacherName || entry.teacher),
+    canonicalParticipantKey: paikeComparableParticipant(entry),
     importedByExcel: entry.importedByExcel !== false,
     importedAt: entry.importedAt || new Date().toISOString()
   }));
+  const scheduleDirectory = buildPaikeDirectory([...preservedEntries, ...importedEntries]);
+  const dataQualitySummary = buildPaikeDataQualitySummary(importedEntries, scheduleDirectory);
   const mergedEntries = mergePaikeRows("formal", preservedEntries, importedEntries);
   const removedExcelImportCount = Math.max(0, currentEntries.length - preservedEntries.length);
   const nextState = {
@@ -1605,6 +1725,9 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
     lastImportCount: importedEntries.length,
     lastImportRemovedCount: removedExcelImportCount,
     lastImportChangeSummary: { ...changeSummary, generatedAt: new Date().toISOString() },
+    lastImportDataQuality: dataQualitySummary,
+    scheduleDirectory,
+    monthClosures,
     lastImportMode: "server-side-replace-uploaded-teacher-excel-imports"
   };
   const result = await upsertModulePayload(paikeStoreKey, "paike", nextState, operatorName, operatorUsername);
@@ -1629,7 +1752,7 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
     "paike-formal-import",
     "module_store",
     paikeStoreKey,
-    `排课Excel并网：新增 ${changeSummary.addedCount} 条，调整 ${changeSummary.changedCount} 条，取消 ${changeSummary.cancelledCount} 条，覆盖旧Excel ${removedExcelImportCount} 条${changeSummary.impactedAttendanceCount ? `；已点名关联 ${changeSummary.impactedAttendanceCount} 条保留追溯` : ""}`,
+    `排课Excel并网：新增 ${changeSummary.addedCount} 条，调整 ${changeSummary.changedCount} 条，取消 ${changeSummary.cancelledCount} 条，覆盖旧Excel ${removedExcelImportCount} 条；已生成 ${importedEntries.length} 条稳定课程编号${changeSummary.impactedAttendanceCount ? `；已点名关联 ${changeSummary.impactedAttendanceCount} 条保留追溯` : ""}`,
     JSON.stringify(compactModuleAuditData(previousPayload, paikeStoreKey)),
     JSON.stringify(compactModuleAuditData(nextState, paikeStoreKey)),
     operatorName,
@@ -1644,9 +1767,146 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
     importedCount: importedEntries.length,
     removedExcelImportCount,
     changeSummary,
+    dataQualitySummary,
     totalCount: mergedEntries.length,
     teachers,
     periods,
+    updatedAt: result.updated_at?.toISOString?.() || result.updated_at
+  }, headers);
+}
+
+async function handlePaikeMonthClosure(req, res, headers, authorization) {
+  if (!await requireModuleAccess(res, headers, authorization, paikeStoreKey, "paike", "write")) return;
+  const body = await readJson(req);
+  const period = String(body.period || "").trim();
+  const action = String(body.action || "lock").trim();
+  if (!/^\d{4}-\d{2}$/.test(period) || !["lock", "reopen"].includes(action)) {
+    send(res, 400, { ok: false, error: "invalid_month_closure", message: "请提供正确月份和月结操作。" }, headers);
+    return;
+  }
+  const operatorName = body.operatorName || body.operator?.name || "-";
+  const operatorUsername = body.operatorUsername || body.operator?.username || "-";
+  const existing = await pool.query("select payload from module_data_store where store_key = $1 limit 1", [paikeStoreKey]);
+  const previousPayload = normalizePaikeState(existing.rows[0]?.payload || {});
+  const currentEntries = mergePaikeRows("formal", previousPayload.scheduleEntries || []);
+  const currentClosure = paikeMonthClosures(previousPayload);
+  const periodEntries = currentEntries.filter((row) => paikeComparablePeriod(row) === period);
+  let attendancePayload = [];
+  try {
+    attendancePayload = await readModulePayload("jrc-class-attendance-v1");
+  } catch (error) {
+    console.warn("月结时未能读取点名数据", error?.message || error);
+  }
+  const attendanceSessions = Array.isArray(attendancePayload) ? attendancePayload : [];
+  const attendanceCount = attendanceSessions.filter((session) => String(session?.date || "").slice(0, 7) === period).length;
+  const now = new Date().toISOString();
+  const monthClosures = {
+    ...currentClosure,
+    [period]: action === "lock"
+      ? {
+        ...(currentClosure[period] || {}),
+        status: "locked",
+        version: Number(currentClosure[period]?.version || 0) + 1,
+        lockedAt: now,
+        lockedBy: operatorName,
+        lockedByUsername: operatorUsername,
+        scheduleCount: periodEntries.length,
+        attendanceCount
+      }
+      : {
+        ...(currentClosure[period] || {}),
+        status: "open",
+        reopenedAt: now,
+        reopenedBy: operatorName,
+        reopenedByUsername: operatorUsername,
+        scheduleCount: periodEntries.length,
+        attendanceCount
+      }
+  };
+  const nextState = {
+    ...previousPayload,
+    monthClosures,
+    updatedAt: now,
+    lastMonthClosure: { period, action, at: now, operatorName, scheduleCount: periodEntries.length, attendanceCount }
+  };
+  const result = await upsertModulePayload(paikeStoreKey, "paike", nextState, operatorName, operatorUsername);
+  await pool.query(`
+    insert into audit_logs (
+      module_key, action_key, target_type, target_id, summary, before_data, after_data,
+      operator_name, operator_username, operator_role
+    ) values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
+  `, [
+    "paike",
+    action === "lock" ? "paike-month-lock" : "paike-month-reopen",
+    "paike_month",
+    period,
+    action === "lock"
+      ? `排课月结锁定：${period}，课表 ${periodEntries.length} 节，点名 ${attendanceCount} 节。`
+      : `排课月结恢复修改：${period}，后续修正会继续留痕。`,
+    JSON.stringify(currentClosure[period] || {}),
+    JSON.stringify(monthClosures[period]),
+    operatorName,
+    operatorUsername,
+    "paike"
+  ]);
+  send(res, 200, {
+    ok: true,
+    period,
+    closure: monthClosures[period],
+    version: result.version,
+    updatedAt: result.updated_at?.toISOString?.() || result.updated_at
+  }, headers);
+}
+
+async function handlePaikeCourseIdMigration(req, res, headers, authorization) {
+  if (!await requireModuleAccess(res, headers, authorization, paikeStoreKey, "paike", "write")) return;
+  const body = await readJson(req);
+  const operatorName = body.operatorName || body.operator?.name || "-";
+  const operatorUsername = body.operatorUsername || body.operator?.username || "-";
+  const existing = await pool.query("select payload from module_data_store where store_key = $1 limit 1", [paikeStoreKey]);
+  const previousPayload = normalizePaikeState(existing.rows[0]?.payload || {});
+  const currentEntries = mergePaikeRows("formal", previousPayload.scheduleEntries || []);
+  const missingBefore = currentEntries.filter((row) => !String(row?.courseId || "").trim()).length;
+  if (!missingBefore) {
+    send(res, 200, { ok: true, updatedCount: 0, totalCount: currentEntries.length, message: "正式课表已具备固定课程编号。" }, headers);
+    return;
+  }
+  const migratedEntries = assignPaikeCourseIds([], currentEntries).map((entry) => ({
+    ...entry,
+    canonicalTeacherKey: entry.canonicalTeacherKey || paikeTeacherKey(entry.teacherName || entry.teacher),
+    canonicalParticipantKey: entry.canonicalParticipantKey || paikeComparableParticipant(entry)
+  }));
+  const scheduleDirectory = buildPaikeDirectory(migratedEntries);
+  const nextState = {
+    ...previousPayload,
+    scheduleEntries: migratedEntries,
+    scheduleDirectory,
+    updatedAt: new Date().toISOString(),
+    lastCourseIdMigration: { at: new Date().toISOString(), updatedCount: missingBefore, operatorName, operatorUsername }
+  };
+  const result = await upsertModulePayload(paikeStoreKey, "paike", nextState, operatorName, operatorUsername);
+  await pool.query(`
+    insert into audit_logs (
+      module_key, action_key, target_type, target_id, summary, before_data, after_data,
+      operator_name, operator_username, operator_role
+    ) values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
+  `, [
+    "paike",
+    "paike-course-id-migration",
+    "module_store",
+    paikeStoreKey,
+    `排课历史数据自动补齐固定课程编号：${missingBefore} 节。`,
+    JSON.stringify(compactModuleAuditData(previousPayload, paikeStoreKey)),
+    JSON.stringify(compactModuleAuditData(nextState, paikeStoreKey)),
+    operatorName,
+    operatorUsername,
+    "paike"
+  ]);
+  send(res, 200, {
+    ok: true,
+    updatedCount: missingBefore,
+    totalCount: migratedEntries.length,
+    version: result.version,
     updatedAt: result.updated_at?.toISOString?.() || result.updated_at
   }, headers);
 }
@@ -2740,6 +3000,8 @@ async function route(req, res) {
     if (req.method === "GET" && url.pathname === "/module-data") return await handleGetModuleData(url, res, headers, authorization);
     if (req.method === "PUT" && url.pathname === "/module-data") return await handlePutModuleData(req, res, headers, authorization);
     if (req.method === "POST" && url.pathname === "/paike/formal-import") return await handlePaikeFormalImport(req, res, headers, authorization);
+    if (req.method === "POST" && url.pathname === "/paike/month-closure") return await handlePaikeMonthClosure(req, res, headers, authorization);
+    if (req.method === "POST" && url.pathname === "/paike/migrate-course-ids") return await handlePaikeCourseIdMigration(req, res, headers, authorization);
     if (req.method === "POST" && url.pathname === "/import/june-regular-csv") {
       return await handleImportJuneRegularCsv(req, res, headers, authorization);
     }

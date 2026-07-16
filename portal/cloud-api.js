@@ -319,6 +319,31 @@
     });
   }
 
+  async function updatePaikeMonthClosure(payload = {}, context = {}) {
+    const operator = context.operator || window.JRC_CURRENT_EMPLOYEE || {};
+    return request("/paike/month-closure", {
+      method: "POST",
+      timeoutMs: context.timeoutMs || 30000,
+      body: {
+        ...payload,
+        operatorName: operator.name || "-",
+        operatorUsername: operator.username || "-"
+      }
+    });
+  }
+
+  async function migratePaikeCourseIds(context = {}) {
+    const operator = context.operator || window.JRC_CURRENT_EMPLOYEE || {};
+    return request("/paike/migrate-course-ids", {
+      method: "POST",
+      timeoutMs: context.timeoutMs || 45000,
+      body: {
+        operatorName: operator.name || "-",
+        operatorUsername: operator.username || "-"
+      }
+    });
+  }
+
   function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -432,6 +457,8 @@
     readModuleData,
     writeModuleData,
     importPaikeFormalSchedule,
+    updatePaikeMonthClosure,
+    migratePaikeCourseIds,
     uploadCurriculumFile,
     downloadCurriculumFile,
     aiAssistant,
