@@ -749,6 +749,148 @@ function isPaikeExcelImportedRow(row) {
   return Boolean(row?.importedByExcel || row?.sourceFileName || /导入|Excel|课表/i.test(importText));
 }
 
+function paikeComparableText(value) {
+  return String(value || "").trim().replace(/\s+/g, "").replace(/老师$/g, "");
+}
+
+function paikeComparableDate(row) {
+  return String(row?.date || row?.courseDate || "").trim().slice(0, 10);
+}
+
+function paikeComparablePeriod(row) {
+  return String(row?.period || paikeComparableDate(row).slice(0, 7) || "").trim();
+}
+
+function paikeComparableParticipant(row) {
+  return paikeComparableText(row?.studentName || row?.student || row?.className);
+}
+
+function paikeComparisonKey(row) {
+  return [
+    paikeComparablePeriod(row),
+    paikeComparableDate(row),
+    paikeComparableText(row?.teacherName || row?.teacher),
+    paikeComparableParticipant(row),
+    paikeComparableText(row?.startTime || row?.time),
+    paikeComparableText(row?.endTime),
+    paikeComparableText(row?.classroomName || row?.roomName),
+    paikeComparableText(row?.scheduleStatus || row?.status)
+  ].join("|");
+}
+
+function paikeComparisonAnchor(row) {
+  return [
+    paikeComparablePeriod(row),
+    paikeComparableDate(row),
+    paikeComparableParticipant(row),
+    paikeComparableText(row?.lessonNo || row?.slotIndex)
+  ].join("|");
+}
+
+function paikeComparableSourceKey(row) {
+  return [
+    paikeComparableDate(row),
+    paikeComparableText(row?.teacherName || row?.teacher),
+    paikeComparableText(row?.startTime || row?.time),
+    paikeComparableText(row?.endTime),
+    paikeComparableParticipant(row)
+  ].join("|");
+}
+
+function paikeSourceKeyFromText(value) {
+  const parts = String(value || "").split("|");
+  if (parts.length < 5) return "";
+  return [
+    paikeComparableText(parts[0]),
+    paikeComparableText(parts[1]),
+    paikeComparableText(parts[2]),
+    paikeComparableText(parts[3]),
+    paikeComparableText(parts.slice(4).join("|"))
+  ].join("|");
+}
+
+function paikeSortForComparison(rows) {
+  return [...rows].sort((left, right) => (
+    String(left?.startTime || left?.time || "").localeCompare(String(right?.startTime || right?.time || "")) ||
+    String(left?.endTime || "").localeCompare(String(right?.endTime || "")) ||
+    String(left?.classroomName || left?.roomName || "").localeCompare(String(right?.classroomName || right?.roomName || ""))
+  ));
+}
+
+function buildPaikeImportDiff(previousEntries, incomingEntries, attendancePayload = []) {
+  const previous = Array.isArray(previousEntries) ? previousEntries : [];
+  const incoming = Array.isArray(incomingEntries) ? incomingEntries : [];
+  const incomingByKey = new Map(incoming.map((row) => [paikeComparisonKey(row), row]));
+  const previousByKey = new Map(previous.map((row) => [paikeComparisonKey(row), row]));
+  const unchanged = previous.filter((row) => incomingByKey.has(paikeComparisonKey(row)));
+  const previousOnly = previous.filter((row) => !incomingByKey.has(paikeComparisonKey(row)));
+  const incomingOnly = incoming.filter((row) => !previousByKey.has(paikeComparisonKey(row)));
+  const previousByAnchor = new Map();
+  const incomingByAnchor = new Map();
+  previousOnly.forEach((row) => {
+    const key = paikeComparisonAnchor(row);
+    if (!previousByAnchor.has(key)) previousByAnchor.set(key, []);
+    previousByAnchor.get(key).push(row);
+  });
+  incomingOnly.forEach((row) => {
+    const key = paikeComparisonAnchor(row);
+    if (!incomingByAnchor.has(key)) incomingByAnchor.set(key, []);
+    incomingByAnchor.get(key).push(row);
+  });
+  const changed = [];
+  const cancelled = [];
+  const added = [];
+  const anchors = new Set([...previousByAnchor.keys(), ...incomingByAnchor.keys()]);
+  anchors.forEach((anchor) => {
+    const beforeRows = paikeSortForComparison(previousByAnchor.get(anchor) || []);
+    const afterRows = paikeSortForComparison(incomingByAnchor.get(anchor) || []);
+    const paired = Math.min(beforeRows.length, afterRows.length);
+    for (let index = 0; index < paired; index += 1) changed.push({ before: beforeRows[index], after: afterRows[index] });
+    cancelled.push(...beforeRows.slice(paired));
+    added.push(...afterRows.slice(paired));
+  });
+  const attendanceKeys = new Set();
+  const sessions = Array.isArray(attendancePayload)
+    ? attendancePayload
+    : Array.isArray(attendancePayload?.records)
+      ? attendancePayload.records
+      : Array.isArray(attendancePayload?.attendanceRows)
+        ? attendancePayload.attendanceRows
+        : [];
+  sessions.forEach((session) => {
+    const sourceKey = paikeSourceKeyFromText(session?.sourceScheduleKey);
+    if (sourceKey) attendanceKeys.add(sourceKey);
+    attendanceKeys.add(paikeComparableSourceKey({
+      date: session?.date || session?.courseDate,
+      teacherName: session?.teacher || session?.teacherName,
+      startTime: session?.startTime,
+      endTime: session?.endTime,
+      className: session?.className
+    }));
+  });
+  const impacted = [...cancelled, ...changed.map((item) => item.before)].filter((row) => attendanceKeys.has(paikeComparableSourceKey(row)));
+  const sample = (rows) => rows.slice(0, 5).map((row) => ({
+    date: paikeComparableDate(row),
+    teacher: String(row?.teacherName || row?.teacher || "").trim(),
+    className: String(row?.studentName || row?.student || row?.className || "").trim(),
+    time: [row?.startTime || row?.time, row?.endTime].filter(Boolean).join("-") || "未写时间",
+    room: String(row?.classroomName || row?.roomName || "").trim()
+  }));
+  return {
+    addedCount: added.length,
+    cancelledCount: cancelled.length,
+    changedCount: changed.length,
+    unchangedCount: unchanged.length,
+    impactedAttendanceCount: impacted.length,
+    samples: {
+      added: sample(added),
+      cancelled: sample(cancelled),
+      changed: changed.slice(0, 5).map((item) => ({ before: sample([item.before])[0], after: sample([item.after])[0] })),
+      impactedAttendance: sample(impacted)
+    }
+  };
+}
+
 function normalizePaikeState(value) {
   const objectValue = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return {
@@ -1414,11 +1556,6 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
   const fileName = String(body.fileName || body.fileLabel || "").trim();
   const operatorName = body.operatorName || body.operator?.name || "-";
   const operatorUsername = body.operatorUsername || body.operator?.username || "-";
-  const replaceFileNames = new Set(entries.map((row) => String(row.sourceFileName || "").trim()).filter(Boolean));
-  const replaceTeacherKeys = new Set([
-    ...(Array.isArray(body.replaceTeacherKeys) ? body.replaceTeacherKeys : []),
-    ...entries.map((row) => paikeTeacherKey(row.teacherName || row.teacher))
-  ].map(paikeTeacherKey).filter(Boolean));
   const replaceScopes = new Set(entries.map((row) => {
     const period = String(row.period || String(row.date || row.courseDate || "").slice(0, 7) || "").trim();
     const teacher = paikeTeacherKey(row.teacherName || row.teacher);
@@ -1434,12 +1571,22 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
   const previousRow = existing.rows[0] || null;
   const previousPayload = normalizePaikeState(previousRow?.payload || {});
   const currentEntries = mergePaikeRows("formal", previousPayload.scheduleEntries || []);
+  const replacedExcelEntries = currentEntries.filter((row) => {
+    if (!isPaikeExcelImportedRow(row)) return false;
+    const rowTeacher = paikeTeacherKey(row.teacherName || row.teacher);
+    const rowPeriod = String(row.period || String(row.date || row.courseDate || "").slice(0, 7) || "").trim();
+    return replaceScopes.has(`${rowPeriod}|${rowTeacher}`);
+  });
+  let attendancePayload = [];
+  try {
+    attendancePayload = await readModulePayload("jrc-class-attendance-v1");
+  } catch (error) {
+    console.warn("排课并网未能读取点名追溯数据，仍继续安全并网", error?.message || error);
+  }
+  const changeSummary = buildPaikeImportDiff(replacedExcelEntries, entries, attendancePayload);
   const preservedEntries = currentEntries.filter((row) => {
     if (!isPaikeExcelImportedRow(row)) return true;
     const rowTeacher = paikeTeacherKey(row.teacherName || row.teacher);
-    if (rowTeacher && replaceTeacherKeys.has(rowTeacher)) return false;
-    const rowFile = String(row.sourceFileName || "").trim();
-    if (rowFile && replaceFileNames.has(rowFile)) return false;
     const rowPeriod = String(row.period || String(row.date || row.courseDate || "").slice(0, 7) || "").trim();
     return !replaceScopes.has(`${rowPeriod}|${rowTeacher}`);
   });
@@ -1457,6 +1604,7 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
     lastImportFileName: fileName,
     lastImportCount: importedEntries.length,
     lastImportRemovedCount: removedExcelImportCount,
+    lastImportChangeSummary: { ...changeSummary, generatedAt: new Date().toISOString() },
     lastImportMode: "server-side-replace-uploaded-teacher-excel-imports"
   };
   const result = await upsertModulePayload(paikeStoreKey, "paike", nextState, operatorName, operatorUsername);
@@ -1481,7 +1629,7 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
     "paike-formal-import",
     "module_store",
     paikeStoreKey,
-    `排课Excel并网：新增/更新 ${importedEntries.length} 条，覆盖旧Excel ${removedExcelImportCount} 条`,
+    `排课Excel并网：新增 ${changeSummary.addedCount} 条，调整 ${changeSummary.changedCount} 条，取消 ${changeSummary.cancelledCount} 条，覆盖旧Excel ${removedExcelImportCount} 条${changeSummary.impactedAttendanceCount ? `；已点名关联 ${changeSummary.impactedAttendanceCount} 条保留追溯` : ""}`,
     JSON.stringify(compactModuleAuditData(previousPayload, paikeStoreKey)),
     JSON.stringify(compactModuleAuditData(nextState, paikeStoreKey)),
     operatorName,
@@ -1495,6 +1643,7 @@ async function handlePaikeFormalImport(req, res, headers, authorization) {
     version: result.version,
     importedCount: importedEntries.length,
     removedExcelImportCount,
+    changeSummary,
     totalCount: mergedEntries.length,
     teachers,
     periods,

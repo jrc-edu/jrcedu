@@ -76,6 +76,14 @@ const checks = [
     detail: "排课负责人可在新排课页导入 CSV/XLSX 正式明细，并写入云端正式排课 store。"
   },
   {
+    title: "排课 Excel 变更差异预览",
+    pass: /buildFormalImportDiff/.test(files.paike)
+      && /lastImportChangeSummary/.test(files.paike)
+      && /buildPaikeImportDiff/.test(files.api)
+      && /已有点名关联/.test(files.paike),
+    detail: "上传 Excel 后会先识别新增、调整、取消和不变课程；已有点名关联的旧课保留追溯，并将服务器复算结果写入导入记录。"
+  },
+  {
     title: "排课与财务老师工作台入口",
     pass: /teacherWorkbenchPanel/.test(files.paike)
       && /renderTeacherWorkbench/.test(files.paike)

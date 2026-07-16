@@ -2301,6 +2301,7 @@
         const teachers = Array.from(new Set(data.entries.map((row) => row.teacherName || row.teacher).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
         const periods = Array.from(new Set(data.entries.map((row) => row.period || String(row.date || "").slice(0, 7)).filter(Boolean))).sort();
         const sampleRows = data.entries.slice(0, 6);
+        const changeSummary = data.changeSummary || {};
         const hasWarning = data.summary.conflictCount || data.summary.missingRoom || data.summary.missingEndTime || data.warningText;
         const warningGroups = (data.groups || []).filter((group) => group.level === "warn");
         const decision = data.entries.length < Math.max(3, data.fileCount) || !teachers.length
@@ -2309,7 +2310,20 @@
             ? { label: "需要注意", tone: "warn", text: "可以并网，但建议并网后先处理冲突、教室或结束时间问题。" }
             : { label: "可以并网", tone: "", text: "识别结果正常，可直接确认并网。" };
         const replacePolicyText = "确认并网会覆盖本次涉及老师的旧 Excel 导入课表，手工新增和手工调课记录会保留。";
-        const reportText = `本次预读取 ${data.fileCount} 个文件，识别 ${data.entries.length} 节课，涉及 ${teachers.length} 位老师。${decision.label}：冲突 ${data.summary.conflictCount}，未写教室 ${data.summary.missingRoom}，未写结束时间 ${data.summary.missingEndTime}${data.warningText ? `，${data.warningText}` : ""}。${replacePolicyText}`;
+        const changeText = `与当前正式课表比较：新增 ${Number(changeSummary.addedCount || 0)} 节，调整 ${Number(changeSummary.changedCount || 0)} 节，取消 ${Number(changeSummary.cancelledCount || 0)} 节，不变 ${Number(changeSummary.unchangedCount || 0)} 节${Number(changeSummary.impactedAttendanceCount || 0) ? `；其中 ${Number(changeSummary.impactedAttendanceCount || 0)} 节已有点名关联，系统会保留追溯` : ""}。`;
+        const changedRows = Array.isArray(changeSummary.samples?.changed) ? changeSummary.samples.changed : [];
+        const cancelledRows = Array.isArray(changeSummary.samples?.cancelled) ? changeSummary.samples.cancelled : [];
+        const impactedRows = Array.isArray(changeSummary.samples?.impactedAttendance) ? changeSummary.samples.impactedAttendance : [];
+        const changePreviewHtml = (changedRows.length || cancelledRows.length || impactedRows.length) ? `
+          <details class="import-file-diagnostics" ${Number(changeSummary.impactedAttendanceCount || 0) ? "open" : ""}>
+            <summary>查看主要变更（系统自动识别）</summary>
+            <div class="launch-mini-list">
+              ${changedRows.map((item) => `<div class="launch-mini-row"><div><strong>调整｜${escapeHtml(item.after?.date || "-")} ${escapeHtml(item.after?.className || "-")}</strong><span>原：${escapeHtml(item.before?.teacher || "-")} ${escapeHtml(item.before?.time || "未写时间")} ${escapeHtml(item.before?.room || "未写教室")}；现：${escapeHtml(item.after?.teacher || "-")} ${escapeHtml(item.after?.time || "未写时间")} ${escapeHtml(item.after?.room || "未写教室")}</span></div><span class="status-pill warn">调整</span></div>`).join("")}
+              ${cancelledRows.map((row) => `<div class="launch-mini-row"><div><strong>取消｜${escapeHtml(row.date || "-")} ${escapeHtml(row.className || "-")}</strong><span>${escapeHtml(row.teacher || "-")}｜${escapeHtml(row.time || "未写时间")}｜${escapeHtml(row.room || "未写教室")}</span></div><span class="status-pill warn">取消</span></div>`).join("")}
+              ${impactedRows.map((row) => `<div class="launch-mini-row"><div><strong>已有点名关联｜${escapeHtml(row.date || "-")} ${escapeHtml(row.className || "-")}</strong><span>${escapeHtml(row.teacher || "-")}｜${escapeHtml(row.time || "未写时间")}。并网后点名和课消记录仍保留，可继续回溯。</span></div><span class="status-pill warn">保留追溯</span></div>`).join("")}
+            </div>
+          </details>` : "";
+        const reportText = `本次预读取 ${data.fileCount} 个文件，识别 ${data.entries.length} 节课，涉及 ${teachers.length} 位老师。${decision.label}：冲突 ${data.summary.conflictCount}，未写教室 ${data.summary.missingRoom}，未写结束时间 ${data.summary.missingEndTime}。${changeText}${data.warningText ? ` ${data.warningText}` : ""} ${replacePolicyText}`;
         panel.hidden = false;
         panel.innerHTML = `
           <div class="section-heading-row">
@@ -2328,6 +2342,7 @@
             <div class="launch-status-card"><span>识别课程</span><strong>${escapeHtml(data.entries.length)}</strong><p>${escapeHtml(periods.join("、") || "-")}</p></div>
             <div class="launch-status-card"><span>老师</span><strong>${escapeHtml(teachers.length)}</strong><p>${escapeHtml(teachers.slice(0, 8).join("、") || "-")}</p></div>
             <div class="launch-status-card"><span>检查结果</span><strong>${escapeHtml(data.summary.conflictCount)}</strong><p>冲突；未写教室 ${escapeHtml(data.summary.missingRoom)}；未写结束时间 ${escapeHtml(data.summary.missingEndTime)}</p></div>
+            <div class="launch-status-card"><span>本次变化</span><strong>${escapeHtml(Number(changeSummary.addedCount || 0) + Number(changeSummary.changedCount || 0) + Number(changeSummary.cancelledCount || 0))}</strong><p>新增 ${escapeHtml(changeSummary.addedCount || 0)}；调整 ${escapeHtml(changeSummary.changedCount || 0)}；取消 ${escapeHtml(changeSummary.cancelledCount || 0)}</p></div>
           </div>
           <div class="launch-mini-row" style="margin-top:12px;">
             <div>
@@ -2340,6 +2355,8 @@
           </div>
           ${data.warningText ? `<div class="launch-warning" style="margin-top:12px;">${escapeHtml(data.warningText)}</div>` : ""}
           <div class="launch-warning" style="margin-top:12px;">${escapeHtml(replacePolicyText)} 系统会先自动备份，再写入云端。</div>
+          <div class="launch-warning" style="margin-top:12px;">${escapeHtml(changeText)}</div>
+          ${changePreviewHtml}
           <details class="import-file-diagnostics" ${warningGroups.length ? "open" : ""}>
             <summary>每个文件识别情况</summary>
             <div class="launch-mini-list">
@@ -2464,6 +2481,7 @@
             lastImportFileName: fileName || "",
             lastImportCount: compactEntries.length,
             lastImportRemovedCount: Number(cloudResult.data?.removedExcelImportCount || 0),
+            lastImportChangeSummary: cloudResult.data?.changeSummary || null,
             lastImportMode: "server-side-replace-uploaded-teacher-excel-imports"
           };
           const localCached = safeLocalSet(stores.regular, fallbackState);
@@ -2474,6 +2492,7 @@
             importedCount: Number(cloudResult.data?.importedCount || compactEntries.length),
             totalCount: Number(cloudResult.data?.totalCount || 0),
             removedExcelImportCount: Number(cloudResult.data?.removedExcelImportCount || 0),
+            changeSummary: cloudResult.data?.changeSummary || null,
             savedAt: new Date().toISOString()
           };
           reportProgress(`云端已完成并网：本次 ${window.JRC_PAIKE_LAST_SAVE_META.importedCount} 节，覆盖旧Excel ${window.JRC_PAIKE_LAST_SAVE_META.removedExcelImportCount} 节。`);
@@ -2578,15 +2597,17 @@
             return;
           }
           const summary = summarizeImportedEntries(entries);
+          const currentFormalState = await readCloud(stores.regular, {});
+          const changeSummary = buildFormalImportDiff(scheduleEntriesFromRegular(currentFormalState), entries);
           const warningGroups = groups.filter((group) => group.level === "warn");
           const sourceSummary = groups.map((group) => `${group.fileName}：${group.count}节`).join("；");
           const warningText = warningGroups.length
             ? `需核对文件：${warningGroups.slice(0, 6).map((group) => `${group.fileName}（${group.advice}）`).join("；")}${warningGroups.length > 6 ? "；其余文件请展开查看" : ""}`
             : "";
-          pendingFormalImport = { fileLabel, fileCount: fileList.length, groups, entries, summary, sourceSummary, warningText };
+          pendingFormalImport = { fileLabel, fileCount: fileList.length, groups, entries, summary, changeSummary, sourceSummary, warningText };
           renderImportReviewPanel(pendingFormalImport);
-          setFormalImportMessage(`已完成预读取：${fileList.length} 个文件，共识别 ${entries.length} 节课。请先看预览，确认无误后点“确认并网”。`);
-          setTeacherSheetMessage(`预览完成：${sourceSummary}。疑似冲突 ${summary.conflictCount} 项，未写教室 ${summary.missingRoom} 项。确认后才会写入正式课表。`);
+          setFormalImportMessage(`已完成预读取：${fileList.length} 个文件，共识别 ${entries.length} 节课；新增 ${changeSummary.addedCount} 节、调整 ${changeSummary.changedCount} 节、取消 ${changeSummary.cancelledCount} 节。请先看预览，确认无误后点“确认并网”。`);
+          setTeacherSheetMessage(`预览完成：${sourceSummary}。新增 ${changeSummary.addedCount} 节、调整 ${changeSummary.changedCount} 节、取消 ${changeSummary.cancelledCount} 节；疑似冲突 ${summary.conflictCount} 项。确认后才会写入正式课表。`);
         } catch (error) {
           setFormalImportMessage(`正式排课明细导入失败：${error.message || error}`);
           setTeacherSheetMessage(`新Excel并网失败：${error.message || error}`);
@@ -2631,6 +2652,8 @@
           const removedLine = Number(importMeta.removedExcelImportCount || 0)
             ? ` 本次覆盖旧Excel导入课表 ${Number(importMeta.removedExcelImportCount || 0)} 节。`
             : "";
+          const confirmedChangeSummary = importMeta.changeSummary || data.changeSummary || {};
+          const changeLine = ` 本次结果：新增 ${Number(confirmedChangeSummary.addedCount || 0)} 节，调整 ${Number(confirmedChangeSummary.changedCount || 0)} 节，取消 ${Number(confirmedChangeSummary.cancelledCount || 0)} 节。${Number(confirmedChangeSummary.impactedAttendanceCount || 0) ? `已有点名关联 ${Number(confirmedChangeSummary.impactedAttendanceCount || 0)} 节，系统已保留追溯。` : ""}`;
           closeImportReviewPanel();
           await initPaikeDashboard();
           if (targetPeriod) setTeacherSheetPeriod(targetPeriod);
@@ -2641,8 +2664,8 @@
           if (byId("teacherSheetMode")) byId("teacherSheetMode").value = "month";
           if (byId("teacherSheetKeyword")) byId("teacherSheetKeyword").value = "";
           renderTeacherSheet();
-          setFormalImportMessage(`已并网 ${data.fileCount} 个文件，共识别 ${data.entries.length} 节正式课，并同步云端。已覆盖本次涉及老师的旧 Excel 导入课表，手工新增和手工调课记录已保留。${removedLine}系统自动检查：疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项，未写结束时间 ${data.summary.missingEndTime} 项。${warningLine}${localCacheLine}`);
-          setTeacherSheetMessage(`新Excel已并网：${data.entries.length} 节。现在已自动切到 ${targetPeriod || "本次月份"} ${targetTeacher || "本次老师"} 的课表。已覆盖本次涉及老师的旧 Excel 导入课表，手工记录保留。${removedLine}${data.sourceSummary}。疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项。${warningLine}${localCacheLine}`);
+          setFormalImportMessage(`已并网 ${data.fileCount} 个文件，共识别 ${data.entries.length} 节正式课，并同步云端。已覆盖本次涉及老师、月份的旧 Excel 导入课表，手工新增和手工调课记录已保留。${removedLine}${changeLine}系统自动检查：疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项，未写结束时间 ${data.summary.missingEndTime} 项。${warningLine}${localCacheLine}`);
+          setTeacherSheetMessage(`新Excel已并网：${data.entries.length} 节。现在已自动切到 ${targetPeriod || "本次月份"} ${targetTeacher || "本次老师"} 的课表。已覆盖本次涉及老师、月份的旧 Excel 导入课表，手工记录保留。${removedLine}${changeLine}${data.sourceSummary}。疑似冲突 ${data.summary.conflictCount} 项，未写教室 ${data.summary.missingRoom} 项。${warningLine}${localCacheLine}`);
           byId("teacherSheetTable")?.scrollIntoView({ block: "start", behavior: "smooth" });
         } catch (error) {
           setFormalImportMessage(`确认并网失败：${error.message || error}`);
@@ -2762,6 +2785,141 @@
           if (periodDiff) return periodDiff;
           return String(right.date || right.courseDate || "").localeCompare(String(left.date || left.courseDate || ""));
         });
+      }
+
+      function scheduleComparisonText(value) {
+        return String(value || "").trim().replace(/\s+/g, "").replace(/老师$/g, "");
+      }
+
+      function scheduleComparisonDate(row) {
+        return dateKey(row?.date || row?.courseDate) || String(row?.date || row?.courseDate || "").trim().slice(0, 10);
+      }
+
+      function scheduleComparisonPeriod(row) {
+        return String(row?.period || scheduleComparisonDate(row).slice(0, 7) || "").trim();
+      }
+
+      function scheduleComparisonParticipant(row) {
+        return scheduleComparisonText(row?.studentName || row?.student || row?.className);
+      }
+
+      function scheduleComparisonKey(row) {
+        return [
+          scheduleComparisonPeriod(row),
+          scheduleComparisonDate(row),
+          scheduleComparisonText(row?.teacherName || row?.teacher),
+          scheduleComparisonParticipant(row),
+          scheduleComparisonText(row?.startTime || row?.time),
+          scheduleComparisonText(row?.endTime),
+          scheduleComparisonText(row?.classroomName || row?.roomName),
+          scheduleComparisonText(row?.scheduleStatus || row?.status)
+        ].join("|");
+      }
+
+      function scheduleChangeAnchor(row) {
+        return [
+          scheduleComparisonPeriod(row),
+          scheduleComparisonDate(row),
+          scheduleComparisonParticipant(row),
+          scheduleComparisonText(row?.lessonNo || row?.slotIndex)
+        ].join("|");
+      }
+
+      function scheduleComparisonSourceKey(row) {
+        return [
+          scheduleComparisonDate(row),
+          scheduleComparisonText(row?.teacherName || row?.teacher),
+          scheduleComparisonText(row?.startTime || row?.time),
+          scheduleComparisonText(row?.endTime),
+          scheduleComparisonParticipant(row)
+        ].join("|");
+      }
+
+      function scheduleSourceKeyFromText(value) {
+        const parts = String(value || "").split("|");
+        if (parts.length < 5) return "";
+        return [
+          scheduleComparisonText(parts[0]),
+          scheduleComparisonText(parts[1]),
+          scheduleComparisonText(parts[2]),
+          scheduleComparisonText(parts[3]),
+          scheduleComparisonText(parts.slice(4).join("|"))
+        ].join("|");
+      }
+
+      function isExcelImportedScheduleRow(row) {
+        if (row?.manualEntry) return false;
+        const importText = `${row?.notes || ""} ${row?.source || ""} ${row?.sourceFileName || ""}`;
+        return Boolean(row?.importedByExcel || row?.sourceFileName || /导入|Excel|课表/i.test(importText));
+      }
+
+      function buildFormalImportDiff(currentEntries = [], incomingEntries = []) {
+        const teacherKey = (value) => scheduleComparisonText(value);
+        const scopes = new Set(incomingEntries.map((row) => {
+          const period = scheduleComparisonPeriod(row);
+          const teacher = teacherKey(row?.teacherName || row?.teacher);
+          return period && teacher ? `${period}|${teacher}` : "";
+        }).filter(Boolean));
+        const previous = currentEntries.filter((row) => isExcelImportedScheduleRow(row) && scopes.has(`${scheduleComparisonPeriod(row)}|${teacherKey(row?.teacherName || row?.teacher)}`));
+        const incomingByKey = new Map(incomingEntries.map((row) => [scheduleComparisonKey(row), row]));
+        const previousByKey = new Map(previous.map((row) => [scheduleComparisonKey(row), row]));
+        const unchanged = previous.filter((row) => incomingByKey.has(scheduleComparisonKey(row)));
+        const previousOnly = previous.filter((row) => !incomingByKey.has(scheduleComparisonKey(row)));
+        const incomingOnly = incomingEntries.filter((row) => !previousByKey.has(scheduleComparisonKey(row)));
+        const beforeByAnchor = new Map();
+        const afterByAnchor = new Map();
+        previousOnly.forEach((row) => {
+          const key = scheduleChangeAnchor(row);
+          beforeByAnchor.set(key, [...(beforeByAnchor.get(key) || []), row]);
+        });
+        incomingOnly.forEach((row) => {
+          const key = scheduleChangeAnchor(row);
+          afterByAnchor.set(key, [...(afterByAnchor.get(key) || []), row]);
+        });
+        const sortRows = (rows) => [...rows].sort((left, right) => (
+          String(left?.startTime || left?.time || "").localeCompare(String(right?.startTime || right?.time || "")) ||
+          String(left?.endTime || "").localeCompare(String(right?.endTime || "")) ||
+          String(left?.classroomName || left?.roomName || "").localeCompare(String(right?.classroomName || right?.roomName || ""))
+        ));
+        const added = [];
+        const cancelled = [];
+        const changed = [];
+        new Set([...beforeByAnchor.keys(), ...afterByAnchor.keys()]).forEach((anchor) => {
+          const beforeRows = sortRows(beforeByAnchor.get(anchor) || []);
+          const afterRows = sortRows(afterByAnchor.get(anchor) || []);
+          const paired = Math.min(beforeRows.length, afterRows.length);
+          for (let index = 0; index < paired; index += 1) changed.push({ before: beforeRows[index], after: afterRows[index] });
+          cancelled.push(...beforeRows.slice(paired));
+          added.push(...afterRows.slice(paired));
+        });
+        const attendanceKeys = new Set();
+        (paikeAttendanceRows || []).forEach((row) => {
+          const sourceKey = scheduleSourceKeyFromText(row?.sourceScheduleKey);
+          if (sourceKey) attendanceKeys.add(sourceKey);
+          attendanceKeys.add(scheduleComparisonSourceKey(row));
+        });
+        const impactedAttendance = [...cancelled, ...changed.map((item) => item.before)]
+          .filter((row) => attendanceKeys.has(scheduleComparisonSourceKey(row)));
+        const rowSummary = (row) => ({
+          date: scheduleComparisonDate(row),
+          teacher: String(row?.teacherName || row?.teacher || "").trim(),
+          className: String(row?.studentName || row?.student || row?.className || "").trim(),
+          time: [row?.startTime || row?.time, row?.endTime].filter(Boolean).join("-") || "未写时间",
+          room: String(row?.classroomName || row?.roomName || "").trim()
+        });
+        return {
+          addedCount: added.length,
+          cancelledCount: cancelled.length,
+          changedCount: changed.length,
+          unchangedCount: unchanged.length,
+          impactedAttendanceCount: impactedAttendance.length,
+          samples: {
+            added: added.slice(0, 5).map(rowSummary),
+            cancelled: cancelled.slice(0, 5).map(rowSummary),
+            changed: changed.slice(0, 5).map((item) => ({ before: rowSummary(item.before), after: rowSummary(item.after) })),
+            impactedAttendance: impactedAttendance.slice(0, 5).map(rowSummary)
+          }
+        };
       }
 
       function mergeObjects(localValue, remoteValue) {
