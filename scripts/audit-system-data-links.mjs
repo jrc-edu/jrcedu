@@ -44,6 +44,7 @@ const files = {
   trialFeedback: readText("portal/trial-feedback.html"),
   teachingQuality: readText("portal/teaching-quality.html"),
   admissions: readText("public/advice-system/app.js"),
+  cloud: readText("portal/cloud-api.js"),
   dataSync: readText("portal/data-sync.js"),
   mobile: readText("portal/mobile-unified.js"),
   api: readText("deploy/aliyun/api/server.mjs")
@@ -247,6 +248,23 @@ const checks = [
       && /isRetryableAiError/.test(files.api)
       && /extractAiContent/.test(files.api),
     detail: "DeepSeek 临时限流、超时、网络错误和 5xx 会自动短重试，并返回更明确的失败原因。"
+  },
+  {
+    title: "云端保存自动补同步",
+    pass: /isTransientCloudFailure/.test(files.cloud)
+      && /module-write/.test(files.cloud)
+      && /flushPending/.test(files.cloud)
+      && /window\.addEventListener\("online"/.test(files.cloud),
+    detail: "统一云端写入遇到短暂网络异常会重试，并在网络恢复或下次打开页面时自动补传小型业务数据。"
+  },
+  {
+    title: "管理员健康诊断与服务器备份",
+    pass: /handleSystemDiagnostics/.test(files.api)
+      && /system-diagnostics/.test(files.api)
+      && /portalSystemHealthList/.test(files.dashboard)
+      && fs.existsSync(path.join(root, "deploy/aliyun/backup-postgres.sh"))
+      && fs.existsSync(path.join(root, "deploy/aliyun/check-system-health.sh")),
+    detail: "管理员诊断区可查看服务器、AI、数据量、权限和备份；服务器支持每日数据库备份与健康巡检。"
   },
   {
     title: "全站反馈转任务",

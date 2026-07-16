@@ -1482,13 +1482,14 @@
     const diagnostics = $("portalAdminDiagnostics");
     if (!force && !diagnostics?.open) return;
     if (adminDiagnosticsLoaded || adminDiagnosticsLoading) return;
-    adminDiagnosticsLoading = true;
-    try {
-      renderDataStates();
-      renderDataFlows();
-      await Promise.allSettled([
-        renderCloudReadiness(),
-        renderLinkHealth()
+      adminDiagnosticsLoading = true;
+      try {
+        renderDataStates();
+        renderDataFlows();
+        await Promise.allSettled([
+          renderSystemHealth(),
+          renderCloudReadiness(),
+          renderLinkHealth()
       ]);
       adminDiagnosticsLoaded = true;
     } finally {
@@ -2479,6 +2480,57 @@
       } catch {
         return payload;
       }
+    }
+
+    function diagnosticBytes(value) {
+      const bytes = Number(value || 0);
+      if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+      return `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`;
+    }
+
+    function diagnosticTime(value) {
+      const timestamp = Date.parse(value || "");
+      return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString("zh-CN", { hour12: false }) : "暂无记录";
+    }
+
+    function diagnosticCard(title, status, detail) {
+      const label = status === "ok" ? "正常" : status === "danger" ? "需处理" : "待关注";
+      return `<div class="data-state-card"><strong>${escapeHtml(title)}</strong><span class="badge ${acceptanceBadgeClass(status)}">${label}</span><p>${escapeHtml(detail)}</p></div>`;
+    }
+
+    async function renderSystemHealth() {
+      const holder = $("portalSystemHealthList");
+      const badge = $("portalSystemHealthBadge");
+      if (!holder || !badge) return;
+      holder.innerHTML = diagnosticCard("正在检查", "warn", "正在读取服务器运行状态。");
+      const result = await window.JRC_CLOUD?.getSystemDiagnostics?.();
+      if (!result?.ok || !result.data?.ok) {
+        const message = result?.data?.message || result?.data?.error || result?.error || "暂时无法读取服务器诊断。";
+        badge.textContent = "读取失败";
+        badge.className = "badge status-warn";
+        holder.innerHTML = diagnosticCard("服务器诊断", "warn", message);
+        return;
+      }
+      const data = result.data;
+      const backup = data.backups?.database;
+      const monitor = data.healthMonitor;
+      const backupAgeHours = backup?.modifiedAt ? (Date.now() - Date.parse(backup.modifiedAt)) / 36e5 : Infinity;
+      const backupStatus = backupAgeHours <= 30 ? "ok" : backup ? "warn" : "danger";
+      const dataStatus = Number(data.data?.largeStoreCount || 0) ? "warn" : "ok";
+      const permissionStatus = Number(data.permissions?.activeEmployeesWithoutPortalAccess || 0) ? "warn" : "ok";
+      const monitorStatus = monitor?.overall === "ok" ? "ok" : monitor ? "warn" : "warn";
+      const statuses = [backupStatus, dataStatus, permissionStatus, monitorStatus, data.ai?.configured ? "ok" : "danger"];
+      const overall = statuses.includes("danger") ? "danger" : statuses.includes("warn") ? "warn" : "ok";
+      badge.textContent = overall === "ok" ? "运行正常" : overall === "danger" ? "需要处理" : "有待关注项";
+      badge.className = `badge ${acceptanceBadgeClass(overall)}`;
+      holder.innerHTML = [
+        diagnosticCard("服务器与数据库", "ok", `服务已运行 ${Math.floor(Number(data.server?.uptimeSeconds || 0) / 60)} 分钟；数据库连接正常。`),
+        diagnosticCard("每日自动巡检", monitorStatus, monitor ? `${diagnosticTime(monitor.checkedAt)}：服务 ${monitor.service || "-"}，接口 HTTP ${monitor.apiHttp || "-"}，DeepSeek HTTP ${monitor.deepseekHttp || "-"}。` : "尚未安装每日自动巡检任务。"),
+        diagnosticCard("DeepSeek 服务", data.ai?.configured ? "ok" : "danger", data.ai?.configured ? `已配置 ${data.ai.model || "默认模型"}；单次最长 ${data.ai.timeoutSeconds || "-"} 秒，最多重试 ${data.ai.maxAttempts || "-"} 次。` : "未检测到 DeepSeek Key。"),
+        diagnosticCard("云端业务数据", dataStatus, `共 ${data.data?.storeCount || 0} 组数据，约 ${diagnosticBytes(data.data?.payloadBytes)}；${data.data?.largeStoreCount || 0} 组达到体积预警线。`),
+        diagnosticCard("账号权限基线", permissionStatus, Number(data.permissions?.activeEmployeesWithoutPortalAccess || 0) ? `${data.permissions.activeEmployeesWithoutPortalAccess} 名在职员工没有工作台进入权限，请检查人事档案。` : `${data.employees?.activeCount || 0} 名在职员工均已具备工作台基础权限。`),
+        diagnosticCard("数据库备份", backupStatus, backup ? `最近备份：${diagnosticTime(backup.modifiedAt)}，文件 ${diagnosticBytes(backup.bytes)}。` : "尚未检测到数据库备份，请安装每日备份任务。")
+      ].join("");
     }
     return payload;
   }

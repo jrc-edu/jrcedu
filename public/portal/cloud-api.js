@@ -91,15 +91,27 @@
   }
 
   function enqueue(kind, payload) {
-    writePendingQueue([
-      ...readPendingQueue(),
-      {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        kind,
-        payload,
-        createdAt: new Date().toISOString()
-      }
-    ]);
+    const serialized = JSON.stringify(payload || {});
+    if (serialized.length > 2 * 1024 * 1024) return false;
+    const rows = readPendingQueue().filter((row) => {
+      return !(kind === "module-write" && row?.kind === "module-write" && row?.payload?.storeKey === payload?.storeKey);
+    });
+    rows.push({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      kind,
+      payload,
+      createdAt: new Date().toISOString()
+    });
+    return safeStorageSet(pendingKey, JSON.stringify(rows.slice(-200)));
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function isTransientCloudFailure(result) {
+    const status = Number(result?.status || 0);
+    return status === 0 || status === 408 || status === 429 || status >= 500;
   }
 
   async function request(path, options = {}) {
@@ -269,18 +281,29 @@
 
   async function writeModuleData(storeKey, moduleKey, payload, context = {}) {
     const operator = context.operator || window.JRC_CURRENT_EMPLOYEE || {};
-    return request("/module-data", {
-      method: "PUT",
-      timeoutMs: context.timeoutMs || 45000,
-      body: {
-        storeKey,
-        moduleKey,
-        payload,
-        replaceMode: context.replaceMode || "",
-        operatorName: operator.name || "-",
-        operatorUsername: operator.username || "-"
-      }
-    });
+    const body = {
+      storeKey,
+      moduleKey,
+      payload,
+      replaceMode: context.replaceMode || "",
+      operatorName: operator.name || "-",
+      operatorUsername: operator.username || "-"
+    };
+    let result = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      result = await request("/module-data", {
+        method: "PUT",
+        timeoutMs: context.timeoutMs || 45000,
+        body
+      });
+      if (result?.ok || !isTransientCloudFailure(result) || attempt === 3) break;
+      await wait(attempt * 1200);
+    }
+    if (!result?.ok && !result?.skipped) {
+      const queued = enqueue("module-write", body);
+      return { ...result, queued };
+    }
+    return result;
   }
 
   async function importPaikeFormalSchedule(payload = {}, context = {}) {
@@ -370,6 +393,10 @@
     });
   }
 
+  async function getSystemDiagnostics() {
+    return request("/system-diagnostics", { timeoutMs: 20000 });
+  }
+
   async function flushPending() {
     const rows = readPendingQueue();
     if (!rows.length) return { ok: true, flushed: 0 };
@@ -377,9 +404,10 @@
     const remaining = [];
     let flushed = 0;
     for (const row of rows) {
-      const path = row.kind === "backup-export" ? "/backup-exports" : "/audit-logs";
+      const moduleWrite = row.kind === "module-write";
+      const path = moduleWrite ? "/module-data" : row.kind === "backup-export" ? "/backup-exports" : "/audit-logs";
       try {
-        const result = await request(path, { method: "POST", body: row.payload });
+        const result = await request(path, { method: moduleWrite ? "PUT" : "POST", timeoutMs: moduleWrite ? 45000 : undefined, body: row.payload });
         if (result.ok) flushed += 1;
         else remaining.push(row);
       } catch {
@@ -407,6 +435,10 @@
     uploadCurriculumFile,
     downloadCurriculumFile,
     aiAssistant,
+    getSystemDiagnostics,
     flushPending
   };
+
+  window.addEventListener("online", () => { flushPending().catch(() => {}); });
+  window.setTimeout(() => { flushPending().catch(() => {}); }, 2500);
 })();

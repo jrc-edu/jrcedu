@@ -6,10 +6,13 @@ import path from "node:path";
 import { Pool } from "pg";
 
 const port = Number(process.env.PORT || 3000);
+const serverStartedAt = Date.now();
 const siteId = process.env.JRC_SITE_ID || "jrcedu-main";
 const publicApiToken = process.env.JRC_API_TOKEN || "";
 const uploadDir = process.env.JRC_UPLOAD_DIR || "/opt/jrcedu-uploads";
 const curriculumBackupDir = process.env.JRC_CURRICULUM_BACKUP_DIR || "/opt/jrcedu-backups/curriculum";
+const databaseBackupDir = process.env.JRC_DATABASE_BACKUP_DIR || "/opt/jrcedu-backups/database";
+const systemHealthStateFile = process.env.JRC_HEALTH_STATE_FILE || "/opt/jrcedu-runtime/health.json";
 const uploadMaxBytes = Number(process.env.JRC_UPLOAD_MAX_BYTES || 30 * 1024 * 1024);
 const jsonMaxBytes = Number(process.env.JRC_JSON_MAX_BYTES || 72 * 1024 * 1024);
 const paikeStoreKey = "paike-june-system-v1";
@@ -206,6 +209,15 @@ async function requireModuleAccess(res, headers, authorization, storeKey, module
     error: "forbidden",
     message: "当前账号没有该模块的数据访问权限。"
   }, headers);
+  return false;
+}
+
+async function requireAdminAccess(res, headers, authorization) {
+  if (authorization?.kind === "api-token") return true;
+  const username = normalizeUsername(authorization?.payload?.sub);
+  const employee = username ? await employeeWithPermissions(username) : null;
+  if (employee?.permissions?.includes("admin.access")) return true;
+  send(res, 403, { ok: false, error: "forbidden", message: "当前账号没有管理员诊断权限。" }, headers);
   return false;
 }
 const allowedOrigins = (process.env.JRC_ALLOWED_ORIGINS || "https://jrc-edu.github.io,http://localhost:3000,http://127.0.0.1:3000")
@@ -825,6 +837,96 @@ async function employeeWithPermissions(username) {
 async function handleHealth(res, headers) {
   await pool.query("select 1");
   send(res, 200, { ok: true, siteId, db: "connected" }, headers);
+}
+
+async function latestDatabaseBackup() {
+  try {
+    const names = await fs.readdir(databaseBackupDir);
+    const candidates = names.filter((name) => name.endsWith(".dump"));
+    if (!candidates.length) return null;
+    const rows = await Promise.all(candidates.map(async (name) => {
+      const stats = await fs.stat(path.join(databaseBackupDir, name));
+      return { name, modifiedAt: stats.mtime.toISOString(), bytes: stats.size };
+    }));
+    return rows.sort((left, right) => String(right.modifiedAt).localeCompare(String(left.modifiedAt)))[0] || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function latestSystemHealth() {
+  try {
+    return JSON.parse(await fs.readFile(systemHealthStateFile, "utf8"));
+  } catch (_) {
+    return null;
+  }
+}
+
+async function handleSystemDiagnostics(res, headers) {
+  const [storeSummary, largestStores, activeEmployees, permissionGaps, lastExport, databaseBackup, healthMonitor] = await Promise.all([
+    pool.query(`
+      select
+        count(*)::int as store_count,
+        coalesce(sum(pg_column_size(payload)), 0)::bigint as payload_bytes,
+        count(*) filter (where pg_column_size(payload) >= 10485760)::int as large_store_count,
+        max(updated_at) as last_store_update_at
+      from module_data_store
+    `),
+    pool.query(`
+      select store_key, module_key, pg_column_size(payload)::bigint as payload_bytes, updated_at
+      from module_data_store
+      order by pg_column_size(payload) desc
+      limit 5
+    `),
+    pool.query("select count(*)::int as count from employees where status = 'active'"),
+    pool.query(`
+      select count(*)::int as count
+      from employees e
+      where e.status = 'active'
+        and not exists (
+          select 1 from employee_permissions ep
+          where ep.employee_id = e.id and ep.permission_key = 'portal.access'
+        )
+    `),
+    pool.query("select exported_at from backup_exports order by exported_at desc limit 1"),
+    latestDatabaseBackup(),
+    latestSystemHealth()
+  ]);
+  const summary = storeSummary.rows[0] || {};
+  send(res, 200, {
+    ok: true,
+    siteId,
+    checkedAt: new Date().toISOString(),
+    server: {
+      uptimeSeconds: Math.floor((Date.now() - serverStartedAt) / 1000),
+      database: "connected"
+    },
+    ai: {
+      configured: Boolean(deepseekApiKey),
+      model: deepseekModel,
+      timeoutSeconds: Math.round(deepseekTimeoutMs / 1000),
+      maxAttempts: deepseekMaxAttempts
+    },
+    data: {
+      storeCount: Number(summary.store_count || 0),
+      payloadBytes: Number(summary.payload_bytes || 0),
+      largeStoreCount: Number(summary.large_store_count || 0),
+      lastStoreUpdatedAt: summary.last_store_update_at?.toISOString?.() || summary.last_store_update_at || null,
+      largestStores: largestStores.rows.map((row) => ({
+        storeKey: row.store_key,
+        moduleKey: row.module_key,
+        payloadBytes: Number(row.payload_bytes || 0),
+        updatedAt: row.updated_at?.toISOString?.() || row.updated_at || null
+      }))
+    },
+    employees: { activeCount: Number(activeEmployees.rows[0]?.count || 0) },
+    permissions: { activeEmployeesWithoutPortalAccess: Number(permissionGaps.rows[0]?.count || 0) },
+    backups: {
+      database: databaseBackup,
+      lastClientExportAt: lastExport.rows[0]?.exported_at?.toISOString?.() || lastExport.rows[0]?.exported_at || null
+    },
+    healthMonitor
+  }, headers);
 }
 
 async function applyDepartedEmployeeLocks() {
@@ -2477,6 +2579,10 @@ async function route(req, res) {
 
   try {
     if (req.method === "GET" && url.pathname === "/health") return await handleHealth(res, headers);
+    if (req.method === "GET" && url.pathname === "/system-diagnostics") {
+      if (!await requireAdminAccess(res, headers, authorization)) return;
+      return await handleSystemDiagnostics(res, headers);
+    }
     if (req.method === "GET" && url.pathname === "/employees") return await handleEmployees(res, headers);
     if (req.method === "POST" && url.pathname === "/employees") return await handleUpsertEmployee(req, res, headers, authorization);
     if (req.method === "GET" && url.pathname === "/permissions") return await handlePermissions(res, headers);

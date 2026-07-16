@@ -192,6 +192,12 @@ SQL
 echo "==> Installing curriculum file backup"
 bash "${APP_DIR}/deploy/aliyun/install-curriculum-backup-cron.sh"
 
+echo "==> Installing database backup"
+bash "${APP_DIR}/deploy/aliyun/install-database-backup-cron.sh"
+
+echo "==> Installing daily system health check"
+bash "${APP_DIR}/deploy/aliyun/install-system-health-cron.sh"
+
 echo "==> Installing API dependencies"
 if [[ -f "${API_DIR}/package-lock.json" ]]; then
   npm --prefix "${API_DIR}" ci --omit=dev

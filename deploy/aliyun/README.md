@@ -141,6 +141,23 @@ sudo bash /opt/jrcedu/deploy/aliyun/install-on-ecs.sh
 
 校长电脑可运行 `scripts/install-mac-curriculum-sync.sh`，在桌面生成 `标准化课件标准化系统` 文件夹，并每 30 分钟从服务器同步一次新增资料。自动同步需要这台 Mac 可以 SSH 登录服务器；建议后续配置 SSH 密钥，避免定时任务等待输入密码。
 
+## 数据库备份
+
+安装脚本会在每天 03:35 生成 PostgreSQL 自定义格式备份，默认保留 30 天：
+
+- 备份目录：`/opt/jrcedu-backups/database`
+- 校验：每份备份生成 SHA-256，并用 `pg_restore --list` 验证可读取。
+- 日志：`/var/log/jrcedu-database-backup.log`
+- 手动安装或重装：`sudo bash deploy/aliyun/install-database-backup-cron.sh`
+
+## 每日系统巡检
+
+每天 07:50 自动检查 API 服务、数据库接口和 DeepSeek 调用，并将无密钥的结果写入管理员诊断区：
+
+- 状态文件：`/opt/jrcedu-runtime/health.json`
+- 日志：`/var/log/jrcedu-system-health.log`
+- 手动安装或重装：`sudo bash deploy/aliyun/install-system-health-cron.sh`
+
 ## 买云前仍可继续做的准备
 
 - 按 `docs/data-field-standards.md` 统一字段。
