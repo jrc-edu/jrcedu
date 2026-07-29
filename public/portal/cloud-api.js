@@ -60,9 +60,10 @@
     const session = readSession();
     const isGithubPages = location.hostname.endsWith("github.io");
     const sameOriginApiBase = `${location.origin}/api`;
-    const apiBaseUrl = String(config.apiBaseUrl || (!isGithubPages ? sameOriginApiBase : "")).replace(/\/+$/g, "");
+    const defaultApiBase = isGithubPages ? "https://jrcwork.cn/api" : sameOriginApiBase;
+    const apiBaseUrl = String(config.apiBaseUrl || defaultApiBase).replace(/\/+$/g, "");
     return {
-      enabled: Boolean((config.enabled && config.apiBaseUrl) || (!isGithubPages && apiBaseUrl)),
+      enabled: Boolean(apiBaseUrl),
       apiBaseUrl,
       apiToken: String(config.apiToken || session.cloudApiToken || ""),
       siteId: String(config.siteId || "jrcedu-main")
