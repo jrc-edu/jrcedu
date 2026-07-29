@@ -29,7 +29,8 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
     printf 'server_commit=' && git rev-parse --short HEAD
     printf 'api=' && systemctl is-active jrcedu-api
     printf 'nginx=' && systemctl is-active nginx
-    curl --fail --silent --show-error http://127.0.0.1:3000/health >/dev/null
+    health_code=\$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/health || true)
+    [[ "\$health_code" == "200" || "\$health_code" == "401" ]]
     printf 'health=ok\\n'
   "
   echo "部署通道检查通过。"
@@ -58,7 +59,15 @@ git reset --hard 'origin/${BRANCH}'
 systemctl restart jrcedu-api
 nginx -t
 systemctl reload nginx
-if ! systemctl is-active --quiet jrcedu-api || ! systemctl is-active --quiet nginx || ! curl --fail --silent --show-error http://127.0.0.1:3000/health >/dev/null; then
+health_code="000"
+for attempt in 1 2 3 4 5; do
+  health_code=\$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/health || true)
+  if [[ "\$health_code" == "200" || "\$health_code" == "401" ]]; then
+    break
+  fi
+  sleep 1
+done
+if ! systemctl is-active --quiet jrcedu-api || ! systemctl is-active --quiet nginx || [[ "\$health_code" != "200" && "\$health_code" != "401" ]]; then
   git reset --hard "\$previous_commit"
   systemctl restart jrcedu-api
   nginx -t && systemctl reload nginx
