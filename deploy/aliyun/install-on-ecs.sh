@@ -45,6 +45,13 @@ server {
   index index.html;
   client_max_body_size 10m;
 
+  gzip on;
+  gzip_vary on;
+  gzip_proxied any;
+  gzip_comp_level 6;
+  gzip_min_length 1024;
+  gzip_types application/json application/javascript text/css text/plain image/svg+xml;
+
   ssl_certificate /etc/letsencrypt/live/${JRC_DOMAIN}/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/${JRC_DOMAIN}/privkey.pem;
 
@@ -59,6 +66,12 @@ server {
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
+  }
+
+  location ~* ^/jrcedu/.*\.(?:css|js|svg|png|jpg|jpeg|webp|woff|woff2)$ {
+    expires 1h;
+    add_header Cache-Control "public, max-age=3600";
+    try_files \$uri =404;
   }
 
   location /jrcedu/ {
@@ -77,6 +90,13 @@ server {
   index index.html;
   client_max_body_size 10m;
 
+  gzip on;
+  gzip_vary on;
+  gzip_proxied any;
+  gzip_comp_level 6;
+  gzip_min_length 1024;
+  gzip_types application/json application/javascript text/css text/plain image/svg+xml;
+
   location /.well-known/acme-challenge/ {
     root ${CERTBOT_WEBROOT};
   }
@@ -92,6 +112,12 @@ server {
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
+  }
+
+  location ~* ^/jrcedu/.*\.(?:css|js|svg|png|jpg|jpeg|webp|woff|woff2)$ {
+    expires 1h;
+    add_header Cache-Control "public, max-age=3600";
+    try_files \$uri =404;
   }
 
   location /jrcedu/ {

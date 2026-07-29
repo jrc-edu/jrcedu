@@ -2,6 +2,7 @@
   const configKey = "jrc-cloud-api-config-v1";
   const pendingKey = "jrc-cloud-sync-pending-v1";
   const sessionKey = "jrc-portal-auth-session";
+  const moduleReadInflight = new Map();
 
   function safeJsonParse(raw, fallback = null) {
     try {
@@ -276,8 +277,13 @@
     });
   }
 
-  async function readModuleData(storeKey) {
-    return request(`/module-data?storeKey=${encodeURIComponent(storeKey)}`, { timeoutMs: 15000 });
+  function readModuleData(storeKey) {
+    const key = String(storeKey || "");
+    if (moduleReadInflight.has(key)) return moduleReadInflight.get(key);
+    const task = request(`/module-data?storeKey=${encodeURIComponent(key)}`, { timeoutMs: 15000 })
+      .finally(() => moduleReadInflight.delete(key));
+    moduleReadInflight.set(key, task);
+    return task;
   }
 
   async function writeModuleData(storeKey, moduleKey, payload, context = {}) {
@@ -468,5 +474,4 @@
   };
 
   window.addEventListener("online", () => { flushPending().catch(() => {}); });
-  window.setTimeout(() => { flushPending().catch(() => {}); }, 2500);
 })();

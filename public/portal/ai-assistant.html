@@ -332,7 +332,10 @@
         localStorage.setItem(HISTORY_PANEL_KEY, JSON.stringify(state));
         applyHistoryPanelState(panelKey);
         if (panelKey === "drafts" && state[panelKey]) {
-          requestAnimationFrame(() => autoGrowTextareas(byId("aiDraftList")));
+          hydrateDrafts();
+        }
+        if (panelKey === "archived" && state[panelKey]) {
+          hydrateArchivedFeedbacks();
         }
       }
 
@@ -986,6 +989,10 @@
             return true;
           });
         updateHistoryPanelCount("drafts", matchedRows.length);
+        if (!getHistoryPanelState().drafts) {
+          byId("aiDraftList").innerHTML = "";
+          return;
+        }
         rows = matchedRows.slice(0, 50);
         byId("aiDraftList").innerHTML = rows.length ? rows.map((row) => `
           <div class="draft-item history-item">
@@ -1092,6 +1099,10 @@
         const matchedRows = rows
           .filter((row) => !keyword || Object.values(row).some((value) => String(value || "").toLowerCase().includes(keyword)));
         updateHistoryPanelCount("archived", matchedRows.length);
+        if (!getHistoryPanelState().archived) {
+          list.innerHTML = "";
+          return;
+        }
         const filtered = matchedRows.slice(0, 50);
         list.innerHTML = filtered.length ? filtered.map((row) => `
           <div class="draft-item history-item">
@@ -2709,11 +2720,10 @@
 
       setupVoice();
       updateActionButtons();
-      hydrateDrafts();
-      hydrateArchivedFeedbacks();
-      window.addEventListener("online", () => retryPendingAiHistorySync());
-      window.setInterval(retryPendingAiHistorySync, 60000);
-      window.setTimeout(retryPendingAiHistorySync, 3000);
+      renderDrafts();
+      renderArchivedFeedbacks();
+      if (getHistoryPanelState().drafts) hydrateDrafts();
+      if (getHistoryPanelState().archived) hydrateArchivedFeedbacks();
       window.JRC_CLOUD?.aiAssistant?.({ mode: "health", text: "ping" }).then((result) => {
         byId("aiConfigNotice").textContent = result?.ok && result.data?.provider === "deepseek"
           ? "AI 接口已接入 DeepSeek。"

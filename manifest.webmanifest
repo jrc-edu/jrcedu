@@ -1,0 +1,18 @@
+{
+  "name": "匠人程工作台",
+  "short_name": "匠人程",
+  "description": "匠人程学校内部工作台",
+  "start_url": "/jrcedu/portal/index.html",
+  "scope": "/jrcedu/",
+  "display": "standalone",
+  "background_color": "#f6f8f7",
+  "theme_color": "#0d9488",
+  "icons": [
+    {
+      "src": "/jrcedu/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
