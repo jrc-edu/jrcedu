@@ -43,6 +43,7 @@ server {
 
   root /opt;
   index index.html;
+  client_max_body_size 10m;
 
   ssl_certificate /etc/letsencrypt/live/${JRC_DOMAIN}/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/${JRC_DOMAIN}/privkey.pem;
@@ -74,6 +75,7 @@ server {
 
   root /opt;
   index index.html;
+  client_max_body_size 10m;
 
   location /.well-known/acme-challenge/ {
     root ${CERTBOT_WEBROOT};
