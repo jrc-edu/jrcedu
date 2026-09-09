@@ -245,29 +245,6 @@ const JRC_ROLE_PERMISSIONS = {
     "curriculum.export",
     "campus.access"
   ],
-  试用期老师: [
-    "portal.access",
-    "ai.access",
-    "paike.access",
-    "knowledge.access",
-    "suggestions.access",
-    "teachingQuality.access",
-    "studentService.access",
-    "curriculum.access",
-    "campus.access"
-  ],
-  试用期学管: [
-    "portal.access",
-    "ai.access",
-    "paike.access",
-    "knowledge.access",
-    "suggestions.access",
-    "admissions.access",
-    "teachingQuality.access",
-    "studentService.access",
-    "curriculum.access",
-    "campus.access"
-  ]
 };
 
 const JRC_EMPLOYEES = [
@@ -2249,10 +2226,8 @@ function jrcRenderEmployeeDirectory(currentEmployee = jrcResolveCurrentEmployee(
         <option value="">全部岗位</option>
         <option value="管理员">管理员</option>
         <option value="学管">学管</option>
-        <option value="试用期学管">试用期学管</option>
         <option value="财务">财务</option>
         <option value="授课老师">授课老师</option>
-        <option value="试用期老师">试用期老师</option>
       </select>
     </div>
     <div class="jrc-employee-grid">${rows}</div>
@@ -2273,10 +2248,8 @@ function jrcRenderEmployeeDirectory(currentEmployee = jrcResolveCurrentEmployee(
           <label><span>岗位</span>
             <select name="role">
               <option value="学管">学管</option>
-              <option value="试用期学管">试用期学管</option>
               <option value="财务">财务</option>
               <option value="授课老师">授课老师</option>
-              <option value="试用期老师">试用期老师</option>
               <option value="管理员">管理员</option>
             </select>
           </label>

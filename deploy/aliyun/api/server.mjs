@@ -22,6 +22,7 @@ const deepseekModel = process.env.JRC_DEEPSEEK_MODEL || "deepseek-chat";
 const deepseekTimeoutMs = Number(process.env.JRC_DEEPSEEK_TIMEOUT_MS || 45000);
 const deepseekMaxAttempts = Math.max(1, Number(process.env.JRC_DEEPSEEK_MAX_ATTEMPTS || 3));
 const departedEmployeeUsernames = ["zhangyan", "hejianjun"];
+const deprecatedRoleMap = { "试用期学管": "学管", "试用期老师": "授课老师" };
 const videoOpsManagerPermissions = ["videoOps.access", "videoOps.edit"];
 const moduleOwnerPermissionRules = {
   yanyuhan: ["admissions.access", "admissions.edit", "admissions.import", "admissions.export", "admissions.finance", "studentService.access", "studentService.edit"],
@@ -116,29 +117,6 @@ const roleDefaultPermissions = {
     "curriculum.export",
     "campus.access"
   ],
-  试用期老师: [
-    "portal.access",
-    "ai.access",
-    "paike.access",
-    "knowledge.access",
-    "suggestions.access",
-    "teachingQuality.access",
-    "studentService.access",
-    "curriculum.access",
-    "campus.access"
-  ],
-  试用期学管: [
-    "portal.access",
-    "ai.access",
-    "paike.access",
-    "knowledge.access",
-    "suggestions.access",
-    "admissions.access",
-    "teachingQuality.access",
-    "studentService.access",
-    "curriculum.access",
-    "campus.access"
-  ]
 };
 const modulePermissionAliases = {
   ai: "ai",
@@ -1214,6 +1192,22 @@ async function applyDepartedEmployeeLocks() {
   }
 }
 
+async function migrateDeprecatedEmployeeRoles() {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    for (const [oldRole, newRole] of Object.entries(deprecatedRoleMap)) {
+      await client.query("update employees set role = $2, updated_at = now() where role = $1", [oldRole, newRole]);
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function applyModuleOwnerPermissionRules() {
   const usernameRows = Object.entries(moduleOwnerPermissionRules).flatMap(([username, permissions]) => {
     return permissions.map((permissionKey) => [username, permissionKey]);
@@ -1300,7 +1294,8 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
   const body = await readJson(req);
   const username = normalizeUsername(body.username);
   const name = String(body.name || "").trim();
-  const role = String(body.role || "授课老师").trim() || "授课老师";
+  const requestedRole = String(body.role || "授课老师").trim() || "授课老师";
+  const role = deprecatedRoleMap[requestedRole] || requestedRole;
   if (!username || !name) {
     send(res, 400, { ok: false, error: "missing_employee_fields", message: "老师姓名和用户名拼音必须填写。" }, headers);
     return;
@@ -3070,7 +3065,7 @@ async function route(req, res) {
   }
 }
 
-applyDepartedEmployeeLocks().then(applyModuleOwnerPermissionRules).finally(() => {
+applyDepartedEmployeeLocks().then(migrateDeprecatedEmployeeRoles).then(applyModuleOwnerPermissionRules).finally(() => {
   http.createServer(route).listen(port, () => {
     console.log(`JRC cloud API listening on ${port}`);
   });
