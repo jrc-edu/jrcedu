@@ -1426,7 +1426,7 @@ async function handleDepartEmployee(req, res, headers, authorization) {
       update employees
       set status = 'departed',
           metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
-            'departedAt', $2, 'departedReason', $3, 'historicalRecordsRetained', true
+            'departedAt', $2::text, 'departedReason', $3::text, 'historicalRecordsRetained', true
           ),
           updated_at = now()
       where username = $1
