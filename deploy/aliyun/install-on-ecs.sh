@@ -68,6 +68,14 @@ server {
     proxy_set_header X-Forwarded-Proto \$scheme;
   }
 
+  # HTML selects the application script versions. Always revalidate it so a
+  # browser cannot keep running an old onboarding/offboarding workflow.
+  location ~* ^/jrcedu/.*\.html$ {
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    expires -1;
+    try_files \$uri =404;
+  }
+
   location ~* ^/jrcedu/.*\.(?:css|js|svg|png|jpg|jpeg|webp|woff|woff2)$ {
     expires 1h;
     add_header Cache-Control "public, max-age=3600";
@@ -112,6 +120,14 @@ server {
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
+  }
+
+  # HTML selects the application script versions. Always revalidate it so a
+  # browser cannot keep running an old onboarding/offboarding workflow.
+  location ~* ^/jrcedu/.*\.html$ {
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    expires -1;
+    try_files \$uri =404;
   }
 
   location ~* ^/jrcedu/.*\.(?:css|js|svg|png|jpg|jpeg|webp|woff|woff2)$ {

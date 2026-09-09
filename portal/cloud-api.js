@@ -131,11 +131,14 @@
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
+      // Employee directories are an operational source of truth. A completed
+      // onboarding/offboarding must always read the server's latest roster.
       const response = await fetch(`${config.apiBaseUrl}${path}`, {
         method,
         headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
         credentials: "include",
+        cache: method === "GET" ? "no-store" : "default",
         signal: controller?.signal
       });
 
