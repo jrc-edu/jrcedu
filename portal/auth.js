@@ -463,7 +463,7 @@ const JRC_TEACHING_QUALITY_ADMIN_USERNAMES = ["zhengjiayi", "chengzhihao"];
 const JRC_STUDENT_SERVICE_ADMIN_USERNAMES = ["yanyuhan", "zhoushan", "gaofangyan", "chengzhihao"];
 const JRC_VIDEO_OPS_ADMIN_USERNAMES = ["chengzhihao", "gaofangyan", "chenyuqing"];
 const JRC_VIDEO_OPS_ADMIN_NAMES = ["程志豪", "高芳燕", "高方燕", "陈雨晴"];
-const JRC_DEPARTED_EMPLOYEE_USERNAMES = new Set(["zhangyan", "hejianjun"]);
+const JRC_DEPARTED_EMPLOYEE_USERNAMES = new Set(["zhangyan", "hejianjun", "panyungui"]);
 const JRC_GRANULAR_MODULES = [
   ["studentService", "学生服务"],
   ["curriculum", "教研课程"],
