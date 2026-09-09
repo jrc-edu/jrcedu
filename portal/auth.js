@@ -622,6 +622,7 @@ function jrcWriteCustomEmployees(employees) {
 
 function jrcGetAllEmployees() {
   const byUsername = new Map();
+  const roleMap = { "试用期学管": "学管", "试用期老师": "授课老师" };
   const putEmployee = (employee) => {
     if (!employee || typeof employee !== "object") return;
     const username = String(employee.username || "").trim().toLowerCase();
@@ -631,6 +632,7 @@ function jrcGetAllEmployees() {
     byUsername.set(username, {
       ...existing,
       ...safeEmployee,
+      role: roleMap[safeEmployee.role] || safeEmployee.role,
       username
     });
   };
@@ -686,7 +688,7 @@ async function jrcHydrateCustomEmployeesFromCloud() {
     });
     if (cloudRosterAvailable) {
       const activeUsernames = new Set(activeRows.map((employee) => String(employee?.username || "").trim().toLowerCase()).filter(Boolean));
-      map.forEach((employee, username) => {
+      const markDeparted = (employee, username) => {
         if (username && !activeUsernames.has(username)) {
           map.set(username, {
             ...(map.get(username) || employee),
@@ -697,6 +699,11 @@ async function jrcHydrateCustomEmployeesFromCloud() {
             permissions: []
           });
         }
+      };
+      map.forEach(markDeparted);
+      JRC_EMPLOYEES.forEach((employee) => {
+        const username = String(employee?.username || "").trim().toLowerCase();
+        markDeparted(employee, username);
       });
     }
     activeRows.forEach((employee) => {
