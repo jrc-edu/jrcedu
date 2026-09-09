@@ -2909,12 +2909,19 @@
       const type = $("hrTypeInput")?.value || "入职";
       const flowHint = $("hrFlowHint");
       const noteInput = $("hrNoteInput");
+      const hireDateInput = $("hrHireDateInput");
+      const hireDateLabel = hireDateInput?.closest("label")?.querySelector("span");
+      const regularDateField = $("hrRegularDateInput")?.closest("label");
+      const saveButton = $("hrSaveButton");
       const guide = hrTypeGuides[type] || hrTypeGuides.培训记录;
+      if (hireDateLabel) hireDateLabel.textContent = type === "离职" ? "离职日期" : "入职日期";
+      if (regularDateField) regularDateField.hidden = type === "离职";
+      if (saveButton) saveButton.textContent = type === "离职" ? "完成离职并停用账号" : type === "入职" ? "保存入职并创建账号" : "保存人事管理事项";
       if (noteInput) noteInput.placeholder = guide.notePlaceholder;
       if (flowHint) {
         const simpleHints = {
           入职: "入职：填写姓名、登录账号、手机号、岗位、入职日期即可；登录账号建议用姓名拼音，一次性初始密码。",
-          离职: "离职：从候选名单选择员工姓名，保存后会出现离职清单；清单完成后再归档。",
+          离职: "离职：选择员工、填写离职日期后直接完成；系统会停用登录账号、移出在职名单，并保留历史排课、上课和结算数据。",
           转正: "转正：选择员工姓名，简单写转正结论即可；系统会保留记录。",
           权限调整: "权限调整：选择员工姓名，备注写需要开通或关闭的权限即可。",
           提成调整: "提成调整：选择员工姓名，备注写调整口径和生效月份即可。",
@@ -3584,6 +3591,10 @@
         setText("hrMessage", "入职请填写登录账号，建议使用姓名拼音。");
         return;
       }
+      if (type === "离职" && !hireDate) {
+        setText("hrMessage", "离职请填写离职日期。");
+        return;
+      }
       let accountMessage = "";
       if (type === "入职" && typeof window.JRC_UPSERT_EMPLOYEE_FROM_HR === "function") {
         const result = await window.JRC_UPSERT_EMPLOYEE_FROM_HR({
@@ -3602,6 +3613,21 @@
         }
         accountMessage = result.message || "";
       }
+      if (type === "离职") {
+        const confirmed = window.confirm(`${employee} 将立即停用登录账号并移出在职员工名单。历史排课、上课和结算记录会保留。确认办理离职吗？`);
+        if (!confirmed) return;
+        if (typeof window.JRC_MARK_EMPLOYEE_DEPARTED === "function") {
+          const result = await window.JRC_MARK_EMPLOYEE_DEPARTED(employee, {
+            departedAt: hireDate,
+            reason: note || "人事离职办理"
+          });
+          if (!result.ok) {
+            setText("hrMessage", result.message || "离职办理失败，请稍后重试。");
+            return;
+          }
+          accountMessage = result.message || "";
+        }
+      }
       const systemByType = {
         入职: "员工档案、登录账号、岗位权限",
         离职: "员工档案、登录账号、权限、财务结算",
@@ -3612,7 +3638,7 @@
       };
       const nextByType = {
         入职: "已按岗位生成默认权限，后续可在全员名单微调",
-        离职: "按离职清单逐项确认",
+        离职: "登录账号已停用，已移出在职名单；历史记录已保留",
         转正: "已记录转正结果",
         权限调整: "按备注调整权限",
         提成调整: "同步财务核对",
@@ -3627,26 +3653,23 @@
         hireDate,
         regularDate,
         system: systemByType[type] || "-",
-        status: type === "离职" ? "处理中" : "已完成",
+        status: "已完成",
         owner: currentOperator().name || "-",
         next: nextByType[type] || "-",
         note: note || "-",
-        offboardingChecklist: type === "离职"
-          ? editingIndex >= 0 && Array.isArray(rows[editingIndex].offboardingChecklist)
-            ? rows[editingIndex].offboardingChecklist
-            : buildOffboardingChecklist(employee)
-          : undefined,
+        departureDate: type === "离职" ? hireDate : "",
+        offboardingChecklist: undefined,
         createdAt: editingIndex >= 0 ? rows[editingIndex].createdAt : nowText(),
         updatedAt: nowText()
       };
       if (editingIndex >= 0) {
         rows[editingIndex] = payload;
         recordAudit(moduleKey, "更新", employee, `${payload.type} / ${payload.status}`);
-        setText("hrMessage", type === "离职" ? `已更新 ${employee} 的离职流程。清单全部确认后，请点击“完成离职并归档”结束流程。` : `已更新 ${employee} 的事项。`);
+        setText("hrMessage", type === "离职" ? `${accountMessage || `${employee} 的离职已完成。`}` : `已更新 ${employee} 的事项。`);
       } else {
         rows.unshift(payload);
         recordAudit(moduleKey, "新增", employee, `${payload.type} / ${payload.status}`);
-        setText("hrMessage", type === "离职" ? `已创建 ${employee} 的离职流程。清单全部确认后，会出现“完成离职并归档”按钮。` : `${accountMessage || `已保存 ${employee} 的事项。`}`);
+        setText("hrMessage", type === "离职" ? `${accountMessage || `${employee} 的离职已完成。`}` : `${accountMessage || `已保存 ${employee} 的事项。`}`);
       }
       writeStore(key, rows);
       resetForm();
@@ -3690,7 +3713,7 @@
       render();
       setText("hrMessage", `已更新 ${rows[rowIndex].employee} 的离职流程。`);
     });
-    $("hrTaskTableBody")?.addEventListener("click", (event) => {
+    $("hrTaskTableBody")?.addEventListener("click", async (event) => {
       const button = event.target.closest("[data-hr-complete-offboard]");
       if (!button) return;
       if (!capabilities.update) {
@@ -3706,7 +3729,7 @@
         return;
       }
       if (typeof window.JRC_MARK_EMPLOYEE_DEPARTED === "function") {
-        const result = window.JRC_MARK_EMPLOYEE_DEPARTED(row.employee, { reason: row.note || "离职流程完成归档" });
+        const result = await window.JRC_MARK_EMPLOYEE_DEPARTED(row.employee, { reason: row.note || "离职流程完成归档" });
         if (!result.ok) {
           setText("hrMessage", result.message || "离职归档失败，请确认员工是否仍在在职名单。");
           return;

@@ -1411,6 +1411,52 @@ async function handleUpsertEmployee(req, res, headers, authorization) {
   }
 }
 
+async function handleDepartEmployee(req, res, headers, authorization) {
+  if (!canManageEmployees(authorization)) {
+    send(res, 403, { ok: false, error: "forbidden", message: "只有总管理员可以办理员工离职。" }, headers);
+    return;
+  }
+  const body = await readJson(req);
+  const username = normalizeUsername(body.username);
+  if (!username) {
+    send(res, 400, { ok: false, error: "missing_username", message: "缺少员工登录账号。" }, headers);
+    return;
+  }
+  const departedAt = String(body.departedAt || "").trim() || new Date().toISOString();
+  const reason = String(body.reason || "人事离职办理").trim();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await client.query(`
+      update employees
+      set status = 'departed',
+          metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
+            'departedAt', $2, 'departedReason', $3, 'historicalRecordsRetained', true
+          ),
+          updated_at = now()
+      where username = $1
+      returning id, name, username, status
+    `, [username, departedAt, reason]);
+    if (!result.rowCount) {
+      await client.query("rollback");
+      send(res, 404, { ok: false, error: "employee_not_found", message: "没有找到该员工账号。" }, headers);
+      return;
+    }
+    await client.query("delete from employee_permissions where employee_id = $1", [result.rows[0].id]);
+    await client.query(`
+      insert into audit_logs (module_key, action_key, target_type, target_id, summary, operator_name, operator_username, operator_role, created_at)
+      values ('hr', 'employee.depart', 'employee', $1, $2, $3, $4, $5, now())
+    `, [username, `办理离职并停用账号：${result.rows[0].name}；历史排课、上课和结算记录保留`, authorization?.payload?.name || "api-token", authorization?.payload?.sub || "api-token", authorization?.payload?.role || ""]);
+    await client.query("commit");
+    send(res, 200, { ok: true, employee: result.rows[0] }, headers);
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function handlePermissions(res, headers) {
   const catalog = await pool.query(`
     select permission_key, module_key, action_key, display_name, description
@@ -2994,6 +3040,7 @@ async function route(req, res) {
     }
     if (req.method === "GET" && url.pathname === "/employees") return await handleEmployees(res, headers);
     if (req.method === "POST" && url.pathname === "/employees") return await handleUpsertEmployee(req, res, headers, authorization);
+    if (req.method === "POST" && url.pathname === "/employees/depart") return await handleDepartEmployee(req, res, headers, authorization);
     if (req.method === "GET" && url.pathname === "/permissions") return await handlePermissions(res, headers);
     if (req.method === "POST" && url.pathname === "/change-password") return await handleChangePassword(req, res, headers, authorization);
     if (req.method === "POST" && url.pathname === "/ai-assistant") return await handleAiAssistant(req, res, headers, authorization);

@@ -244,6 +244,17 @@
     });
   }
 
+  async function departEmployee(employee = {}, options = {}) {
+    return request("/employees/depart", {
+      method: "POST",
+      body: {
+        username: employee.username,
+        departedAt: options.departedAt || "",
+        reason: options.reason || ""
+      }
+    });
+  }
+
   async function login(username, password) {
     const config = readConfig();
     if (!config.enabled) return { ok: false, skipped: true, reason: "cloud-disabled" };
@@ -459,6 +470,7 @@
     listEmployees,
     listPermissions,
     upsertEmployee,
+    departEmployee,
     login,
     changePassword,
     readModuleData,
