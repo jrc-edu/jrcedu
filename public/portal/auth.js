@@ -2468,7 +2468,7 @@ async function jrcMarkEmployeeDeparted(employeeName, options = {}) {
       departedAt: row.departedAt,
       reason: row.departedReason
     });
-    if (!cloudResult?.ok && !cloudResult?.skipped) {
+    if (!cloudResult?.ok && !cloudResult?.skipped && cloudResult?.status !== 404) {
       return { ok: false, message: "云端账号停用失败，未完成离职归档。请稍后重试。", cloudResult };
     }
   }
@@ -2476,7 +2476,7 @@ async function jrcMarkEmployeeDeparted(employeeName, options = {}) {
   else customEmployees.push(row);
   jrcWriteCustomEmployees(customEmployees);
   jrcSyncCustomEmployeesToCloud(customEmployees);
-  if (cloudResult?.ok) await jrcHydrateCustomEmployeesFromCloud();
+  if (cloudResult?.ok || cloudResult?.status === 404) await jrcHydrateCustomEmployeesFromCloud();
   window.JRC_EMPLOYEES = jrcGetAllEmployees();
   const currentEmployee = jrcResolveCurrentEmployee();
   jrcEnsureEmployeeSummary();
@@ -2485,7 +2485,7 @@ async function jrcMarkEmployeeDeparted(employeeName, options = {}) {
   jrcBindEmployeeDirectoryFilters();
   jrcBindEmployeeAddForm(currentEmployee);
   window.dispatchEvent(new CustomEvent("jrc-employee-directory-updated", { detail: { action: "departed", employee: row } }));
-  return { ok: true, employee: row, message: `${name} 已停用登录账号，并从在职员工名单移出。` };
+  return { ok: true, employee: row, message: cloudResult?.status === 404 ? `${name} 没有云端登录账号，已从正式在职名单归档移除。` : `${name} 已停用登录账号，并从在职员工名单移出。` };
 }
 
 async function jrcUpsertEmployeeFromHr(row = {}, options = {}) {
