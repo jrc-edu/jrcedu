@@ -436,18 +436,6 @@ const JRC_EMPLOYEES = [
     commissionRate: "20%"
   },
   {
-    name: "潘云贵",
-    username: "panyungui",
-    role: "授课老师",
-    phone: "13114114478",
-    wechat: "UNomnipotentyouth",
-    scope: "五年级",
-    hireDate: "2026-04-22",
-    regularDate: "2026-05-22",
-    subject: "数学",
-    commissionRate: "20%"
-  },
-  {
     name: "吴建勇",
     username: "wujianyong",
     role: "授课老师",
