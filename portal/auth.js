@@ -686,8 +686,7 @@ async function jrcHydrateCustomEmployeesFromCloud() {
     });
     if (cloudRosterAvailable) {
       const activeUsernames = new Set(activeRows.map((employee) => String(employee?.username || "").trim().toLowerCase()).filter(Boolean));
-      JRC_EMPLOYEES.forEach((employee) => {
-        const username = String(employee?.username || "").trim().toLowerCase();
+      map.forEach((employee, username) => {
         if (username && !activeUsernames.has(username)) {
           map.set(username, {
             ...(map.get(username) || employee),
@@ -702,7 +701,8 @@ async function jrcHydrateCustomEmployeesFromCloud() {
     }
     activeRows.forEach((employee) => {
       const username = String(employee?.username || "").trim().toLowerCase();
-      if (username) map.set(username, { ...(map.get(username) || {}), ...employee, username });
+      const roleMap = { "试用期学管": "学管", "试用期老师": "授课老师" };
+      if (username) map.set(username, { ...(map.get(username) || {}), ...employee, role: roleMap[employee.role] || employee.role, username });
     });
     jrcWriteCustomEmployees([...map.values()]);
     window.JRC_EMPLOYEES = jrcGetAllEmployees();
@@ -2462,8 +2462,9 @@ async function jrcMarkEmployeeDeparted(employeeName, options = {}) {
     departedReason: options.reason || "人事离职事项保存",
     permissions: []
   };
+  let cloudResult = null;
   if (window.JRC_CLOUD?.departEmployee) {
-    const cloudResult = await window.JRC_CLOUD.departEmployee(row, {
+    cloudResult = await window.JRC_CLOUD.departEmployee(row, {
       departedAt: row.departedAt,
       reason: row.departedReason
     });
@@ -2475,6 +2476,7 @@ async function jrcMarkEmployeeDeparted(employeeName, options = {}) {
   else customEmployees.push(row);
   jrcWriteCustomEmployees(customEmployees);
   jrcSyncCustomEmployeesToCloud(customEmployees);
+  if (cloudResult?.ok) await jrcHydrateCustomEmployeesFromCloud();
   window.JRC_EMPLOYEES = jrcGetAllEmployees();
   const currentEmployee = jrcResolveCurrentEmployee();
   jrcEnsureEmployeeSummary();
@@ -2531,6 +2533,7 @@ async function jrcUpsertEmployeeFromHr(row = {}, options = {}) {
   jrcWriteCustomEmployees(customEmployees);
   jrcSyncCustomEmployeesToCloud(customEmployees);
   const cloudResult = await jrcSyncEmployeeAccountToCloud(payload, { resetPassword: options.resetPassword !== false && !existing.username });
+  if (cloudResult?.ok) await jrcHydrateCustomEmployeesFromCloud();
   window.JRC_EMPLOYEES = jrcGetAllEmployees();
   const currentEmployee = jrcResolveCurrentEmployee();
   jrcEnsureEmployeeSummary();
