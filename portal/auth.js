@@ -694,11 +694,36 @@ async function jrcSyncEmployeeAccountToCloud(employee, options = {}) {
 async function jrcHydrateCustomEmployeesFromCloud() {
   if (!window.JRC_CLOUD?.readModuleData) return;
   try {
-    const result = await window.JRC_CLOUD.readModuleData(JRC_EMPLOYEE_DIRECTORY_STORAGE_KEY);
-    const remoteRows = Array.isArray(result?.data?.payload) ? result.data.payload : [];
-    if (!remoteRows.length) return;
+    const [directoryResult, employeeResult] = await Promise.all([
+      window.JRC_CLOUD.readModuleData(JRC_EMPLOYEE_DIRECTORY_STORAGE_KEY),
+      window.JRC_CLOUD.listEmployees?.()
+    ]);
+    const directoryRows = Array.isArray(directoryResult?.data?.payload) ? directoryResult.data.payload : [];
+    const activeRows = Array.isArray(employeeResult?.data?.employees) ? employeeResult.data.employees : [];
+    const cloudRosterAvailable = Boolean(employeeResult?.ok && Array.isArray(employeeResult?.data?.employees));
+    if (!directoryRows.length && !activeRows.length) return;
     const map = new Map();
-    [...jrcReadCustomEmployees(), ...remoteRows].forEach((employee) => {
+    [...jrcReadCustomEmployees(), ...directoryRows].forEach((employee) => {
+      const username = String(employee?.username || "").trim().toLowerCase();
+      if (username) map.set(username, { ...(map.get(username) || {}), ...employee, username });
+    });
+    if (cloudRosterAvailable) {
+      const activeUsernames = new Set(activeRows.map((employee) => String(employee?.username || "").trim().toLowerCase()).filter(Boolean));
+      JRC_EMPLOYEES.forEach((employee) => {
+        const username = String(employee?.username || "").trim().toLowerCase();
+        if (username && !activeUsernames.has(username)) {
+          map.set(username, {
+            ...(map.get(username) || employee),
+            username,
+            employmentStatus: "departed",
+            status: "离职",
+            accountStatus: "disabled",
+            permissions: []
+          });
+        }
+      });
+    }
+    activeRows.forEach((employee) => {
       const username = String(employee?.username || "").trim().toLowerCase();
       if (username) map.set(username, { ...(map.get(username) || {}), ...employee, username });
     });
