@@ -281,9 +281,9 @@
             <a class="button secondary" href="./video-ops.html">短视频系统</a>
           </div>
         </div>
-        <p class="hero-text">这个页面仅给管理员查看，用来确认 DeepSeek 是否正常、哪些业务已经启用 AI、哪些高风险动作必须人工确认。普通老师不需要看这里，直接进入具体系统使用 AI。</p>
+        <p class="hero-text">这个页面仅给管理员查看，用来确认 MiniMax 是否正常、哪些业务已经启用 AI、哪些高风险动作必须人工确认。普通老师不需要看这里，直接进入具体系统使用 AI。</p>
         <div class="summary-grid">
-          <div class="summary-item"><span>接口底座</span><strong>DeepSeek</strong></div>
+          <div class="summary-item"><span>接口底座</span><strong>MiniMax</strong></div>
           <div class="summary-item"><span>已启用</span><strong>3 类</strong></div>
           <div class="summary-item"><span>观察中</span><strong>3 类</strong></div>
           <div class="summary-item"><span>高风险禁止直改</span><strong>3 类</strong></div>
@@ -294,7 +294,7 @@
         <div class="panel-head">
           <div>
             <p class="eyebrow">Status</p>
-            <h2>DeepSeek 接口状态</h2>
+            <h2>MiniMax 接口状态</h2>
             <p>这里用来判断网站 AI 底座是否正常。课堂反馈和短视频专家报告都依赖这个接口。</p>
           </div>
           <button class="button secondary" type="button" id="checkAiHealthButton">重新检测</button>
@@ -331,7 +331,7 @@
           <article class="priority-item">
             <span>01</span>
             <strong>先确认 AI 是否接通</strong>
-            <p>课堂反馈和短视频专家报告依赖同一个 DeepSeek 接口。接口异常时先处理 Key、额度、模型或服务器网络。</p>
+            <p>课堂反馈和短视频专家报告依赖同一个 MiniMax 接口。接口异常时先处理 Key、额度、模型或服务器网络。</p>
           </article>
           <article class="priority-item">
             <span>02</span>
@@ -358,7 +358,7 @@
         <div class="capability-grid">
           <article class="capability-card">
             <div class="card-head"><h3>课堂反馈AI助手</h3><span class="badge">已上线</span></div>
-            <p>老师输入课堂情况，DeepSeek 生成家长可读反馈；失败时不生成假草稿。</p>
+            <p>老师输入课堂情况，MiniMax 生成家长可读反馈；失败时不生成假草稿。</p>
             <ul>
               <li>单学生、多学生反馈</li>
               <li>串名检查和归档</li>
@@ -481,14 +481,14 @@
             }
             const result = await window.JRC_CLOUD.aiAssistant({ mode: "health", text: "ping" });
             const data = result?.data || {};
-            if (result?.ok && data.configured && data.provider === "deepseek") {
-              setCard("aiProviderState", "ok", "DeepSeek 已接通", "课堂反馈和短视频专家报告可以调用 AI。");
-              setCard("aiModelState", "ok", data.model || "deepseek-chat", `提供方：${data.providerName || "DeepSeek"}`);
+            if (result?.ok && data.configured && data.provider === "minimax") {
+              setCard("aiProviderState", "ok", "MiniMax 已接通", "课堂反馈和短视频专家报告可以调用 AI。");
+              setCard("aiModelState", "ok", data.model || "MiniMax-M3", `提供方：${data.providerName || "MiniMax"}`);
               setCard("aiCheckedAt", "ok", timeText(), "接口检测通过。");
               return;
             }
             if (result?.ok && !data.configured) {
-              setCard("aiProviderState", "error", "DeepSeek Key 未配置", data.message || "请在服务器环境变量中配置 JRC_DEEPSEEK_API_KEY。");
+              setCard("aiProviderState", "error", "MiniMax Key 未配置", data.message || "请在服务器环境变量中配置 JRC_MINIMAX_API_KEY。");
               setCard("aiModelState", "warn", data.model || "-", "服务器还没有可用模型配置。");
               setCard("aiCheckedAt", "warn", timeText(), "接口未就绪。");
               return;

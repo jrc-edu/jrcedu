@@ -16,11 +16,12 @@ const systemHealthStateFile = process.env.JRC_HEALTH_STATE_FILE || "/opt/jrcedu-
 const uploadMaxBytes = Number(process.env.JRC_UPLOAD_MAX_BYTES || 30 * 1024 * 1024);
 const jsonMaxBytes = Number(process.env.JRC_JSON_MAX_BYTES || 72 * 1024 * 1024);
 const paikeStoreKey = "paike-june-system-v1";
-const deepseekApiKey = process.env.JRC_DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY || "";
-const deepseekApiUrl = process.env.JRC_DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
-const deepseekModel = process.env.JRC_DEEPSEEK_MODEL || "deepseek-chat";
-const deepseekTimeoutMs = Number(process.env.JRC_DEEPSEEK_TIMEOUT_MS || 45000);
-const deepseekMaxAttempts = Math.max(1, Number(process.env.JRC_DEEPSEEK_MAX_ATTEMPTS || 3));
+const minimaxApiKey = process.env.JRC_MINIMAX_API_KEY || process.env.MINIMAX_API_KEY || "";
+const minimaxApiUrl = process.env.JRC_MINIMAX_API_URL || "https://api.minimaxi.com/v1/chat/completions";
+const minimaxModel = process.env.JRC_MINIMAX_MODEL || "MiniMax-M3";
+const minimaxGroupId = process.env.JRC_MINIMAX_GROUP_ID || "";
+const minimaxTimeoutMs = Number(process.env.JRC_MINIMAX_TIMEOUT_MS || 45000);
+const minimaxMaxAttempts = Math.max(1, Number(process.env.JRC_MINIMAX_MAX_ATTEMPTS || 3));
 const departedEmployeeUsernames = ["zhangyan", "hejianjun"];
 const deprecatedRoleMap = { "试用期学管": "学管", "试用期老师": "授课老师" };
 const videoOpsManagerPermissions = ["videoOps.access", "videoOps.edit"];
@@ -1128,10 +1129,11 @@ async function handleSystemDiagnostics(res, headers) {
       database: "connected"
     },
     ai: {
-      configured: Boolean(deepseekApiKey),
-      model: deepseekModel,
-      timeoutSeconds: Math.round(deepseekTimeoutMs / 1000),
-      maxAttempts: deepseekMaxAttempts
+      configured: Boolean(minimaxApiKey),
+      provider: "minimax",
+      model: minimaxModel,
+      timeoutSeconds: Math.round(minimaxTimeoutMs / 1000),
+      maxAttempts: minimaxMaxAttempts
     },
     data: {
       storeCount: Number(summary.store_count || 0),
@@ -2273,7 +2275,7 @@ function localAiDraft(body) {
     parentMessage,
     internalNote: mode === "classFeedback"
       ? "课堂反馈必须由 AI 模型生成；当前未生成本地兜底正文。"
-      : "DeepSeek Key 尚未配置或接口暂不可用，本结果为本地草稿整理。",
+      : "MiniMax Key 尚未配置或接口暂不可用，本结果为本地草稿整理。",
     suggestedAction: ["feedback", "classFeedback"].includes(mode) ? "老师确认后归档学生服务，并复制发给家长。" : "",
     riskLevel: "正常",
     className: "",
@@ -2727,31 +2729,38 @@ function stringifyAiContent(content) {
   return String(content || "");
 }
 
+function aiMaxCompletionTokens(body) {
+  const mode = String(body?.mode || "");
+  const batchSize = Array.isArray(body?.batchStudents) ? body.batchStudents.length : 0;
+  if (mode === "classFeedback") return batchSize > 1 ? Math.min(4800, 800 + batchSize * 1000) : 1800;
+  if (mode === "videoOpsReport") return 3600;
+  return 1600;
+}
+
 function aiProviders() {
   return [{
-    key: "deepseek",
-    name: "DeepSeek",
-    apiKey: deepseekApiKey,
-    apiUrl: deepseekApiUrl,
-    model: deepseekModel,
-    timeoutMs: deepseekTimeoutMs,
-    maxAttempts: deepseekMaxAttempts,
+    key: "minimax",
+    name: "MiniMax",
+    apiKey: minimaxApiKey,
+    apiUrl: minimaxApiUrl,
+    model: minimaxModel,
+    timeoutMs: minimaxTimeoutMs,
+    maxAttempts: minimaxMaxAttempts,
     headers: () => ({
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${deepseekApiKey}`
+      "Authorization": `Bearer ${minimaxApiKey}`,
+      ...(minimaxGroupId ? { GroupId: minimaxGroupId } : {})
     }),
     payload: (body) => ({
-      model: deepseekModel,
+      model: minimaxModel,
       messages: [
         { role: "system", content: aiSystemPrompt() },
         { role: "user", content: buildAiUserPrompt(body) }
       ],
       temperature: 0.25,
-      max_tokens: String(body?.mode || "") === "classFeedback"
-        ? (Array.isArray(body?.batchStudents) && body.batchStudents.length > 1 ? 7800 : 6500)
-        : String(body?.mode || "") === "videoOpsReport"
-          ? 7600
-          : 5200
+      max_completion_tokens: aiMaxCompletionTokens(body),
+      thinking: { type: "disabled" },
+      reasoning_split: true
     })
   }];
 }
@@ -2801,7 +2810,7 @@ function aiFriendlyError(error) {
   const status = Number(error?.statusCode || 0);
   const message = String(error?.message || error || "").slice(0, 240);
   const provider = error?.providerName || "AI模型";
-  const timeoutMs = error?.timeoutMs || deepseekTimeoutMs;
+  const timeoutMs = error?.timeoutMs || minimaxTimeoutMs;
   if (/timeout/i.test(String(error?.code || ""))) return `${provider} 接口超时 ${Math.round(timeoutMs / 1000)} 秒`;
   if (status === 429) return "接口限流或额度繁忙";
   if ([500, 502, 503, 504].includes(status)) return `${provider} 服务临时异常 HTTP ${status}`;
@@ -2900,7 +2909,7 @@ async function callAiProvider(provider, body) {
 async function callAiChat(body) {
   const providers = configuredAiProviders();
   if (!providers.length) {
-    const error = new Error("DeepSeek Key 尚未配置。");
+    const error = new Error("MiniMax Key 尚未配置。");
     error.statusCode = 503;
     error.code = "ai_key_missing";
     throw error;
@@ -2955,7 +2964,7 @@ async function handleAiAssistant(req, res, headers, authorization) {
       provider: "none",
       configured: false,
       error: "ai_key_missing",
-      message: `${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：DeepSeek Key 尚未配置。请先在阿里云服务环境变量中配置 JRC_DEEPSEEK_API_KEY。`
+      message: `${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：MiniMax Key 尚未配置。请先在阿里云服务环境变量中配置 JRC_MINIMAX_API_KEY。`
     };
     if (!requiresModel) {
       send(res, 200, { ok: true, provider: "local", configured: false, result: fallback, warning: payload.error, message: payload.message }, headers);
@@ -2993,7 +3002,7 @@ async function handleAiAssistant(req, res, headers, authorization) {
       error: error?.code || "ai_failed",
       statusCode: error?.statusCode || 500,
       attempts: error?.attempts || primaryProvider?.maxAttempts || 1,
-      message: `${error?.providerName || primaryProvider?.name || "AI模型"} 调用失败，${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：${aiFriendlyError(error)}。请稍后再试；如果连续失败，请检查 DeepSeek API Key、额度、模型或服务器到 DeepSeek 的网络。`
+      message: `${error?.providerName || primaryProvider?.name || "AI模型"} 调用失败，${isClassFeedback ? "课堂反馈" : "AI 专家报告"}未生成：${aiFriendlyError(error)}。请稍后再试；如果连续失败，请检查 MiniMax API Key、额度、模型或服务器到 MiniMax 的网络。`
     };
     if (!requiresModel) {
       send(res, 200, { ok: true, provider: "local", configured: true, warning: payload.error, message: payload.message, result: fallback }, headers);

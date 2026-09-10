@@ -433,7 +433,7 @@
   async function aiAssistant(payload = {}) {
     return request("/ai-assistant", {
       method: "POST",
-      // The server may retry DeepSeek after a transient timeout. Do not abort the browser request first.
+      // The server may retry MiniMax after a transient timeout. Do not abort the browser request first.
       timeoutMs: 150000,
       body: payload
     });

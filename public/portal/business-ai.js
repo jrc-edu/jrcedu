@@ -479,7 +479,7 @@
     if (button) button.disabled = true;
     if (copyButton) copyButton.disabled = true;
     output.classList.remove("empty");
-    output.textContent = "正在调用 DeepSeek 生成建议，请稍等。";
+    output.textContent = "正在调用 MiniMax 生成建议，请稍等。";
     try {
       const employee = currentEmployee();
       const response = await window.JRC_CLOUD.aiAssistant({

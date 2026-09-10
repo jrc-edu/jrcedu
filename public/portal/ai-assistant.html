@@ -800,12 +800,12 @@
         box.innerHTML = `
           <div class="split-preview-card">
             <strong>批量生成提示</strong>
-            <p>已识别 ${names.length} 个学生。五段课堂反馈正文将直接交给 DeepSeek 生成，网页端只负责保存、编辑和串名检查。</p>
+            <p>已识别 ${names.length} 个学生。五段课堂反馈正文将直接交给 MiniMax 生成，网页端只负责保存、编辑和串名检查。</p>
           </div>
           ${names.map((name) => `
             <div class="split-preview-card">
               <strong>${escapeHtml(name)}</strong>
-              <p>DeepSeek 会为该学生生成一份完整课堂反馈；生成后请检查是否串名、是否有待补字段。</p>
+              <p>MiniMax 会为该学生生成一份完整课堂反馈；生成后请检查是否串名、是否有待补字段。</p>
             </div>
           `).join("")}
         `;
@@ -1393,8 +1393,8 @@
             parentMessage: formatted,
             polishedText: !result.polishedText || result.polishedText === parentMessage ? formatted : result.polishedText,
             internalNote: result.internalNote || (hasTemplate
-              ? "DeepSeek 已主写课堂反馈，系统仅做称呼与段落格式校验。"
-              : "DeepSeek 已返回课堂反馈正文，系统保留模型原文，老师可直接编辑后保存或归档。")
+              ? "MiniMax 已主写课堂反馈，系统仅做称呼与段落格式校验。"
+              : "MiniMax 已返回课堂反馈正文，系统保留模型原文，老师可直接编辑后保存或归档。")
           };
         }
         return result;
@@ -1435,7 +1435,7 @@
           return {
             ...result,
             title: `${name}｜课堂反馈`,
-            summary: "DeepSeek 已按学生分别写好完整课堂反馈，网页端仅做姓名隔离和格式检查。",
+            summary: "MiniMax 已按学生分别写好完整课堂反馈，网页端仅做姓名隔离和格式检查。",
             parentMessage: text,
             polishedText: text,
             sourceText,
@@ -1463,13 +1463,13 @@
         try {
           const response = await window.JRC_CLOUD?.aiAssistant?.(sharedPayload);
           if (!response?.ok || !response.data?.result) {
-            const errorMessage = aiRequestFailureMessage(response, "DeepSeek 没有成功返回同课多学生课堂反馈。");
+            const errorMessage = aiRequestFailureMessage(response, "MiniMax 没有成功返回同课多学生课堂反馈。");
             const error = new Error(errorMessage);
             error.response = response;
             throw error;
           }
           rows = buildAiWrittenBatchFeedbackResults(response.data.result, names, sourceText, meta);
-          if (!rows.length) throw new Error("DeepSeek 未返回每个学生的完整课堂反馈，本次不生成课堂反馈。");
+          if (!rows.length) throw new Error("MiniMax 未返回每个学生的完整课堂反馈，本次不生成课堂反馈。");
         } catch (error) {
           console.warn("Batch class feedback generation failed.", error);
           throw error;
@@ -1582,15 +1582,15 @@
           const batchNames = payload.mode === "classFeedback" ? splitTargetNames(target) : [];
           if (batchNames.length > 1) {
             await runBatchClassFeedback(payload, batchNames);
-            byId("aiConfigNotice").textContent = "AI 接口已接入 DeepSeek。";
+            byId("aiConfigNotice").textContent = "AI 接口已接入 MiniMax。";
             byId("aiMessage").textContent = `已生成 ${batchNames.length} 份课堂反馈，请逐份检查后保存。`;
             return;
           }
           const result = await window.JRC_CLOUD?.aiAssistant?.(payload);
           if (result?.ok && result.data?.result) {
             renderResult(ensureClassFeedbackTemplate(result.data.result, payload));
-            byId("aiConfigNotice").textContent = result.data.provider === "deepseek"
-              ? "AI 接口已接入 DeepSeek。"
+            byId("aiConfigNotice").textContent = result.data.provider === "minimax"
+              ? "AI 接口已接入 MiniMax。"
               : "已生成整理草稿。";
             byId("aiMessage").textContent = "整理完成，请检查后保存。";
             return;
@@ -1598,7 +1598,7 @@
           const errorMessage = aiRequestFailureMessage(result);
           if (payload.mode === "classFeedback") {
             renderAiFailure(errorMessage);
-            byId("aiConfigNotice").textContent = "课堂反馈必须调用 DeepSeek；当前未成功。";
+            byId("aiConfigNotice").textContent = "课堂反馈必须调用 MiniMax；当前未成功。";
             byId("aiMessage").textContent = "AI 调用失败，未生成课堂反馈。";
             return;
           }
@@ -1606,9 +1606,9 @@
           byId("aiMessage").textContent = "已生成整理草稿，请检查后保存。";
         } catch (error) {
           if (payload.mode === "classFeedback") {
-            const message = error?.message || "DeepSeek 没有调用成功。";
+            const message = error?.message || "MiniMax 没有调用成功。";
             renderAiFailure(message);
-            byId("aiConfigNotice").textContent = "课堂反馈必须调用 DeepSeek；当前未成功。";
+            byId("aiConfigNotice").textContent = "课堂反馈必须调用 MiniMax；当前未成功。";
             byId("aiMessage").textContent = "AI 调用失败，未生成课堂反馈。";
             return;
           }
@@ -2725,11 +2725,11 @@
       if (getHistoryPanelState().drafts) hydrateDrafts();
       if (getHistoryPanelState().archived) hydrateArchivedFeedbacks();
       window.JRC_CLOUD?.aiAssistant?.({ mode: "health", text: "ping" }).then((result) => {
-        byId("aiConfigNotice").textContent = result?.ok && result.data?.provider === "deepseek"
-          ? "AI 接口已接入 DeepSeek。"
-          : "AI 页面已就绪；DeepSeek Key 配好后会自动调用模型。";
+        byId("aiConfigNotice").textContent = result?.ok && result.data?.provider === "minimax"
+          ? "AI 接口已接入 MiniMax。"
+          : "AI 页面已就绪；MiniMax Key 配好后会自动调用模型。";
       }).catch(() => {
-        byId("aiConfigNotice").textContent = "AI 页面已就绪；DeepSeek Key 配好后会自动调用模型。";
+        byId("aiConfigNotice").textContent = "AI 页面已就绪；MiniMax Key 配好后会自动调用模型。";
       });
     </script>
     <script src="/jrcedu/portal/mobile-unified.js?v=20260716core"></script>

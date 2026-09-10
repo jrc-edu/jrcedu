@@ -235,7 +235,7 @@ const checks = [
     detail: "老师确认后归档到学生服务，而不是 AI 自动直接发给家长。"
   },
   {
-    title: "AI课堂反馈由 DeepSeek 直写",
+    title: "AI课堂反馈由 MiniMax 直写",
     pass: /looksLikeJsonText/.test(files.ai)
       && /课堂反馈AI助手/.test(files.ai)
       && /type="hidden" value="classFeedback"/.test(files.ai)
@@ -249,22 +249,22 @@ const checks = [
       && /buildAiWrittenBatchFeedbackResults/.test(files.ai)
       && /structuredData 必须包含 students 数组/.test(files.api)
       && /students\[\]\.parentMessage/.test(files.api)
-      && /max_tokens:\s*String\(body\?\.mode \|\| ""\) === "classFeedback"/.test(files.api)
-      && /7800/.test(files.api)
-      && /6500/.test(files.api)
+      && /max_completion_tokens:\s*aiMaxCompletionTokens\(body\)/.test(files.api)
+      && /4800/.test(files.api)
+      && /1800/.test(files.api)
       && !/buildBatchFeedbackResults/.test(files.ai)
       && !/normalizeSharedLesson/.test(files.ai)
       && !/buildClassFeedbackTemplate/.test(files.ai)
       && !/buildClassFeedbackTemplate/.test(files.api),
-    detail: "课堂反馈正文交给 DeepSeek 生成；多个关联对象要求 DeepSeek 返回 students[].parentMessage，网页端只做展示、保存、归档、格式提醒和串名拦截。"
+    detail: "课堂反馈正文交给 MiniMax 生成；多个关联对象要求 MiniMax 返回 students[].parentMessage，网页端只做展示、保存、归档、格式提醒和串名拦截。"
   },
   {
-    title: "DeepSeek调用超时重试保护",
-    pass: /deepseekMaxAttempts/.test(files.api)
+    title: "MiniMax调用超时重试保护",
+    pass: /minimaxMaxAttempts/.test(files.api)
       && /AbortController/.test(files.api)
       && /isRetryableAiError/.test(files.api)
       && /extractAiContent/.test(files.api),
-    detail: "DeepSeek 临时限流、超时、网络错误和 5xx 会自动短重试，并返回更明确的失败原因。"
+    detail: "MiniMax 临时限流、超时、网络错误和 5xx 会自动短重试，并返回更明确的失败原因。"
   },
   {
     title: "云端保存自动补同步",
