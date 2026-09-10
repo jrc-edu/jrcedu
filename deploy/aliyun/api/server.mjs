@@ -2685,7 +2685,17 @@ function ensureClassFeedbackResult(result, body) {
     };
   }
   const rawAiText = aiTextFromValue(result?._rawAiText || result?.polishedText || result?.parentMessage || "");
-  const parentMessage = aiTextFromValue(result?.parentMessage || rawAiText || "");
+  // MiniMax occasionally returns a valid structured object with the completed
+  // feedback nested in structuredData (or a single-student result). Treat that
+  // as a usable response instead of misreporting it as an upstream 502.
+  const singleStudent = structuredStudents.length === 1 ? structuredStudents[0] : null;
+  const parentMessage = aiTextFromValue(
+    result?.parentMessage
+      || rawAiText
+      || singleStudent?.parentMessage
+      || result?.structuredData?.parentMessage
+      || result
+  );
   const hasTemplate = parentMessage.includes("小课第") && parentMessage.includes("一、上课状态") && parentMessage.includes("本次课上课内容") && parentMessage.includes("知识点要点") && parentMessage.includes("学习掌握情况") && parentMessage.includes("课后作业");
   if (parentMessage && !looksLikeJsonText(parentMessage)) {
     const formatted = formatClassFeedbackText(parentMessage, body?.target || "");
