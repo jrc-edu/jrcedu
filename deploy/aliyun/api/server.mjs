@@ -2395,7 +2395,8 @@ function aiSystemPrompt() {
     "你负责根据老师原话区分课堂状态、上课内容、知识点、掌握情况和作业；知识点要点由你根据真实上课主题智能补充。",
     "不确定的次数、作业名称、具体知识点可保留 __ 等待老师确认。",
     "返回严格 JSON，不要 Markdown，不要解释，不要输出 <think>、分析过程、英文 reasoning、代码块或模板外文字。",
-    "JSON 字段：title, summary, polishedText, todoItems, parentMessage, internalNote, suggestedAction, riskLevel, className, courseName, quickTags, structuredData。",
+    "JSON 字段按此顺序输出：title, parentMessage, polishedText, summary, todoItems, internalNote, suggestedAction, riskLevel, className, courseName, quickTags, structuredData。",
+    "先完整写 parentMessage；polishedText 可以与 parentMessage 相同或为其内部整理版，但不得留空。",
     "todoItems 必须是字符串数组。没有内容时填空字符串或空数组。"
   ].join("\n");
 }
@@ -2742,7 +2743,9 @@ function stringifyAiContent(content) {
 function aiMaxCompletionTokens(body) {
   const mode = String(body?.mode || "");
   const batchSize = Array.isArray(body?.batchStudents) ? body.batchStudents.length : 0;
-  if (mode === "classFeedback") return batchSize > 1 ? Math.min(4800, 800 + batchSize * 1000) : 1800;
+  // A complete parent feedback contains two long text fields. Leave enough
+  // room for the model to finish them instead of returning an empty tail.
+  if (mode === "classFeedback") return batchSize > 1 ? Math.min(7600, 1400 + batchSize * 1800) : 3600;
   if (mode === "videoOpsReport") return 3600;
   return 1600;
 }
