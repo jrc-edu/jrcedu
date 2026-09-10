@@ -1483,7 +1483,7 @@
         };
         latestBatchResults = rows;
         byId("aiResultBox").innerHTML = `
-          <div class="result-item"><strong>已生成 ${latestBatchResults.length} 份课堂反馈</strong><p>DeepSeek 已按每个学生直接写出完整草稿；网页端只做姓名隔离、段落格式和保存。每一份都可以直接修改，点“保存草稿”会保存全部草稿。</p></div>
+          <div class="result-item"><strong>已生成 ${latestBatchResults.length} 份课堂反馈</strong><p>MiniMax 已按每个学生直接写出完整草稿；网页端只做姓名隔离、段落格式和保存。每一份都可以直接修改，点“保存草稿”会保存全部草稿。</p></div>
           <div class="result-item"><strong>下一步</strong><p>先检查每一份是否只写本学生内容，再点“批量保存多学生草稿”；之后到草稿库逐个精修并归档学生服务。</p></div>
           ${latestBatchResults.map((item, index) => `
             <div class="result-item">
@@ -1528,7 +1528,7 @@
               ? `家长您好，${payload.text}。以上为本节课学习反馈，老师会继续跟进孩子的掌握情况。`
               : "",
           internalNote: payload.mode === "classFeedback"
-            ? "课堂反馈必须由 DeepSeek 生成；当前未生成本地兜底正文。"
+            ? "课堂反馈必须由 MiniMax 生成；当前未生成本地兜底正文。"
             : "已整理成草稿，请老师确认后再保存或发送。"
         };
       }
@@ -1539,12 +1539,12 @@
         byId("aiResultBox").innerHTML = `
           <div class="result-item">
             <strong>AI 调用未成功</strong>
-            <p>${escapeHtml(message || "DeepSeek 没有调用成功，本次不生成课堂反馈。")}</p>
+            <p>${escapeHtml(message || "MiniMax 没有调用成功，本次不生成课堂反馈。")}</p>
           </div>
         `;
       }
 
-      function aiRequestFailureMessage(response, fallback = "DeepSeek 没有调用成功。") {
+      function aiRequestFailureMessage(response, fallback = "MiniMax 没有调用成功。") {
         const data = response?.data;
         if (data && typeof data === "object") {
           const message = String(data.message || data.error || "").trim();
@@ -1695,7 +1695,7 @@
         const sourceText = byId("aiInputText").value.trim();
         const leakWarnings = [];
         if (!latestBatchResults.length) {
-          byId("aiMessage").textContent = "请先点 AI 整理，让 DeepSeek 为每个学生直接生成独立课堂反馈草稿；网页端不再本地拆分或代写。";
+          byId("aiMessage").textContent = "请先点 AI 整理，让 MiniMax 为每个学生直接生成独立课堂反馈草稿；网页端不再本地拆分或代写。";
           return;
         }
         let batchResults = latestBatchResults.map((result, index) => {
