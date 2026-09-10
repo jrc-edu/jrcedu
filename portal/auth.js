@@ -2463,6 +2463,9 @@ async function jrcMarkEmployeeDeparted(employeeName, options = {}) {
       departedAt: row.departedAt,
       reason: row.departedReason
     });
+    if (cloudResult?.status === 401) {
+      return { ok: false, message: "登录状态已失效，未办理离职。请退出工作台后重新登录，再重新提交离职。" };
+    }
     if (!cloudResult?.ok && !cloudResult?.skipped && cloudResult?.status !== 404) {
       return { ok: false, message: "云端账号停用失败，未完成离职归档。请稍后重试。", cloudResult };
     }
